@@ -564,7 +564,7 @@ int main()
             phone->write(phone->announce());
         }
         run(32000);
-        CHECK(std::string(bridge->status()).rfind("Bitchat visible in ", 0) == 0);
+        CHECK(std::string(bridge->status()).rfind("Bitchat starts: ", 0) == 0);
         run(30000);
         CHECK(std::string(bridge->status()) == "Ready: Bitchat + LoRa");
         fakeSent.clear();
@@ -581,6 +581,22 @@ int main()
             same = same || packet.sender == bridgeId;
         }
         CHECK(same);
+    }
+
+    // The radio's own button walks through the three modes, and the public channel comes back by itself.
+    CHECK(std::string(bridge->modeName()) == "Bitchat + LoRa");
+    CHECK(bridge->nextMode() && std::string(bridge->modeName()) == "Bitchat only" && bridge->textChannel() == NO_CHANNEL);
+    CHECK(bridge->nextMode() && std::string(bridge->modeName()) == "Off" && !bridge->enabled());
+    run(1500);
+    CHECK(std::string(bridge->status()) == "Bridge is off");
+    CHECK(bridge->nextMode() && std::string(bridge->modeName()) == "Bitchat + LoRa");
+    run(1500);
+    CHECK(bridge->enabled() && bridge->textChannel() == 1 && mesh.channels[1].name == PUBLIC_CHANNEL_NAME);
+    {
+        unsigned phones = 9, people = 9;
+        uint32_t out = 0, in = 0;
+        bridge->counters(phones, people, out, in);
+        CHECK(phones == blePhones() && people == 0);
     }
 
     // Bluetooth switched off at the radio stops the bridge; on again, it resumes.

@@ -4,10 +4,10 @@ Firmware _companion_ do MeshCore com uma ponte embutida para o aplicativo
 [Bitchat](https://github.com/permissionlesstech/bitchat). Um telefone com o Bitchat, perto do
 rádio, conversa com quem está na malha MeshCore, e o contrário, sem internet e sem servidor.
 
-**Estado em 2026-11-14: nada aqui foi ligado em aparelho.** O código compila para o Heltec V3 e
-passa nos testes em computador (telefones e rádio simulados). Falta todo o ensaio real:
-pareamento com o aplicativo MeshCore, encontro pelo Bitchat, troca de mensagens, alcance,
-consumo e duração. Trate como experimento até haver relato de uso.
+**Estado em 2026-11-14.** No Heltec V3, o autor seguiu o roteiro de instalação e de primeiro uso
+abaixo e relatou que tudo funcionou. O relato não traz medições: alcance, consumo, memória livre e
+duração não foram medidos, e ele não detalha quais trajetos foram conferidos. Os demais aparelhos
+da [lista](DEVICES.md) só foram compilados; nenhum foi ligado. Trate como versão experimental.
 
 ## O que faz
 
@@ -33,35 +33,66 @@ pagamentos não atravessam a ponte.
 
 ## Aparelhos
 
-| Aparelho                     | Ambiente de compilação                  | Estado                    |
-| ---------------------------- | --------------------------------------- | ------------------------- |
-| Heltec V3 (ESP32-S3, SX1262) | `Heltec_v3_companion_radio_ble_bitchat` | Compila; não ensaiado     |
-| Outros ESP32                 | —                                       | Não preparados            |
-| nRF52 (T1000-E, RAK4631 etc.) | —                                      | Não preparados (ver fim)  |
+| Aparelhos                                        | Estado                                              |
+| ------------------------------------------------ | --------------------------------------------------- |
+| Heltec V3 (ESP32-S3, SX1262)                     | Funcionou no ensaio do autor                        |
+| Outros ESP32, ESP32-S3 e ESP32-C3 da [lista](DEVICES.md) | Compilam; nenhum foi ligado                 |
+| ESP32-C6                                         | Fora: a biblioteca Bluetooth usada não os atende    |
+| nRF52 (T1000-E, RAK4631 etc.)                    | Fora por ora (ver "O que falta")                    |
 
-## Instalação no Heltec V3
+Há um arquivo por aparelho, com o mesmo nome do firmware _companion_ Bluetooth original e o final
+`_bitchat`. Nos aparelhos sem memória PSRAM (ESP32 clássico e C3) a ponte pode recusar-se a ligar
+por falta de memória e avisar `Low memory: bridge OFF`; o rádio segue como MeshCore comum.
 
-Os arquivos são `meshcore-bitchat-heltec-v3.bin` e `meshcore-bitchat-heltec-v3-merged.bin`.
+## Instalação
 
-a) **Rádio que já roda o MeshCore _companion_ Bluetooth:** gravar o arquivo sem `merged` no
-endereço `0x10000`. Contatos, canais e identidade do rádio são mantidos.
+Cada aparelho tem dois arquivos na página da versão: `<aparelho>_bitchat.bin` e
+`<aparelho>_bitchat-merged.bin`. **Gravar o arquivo de outro aparelho pode impedir o rádio de
+ligar**; confira o nome.
 
-```bash
-esptool.py --chip esp32-s3 write_flash 0x10000 meshcore-bitchat-heltec-v3.bin
-```
-
-b) **Rádio com outro firmware (Meshtastic, por exemplo) ou novo:** apagar a memória e gravar o
+a) **Rádio com outro firmware (Meshtastic, por exemplo) ou novo:** apagar a memória e gravar o
 arquivo `merged` no endereço `0x0`. Tudo o que havia no rádio é perdido.
 
+b) **Rádio que já roda o MeshCore _companion_ Bluetooth:** gravar o arquivo sem `merged` no
+endereço `0x10000`. Contatos, canais e identidade do rádio são mantidos.
+
+### Pelo navegador
+
+Este caminho não foi conferido pelo autor; o do terminal, sim. No Chrome ou no Edge, em um computador, abrir <https://espressif.github.io/esptool-js/>, conectar
+o rádio pelo cabo USB e clicar em **Connect**. Para o caso (a): **Erase Flash**, depois endereço
+`0x0`, escolher o arquivo `merged` e **Program**. Para o caso (b): endereço `0x10000`, escolher o
+arquivo sem `merged` e **Program**, sem apagar. Ao fim, apertar o botão `RST` do rádio.
+
+### Pelo terminal
+
+Com o [esptool](https://docs.espressif.com/projects/esptool/) instalado (`pip install esptool`).
+Cópia de segurança completa do que está no rádio, para poder voltar (tamanho de 8 MB, o do Heltec
+V3; outros aparelhos têm outros tamanhos):
+
 ```bash
-esptool.py --chip esp32-s3 erase_flash
+python -m esptool --chip esp32-s3 -b 921600 read_flash 0x0 0x800000 backup.bin
+```
+
+Caso (a):
+
+```bash
+python -m esptool --chip esp32-s3 erase_flash
 ```
 
 ```bash
-esptool.py --chip esp32-s3 write_flash 0x0 meshcore-bitchat-heltec-v3-merged.bin
+python -m esptool --chip esp32-s3 write_flash 0x0 Heltec_v3_companion_radio_ble_bitchat-merged.bin
 ```
 
-**Volta ao original:** gravar o firmware oficial pelo [gravador do MeshCore](https://flasher.meshcore.io).
+Caso (b):
+
+```bash
+python -m esptool --chip esp32-s3 write_flash 0x10000 Heltec_v3_companion_radio_ble_bitchat.bin
+```
+
+Em aparelhos com outro chip, trocar `esp32-s3` por `esp32` ou `esp32-c3`.
+
+**Volta ao original:** gravar o firmware oficial pelo [gravador do MeshCore](https://flasher.meshcore.io),
+ou a cópia de segurança no endereço `0x0`.
 
 ## Primeiro uso
 
@@ -75,7 +106,7 @@ esptool.py --chip esp32-s3 write_flash 0x0 meshcore-bitchat-heltec-v3-merged.bin
 4. Conferir se existe o canal `#bitchat`. Enviar `!bridge` nele: a resposta chega no próprio canal,
    como mensagens de `bridge`.
 5. Abrir o Bitchat perto do rádio. No primeiro minuto depois de ligado, o rádio ainda se anuncia
-   como o firmware original e o Bitchat não o encontra; o estado mostra `Bitchat visible in N s`.
+   como o firmware original e o Bitchat não o encontra; o estado mostra `Bitchat starts: N s`.
    Passado esse minuto, esperar mais um e enviar `!bridge` de novo: `Bitchat` e `people` devem
    passar de zero.
 6. Escrever no `#mesh` do Bitchat. O texto deve aparecer no canal `#bitchat` do aplicativo
@@ -102,6 +133,15 @@ nesse aplicativo e **não são transmitidos**.
 
 `!ponte` vale no lugar de `!bridge`. No Bitchat, `!bridge` no `#mesh` devolve só o estado.
 
+## Na tela do rádio
+
+Nos rádios com tela há uma página **Bitchat bridge** entre as páginas iniciais, depois da de
+Bluetooth. Ela mostra o estado, quantos telefones Bitchat estão falando com o rádio, quantas
+pessoas são conhecidas e quantos textos foram e vieram pelo LoRa. Nessa página, o toque longo no
+botão (ou Enter, nos aparelhos com teclas) troca o modo, nesta ordem: `Bitchat + LoRa`,
+`Bitchat only`, `Off`. Ao voltar para `Bitchat + LoRa` por esse caminho, o canal usado é o
+`#bitchat`.
+
 ## Limites conhecidos
 
 a) Cada mensagem MeshCore leva até 160 bytes, remetente incluído. Texto maior do Bitchat é
@@ -126,7 +166,8 @@ verificado se o aplicativo MeshCore encontra o rádio em todos os telefones com 
 Se não encontrar, reiniciar o rádio e conectar no primeiro minuto, em que o anúncio é o
 original; a conexão feita nesse minuto continua depois dele.
 
-g) A tela do rádio não mostra o estado da ponte; ele é lido por `!bridge`.
+g) A página da ponte na tela existe só na interface mais comum dos rádios com tela (`ui-new`). Em
+aparelhos com outra interface, ou sem tela, o estado é lido por `!bridge`.
 
 h) O relógio do firmware não é alterado pela ponte. Sem o aplicativo MeshCore, as mensagens que
 vêm do Bitchat saem com a hora certa, mas o resto do MeshCore segue com a hora que tiver.
@@ -169,11 +210,13 @@ Os arquivos originais do MeshCore só mudam em `MyMesh.h`, `MyMesh.cpp` e `main.
 Compilar:
 
 ```bash
-pio run -e Heltec_v3_companion_radio_ble_bitchat
+pio run -e Heltec_v3_companion_radio_ble_bitchat -t mergebin
 ```
 
+Depois de trazer mudanças do MeshCore oficial, refazer a lista de ambientes:
+
 ```bash
-pio run -e Heltec_v3_companion_radio_ble_bitchat -t mergebin
+python tools/bitchat/generate_envs.py
 ```
 
 Testes em computador (sem aparelho), depois de uma compilação ter baixado as bibliotecas:
@@ -188,12 +231,12 @@ O núcleo veio da ponte para Meshtastic do mesmo autor
 
 ### O que falta
 
-a) Ensaio em aparelho, de tudo.
+a) Ensaio em aparelho de todos os modelos além do Heltec V3, e medições no próprio Heltec V3.
 
-b) Outros aparelhos ESP32: cada um precisa de um ambiente em `variants/bitchat/platformio.ini`.
+b) nRF52 (T1000-E, RAK4631): o MeshCore usa ali a biblioteca Bluefruit. A ponte para Meshtastic
+tem uma camada de adaptação para esse chip, que ainda não foi ligada em aparelho algum; só faz
+sentido trazê-la para cá depois desse ensaio.
 
-c) nRF52 (T1000-E, RAK4631): o MeshCore usa ali a biblioteca Bluefruit. A ponte para Meshtastic
-tem uma camada de adaptação para esse chip, ainda não ensaiada em aparelho; ela não foi trazida
-para cá.
+c) Página da ponte nas outras interfaces de tela (`ui-orig`, `ui-tiny`).
 
-d) Estado da ponte na tela do rádio.
+d) ESP32-C6, que depende de outra versão da biblioteca Bluetooth.

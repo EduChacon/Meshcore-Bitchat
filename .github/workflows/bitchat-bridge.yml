@@ -1,7 +1,16 @@
 name: Bitchat bridge
 
+# Tests on every push that touches the bridge. On main, or when started by hand, every bridge
+# environment is built; a release is published when the head commit message contains
+# [publish-release] or the manual run asks for it.
+
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the version named in variants/bitchat/platformio.ini
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -9,10 +18,10 @@ on:
     paths:
       - 'src/**'
       - 'examples/companion_radio/**'
-      - 'variants/bitchat/**'
-      - 'variants/heltec_v3/**'
+      - 'variants/**'
       - 'test/bitchat/**'
       - 'tools/bitchat/**'
+      - 'docs/bitchat/RELEASE.md'
       - 'platformio.ini'
       - '.github/workflows/bitchat-bridge.yml'
 
@@ -24,13 +33,16 @@ permissions:
   contents: read
 
 env:
-  BRIDGE_ENV: Heltec_v3_companion_radio_ble_bitchat
+  REFERENCE_ENV: Heltec_v3_companion_radio_ble_bitchat
   STOCK_ENV: Heltec_v3_companion_radio_ble
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+      version: ${{ steps.targets.outputs.version }}
     steps:
       - name: Clone Repo
         uses: actions/checkout@v6
@@ -51,17 +63,16 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
+      - name: Environments are up to date
+        run: |
+          python tools/bitchat/generate_envs.py
+          git diff --exit-code -- variants/bitchat/platformio.ini
+
       - name: Host tests
         run: |
           set -o pipefail
-          pio pkg install -e "$BRIDGE_ENV" 2>&1 | tail -5
-          python tools/bitchat/run_tests.py --crypto-dir ".pio/libdeps/$BRIDGE_ENV/Crypto" 2>&1 | tee tests.log
-
-      - name: Build companion with the bridge
-        run: |
-          set -o pipefail
-          pio run -e "$BRIDGE_ENV" 2>&1 | tee build.log | tail -40
-          pio run -e "$BRIDGE_ENV" -t mergebin 2>&1 | tail -5
+          pio pkg install -e "$REFERENCE_ENV" 2>&1 | tail -5
+          python tools/bitchat/run_tests.py --crypto-dir ".pio/libdeps/$REFERENCE_ENV/Crypto" 2>&1 | tee tests.log
 
       - name: Build stock companion (bridge flag absent)
         run: |
@@ -71,21 +82,105 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          for log in tests.log build.log stock.log; do
+          for log in tests.log stock.log; do
             [ -f "$log" ] || continue
-            grep -E "^PASS|^RAM:|^Flash:|SUCCESS" "$log" | head -4 | while IFS= read -r line; do echo "::notice title=$log::$line"; done
+            grep -E "PASS|^RAM:|^Flash:|SUCCESS" "$log" | head -5 | while IFS= read -r line; do echo "::notice title=$log::$line"; done
             grep -E "error:|Error [0-9]|undefined reference|^FAIL|did not compile|failed$" "$log" | head -8 | while IFS= read -r line; do echo "::error title=$log::$line"; done
           done
+
+      - name: Targets
+        id: targets
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            list=$(grep -oP '(?<=^\[env:)[^\]]+' variants/bitchat/platformio.ini)
+          else
+            list="$REFERENCE_ENV"
+          fi
+          echo "targets=$(echo "$list" | jq -R -s -c 'split("\n") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
+          echo "version=$(grep -oP "FIRMWARE_VERSION='\"\K[^\"]+" variants/bitchat/platformio.ini)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.verify.outputs.targets) }}
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v6
+
+      - name: Init Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-bitchat
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build
+        run: |
+          set -o pipefail
+          pio run -e "${{ matrix.environment }}" -t mergebin 2>&1 | tee build.log | tail -30
+
+      - name: Summary
+        if: always()
+        run: |
+          grep -E "^RAM:|^Flash:" build.log | head -2 | while IFS= read -r line; do echo "::notice title=${{ matrix.environment }}::$line"; done
+          grep -E "error:|Error [0-9]|undefined reference" build.log | head -8 | while IFS= read -r line; do echo "::error title=${{ matrix.environment }}::$line"; done
 
       - name: Collect firmware
         run: |
           mkdir -p firmware
-          cp ".pio/build/$BRIDGE_ENV/firmware.bin" firmware/meshcore-bitchat-heltec-v3.bin
-          cp ".pio/build/$BRIDGE_ENV/firmware-merged.bin" firmware/meshcore-bitchat-heltec-v3-merged.bin
-          sha256sum firmware/* | tee firmware/SHA256SUMS
+          cp ".pio/build/${{ matrix.environment }}/firmware.bin" "firmware/${{ matrix.environment }}.bin"
+          cp ".pio/build/${{ matrix.environment }}/firmware-merged.bin" "firmware/${{ matrix.environment }}-merged.bin"
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
-          name: meshcore-bitchat-heltec-v3
+          name: firmware-${{ matrix.environment }}
           path: firmware/
+
+  release:
+    needs: [verify, build]
+    # One board that fails to build does not hold back the others; its files are simply absent.
+    if: >-
+      !cancelled() && needs.verify.result == 'success' &&
+      ((github.event_name == 'push' && github.ref_name == 'main' && contains(github.event.head_commit.message, '[publish-release]')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v6
+
+      - name: Download firmware
+        uses: actions/download-artifact@v4
+        with:
+          pattern: firmware-*
+          path: published
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd published
+          sha256sum *.bin > SHA256SUMS
+          ls | wc -l
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ needs.verify.outputs.version }}"
+          gh release create "$version" published/* --target "$GITHUB_SHA" --prerelease \
+            --title "MeshCore + Bitchat $version" --notes-file docs/bitchat/RELEASE.md

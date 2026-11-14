@@ -294,6 +294,32 @@ bool BitchatBridge::startBasicMode(uint8_t channel)
     return saved;
 }
 
+bool BitchatBridge::nextMode()
+{
+    if (!settings.enabled) {
+        // Back on with LoRa: the public channel is provided again on the next tick.
+        settings.localOnly = 0;
+        defaultChannelAt = millis() - 10000;
+        return setEnabled(true);
+    }
+    if (!settings.localOnly)
+        return startBasicMode();
+    return setEnabled(false);
+}
+
+const char *BitchatBridge::modeName() const
+{
+    return !settings.enabled ? "Off" : settings.localOnly ? "Bitchat only" : "Bitchat + LoRa";
+}
+
+void BitchatBridge::counters(unsigned &phones, unsigned &people, uint32_t &out, uint32_t &in) const
+{
+    phones = unsigned(blePhones());
+    people = unsigned(runtime ? runtime->peers->size() : 0);
+    out = submittedRadio;
+    in = importedRadio;
+}
+
 void BitchatBridge::releaseRuntime()
 {
     bleReleaseBuffers();
@@ -372,7 +398,7 @@ const char *BitchatBridge::status() const
     }
     if (nativeWindow) {
         const uint32_t left = (NATIVE_WINDOW_MS - uint32_t(millis() - bluetoothAt) + 999) / 1000;
-        snprintf(guardText, sizeof(guardText), "Bitchat visible in %lu s", static_cast<unsigned long>(left));
+        snprintf(guardText, sizeof(guardText), "Bitchat starts: %lu s", static_cast<unsigned long>(left));
         return guardText;
     }
     return textReady ? "Ready: Bitchat + LoRa" : "Ready: Bitchat only";

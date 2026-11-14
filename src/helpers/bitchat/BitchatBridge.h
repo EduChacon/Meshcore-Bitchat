@@ -52,6 +52,11 @@ class BitchatBridge
     // Bitchat with LoRa on this channel, or Bluetooth only for NO_CHANNEL.
     bool startBasicMode(uint8_t channel = bitchat::NO_CHANNEL);
     bool eligibleChannel(uint8_t index) const;
+    // For a radio with one button: Bitchat + LoRa, then Bitchat only, then off.
+    bool nextMode();
+    const char *modeName() const;
+    // Phones that are talking, people known, and texts sent to and taken from LoRa.
+    void counters(unsigned &phones, unsigned &people, uint32_t &out, uint32_t &in) const;
     const char *status() const;
     const char *hint() const;
     void diagnostics(char *out, size_t size) const;

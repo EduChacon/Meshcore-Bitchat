@@ -92,6 +92,9 @@ class HomeScreen : public UIScreen {
     RECENT,
     RADIO,
     BLUETOOTH,
+#ifdef WITH_BITCHAT_BRIDGE
+    BITCHAT,
+#endif
     ADVERT,
 #if ENV_INCLUDE_GPS == 1
     GPS,
@@ -380,6 +383,25 @@ public:
       display.setColor(UIColor::secondary_txt);
       display.setTextSize(1);
       display.drawTextCentered(display.width() / 2, 64 - 11, "toggle: " PRESS_LABEL);
+#ifdef WITH_BITCHAT_BRIDGE
+    } else if (_page == HomePage::BITCHAT) {
+      unsigned phones, people;
+      uint32_t out, in;
+      bitchat_bridge.counters(phones, people, out, in);
+      display.setColor(UIColor::primary_txt);
+      display.setTextSize(1);
+      display.setCursor(0, 20);
+      display.print(bitchat_bridge.status());
+      display.setCursor(0, 31);
+      sprintf(tmp, "Phones: %u  People: %u", phones, people);
+      display.print(tmp);
+      display.setCursor(0, 42);
+      sprintf(tmp, "LoRa out: %u  in: %u", (unsigned) out, (unsigned) in);
+      display.print(tmp);
+      display.setColor(UIColor::secondary_txt);
+      display.drawTextCentered(display.width() / 2, 64 - 11, "mode: " PRESS_LABEL);
+      return 1000;   // the state has countdowns
+#endif
     } else if (_page == HomePage::ADVERT) {
       display.setColor(UIColor::corp_blue);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
@@ -568,6 +590,11 @@ public:
       if (_page == HomePage::RECENT) {
         _task->showAlert("Recent adverts", 800);
       }
+#ifdef WITH_BITCHAT_BRIDGE
+      if (_page == HomePage::BITCHAT) {
+        _task->showAlert("Bitchat bridge", 800);
+      }
+#endif
 #if UI_DISCOVER_SCREEN
       if (_page == HomePage::DISCOVERY) {
         _task->showAlert("Repeater disc", 800);
@@ -583,6 +610,17 @@ public:
       }
       return true;
     }
+#ifdef WITH_BITCHAT_BRIDGE
+    if (c == KEY_ENTER && _page == HomePage::BITCHAT) {
+      // Bitchat + LoRa, Bitchat only, off
+      if (bitchat_bridge.nextMode()) {
+        _task->showAlert(bitchat_bridge.modeName(), 1200);
+      } else {
+        _task->showAlert("Not changed", 1200);
+      }
+      return true;
+    }
+#endif
     if (c == KEY_ENTER && _page == HomePage::ADVERT) {
       _task->notify(UIEventType::ack);
       if (the_mesh.advert()) {
