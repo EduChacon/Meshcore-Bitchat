@@ -9,9 +9,9 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   uso e relatou que tudo funcionou. Não há medições de alcance, consumo ou duração.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
-- **Esta versão (`bitchat0.2`)** acrescenta à anterior a página da ponte na tela do rádio e os
-  arquivos dos outros aparelhos. Ela passou nos testes em computador e compila; **não foi ligada
-  em aparelho**, nem no Heltec V3.
+- **Esta versão (`bitchat0.2`)** acrescenta à anterior a página da ponte na tela do rádio, a
+  ligação com as pontes Meshtastic e os arquivos dos outros aparelhos. Ela passou nos testes em
+  computador e compila; **não foi ligada em aparelho**, nem no Heltec V3.
 
 ## O que faz
 
@@ -20,6 +20,8 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - O aplicativo MeshCore e o Bitchat usam o rádio ao mesmo tempo.
 - A ponte liga sozinha e cria o canal na primeira partida.
 - Comandos `!bridge` no aplicativo MeshCore e página **Bitchat bridge** na tela do rádio.
+- Texto que uma ponte Meshtastic–Bitchat traz ao Bitchat (`[MT nome] texto`) também sai no canal
+  do MeshCore, uma vez só, como `MT nome: texto`. Desliga-se com `!bridge link off`.
 
 ## Arquivos
 

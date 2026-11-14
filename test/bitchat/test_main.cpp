@@ -147,6 +147,36 @@ static void identitiesAndText()
     // text.
     CHECK(bridgeCommand(utf8("!bridge")) == Command::Status && bridgeCommand(utf8(" !Ponte \n")) == Command::Status);
     CHECK(bridgeCommand(utf8("!BRIDGE RESET")) == Command::Reset && bridgeCommand(utf8("!ponte reset")) == Command::Reset);
+    CHECK(bridgeCommand(utf8("!bridge link on")) == Command::LinkOn && bridgeCommand(utf8("!Ponte Link Off ")) == Command::LinkOff);
+    CHECK(bridgeCommand(utf8("!bridge link")) == Command::None && bridgeCommand(utf8("!bridge link offf")) == Command::None);
+    {
+        // Text of the other network's bridge: taken across once, with that network's letters before the name.
+        char crossing[LABEL_LIMIT + 8];
+        size_t crossingSize = 0;
+        Bytes rest;
+        Packet foreign = p;
+        foreign.payload = utf8("[MT Node Fixo CJ] Oi");
+        CHECK(foreignTextForLoRa(foreign, crossing, sizeof(crossing), crossingSize, rest) == Result::Ok);
+        CHECK(std::string(crossing, crossingSize) == "MT Node Fixo CJ" && rest.size == 2);
+        foreign.payload = utf8("[MT um nome de n\xc3\xb3 muito comprido mesmo] Oi");
+        CHECK(foreignTextForLoRa(foreign, crossing, sizeof(crossing), crossingSize, rest) == Result::Ok);
+        CHECK(crossingSize <= LABEL_LIMIT && validUtf8({reinterpret_cast<const uint8_t *>(crossing), crossingSize}));
+        TextPlan crossingPlan;
+        CHECK(planNativeText(crossingSize, rest, crossingPlan) == Result::Ok);
+        for (const char *refused : {"[MT MC ana] de volta", "[MT MT ana] de volta", "[MT Node] MC ana: de volta", "[MC ana] daqui",
+                                    "plain", "[MT Node]sem espa\xc3\xa7o"}) {
+            foreign.payload = utf8(refused);
+            CHECK(foreignTextForLoRa(foreign, crossing, sizeof(crossing), crossingSize, rest) == Result::Policy ||
+                  foreignTextForLoRa(foreign, crossing, sizeof(crossing), crossingSize, rest) == Result::Malformed);
+        }
+        // A name that merely starts with the same letters is not a marking.
+        foreign.payload = utf8("[MT MTB Clube] pedal amanh\xc3\xa3");
+        CHECK(foreignTextForLoRa(foreign, crossing, sizeof(crossing), crossingSize, rest) == Result::Ok);
+        foreign.payload = utf8("[MT Node] MC sem dois pontos");
+        CHECK(foreignTextForLoRa(foreign, crossing, sizeof(crossing), crossingSize, rest) == Result::Ok);
+        foreign.flags |= 1;
+        CHECK(foreignTextForLoRa(foreign, crossing, sizeof(crossing), crossingSize, rest) == Result::Policy);
+    }
     CHECK(bridgeCommand(utf8("!bridge is nice")) == Command::None && bridgeCommand(utf8("bridge")) == Command::None);
     CHECK(bridgeCommand(utf8("!bridges")) == Command::None && bridgeCommand(utf8("")) == Command::None);
     CHECK(bridgeCommand(utf8("!lora !bridge")) == Command::None && bridgeCommand(utf8("!ponte  reset")) == Command::None);

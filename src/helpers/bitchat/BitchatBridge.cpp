@@ -64,6 +64,9 @@ void BitchatBridge::begin(MeshHost &meshHost)
             (storage.getBytesLength(key) != sizeof(entry) || storage.getBytes(key, &entry, sizeof(entry)) != sizeof(entry)))
             storageReady = false;
     }
+    uint8_t stored = 1;
+    if (storageReady && storage.isKey("link") && storage.getBytesLength("link") == 1 && storage.getBytes("link", &stored, 1) == 1)
+        link = stored != 0;
     if (storageReady && storage.isKey("clock") && storage.getBytesLength("clock") == sizeof(clockFloor))
         storage.getBytes("clock", &clockFloor, sizeof(clockFloor));
 #ifdef BRIDGE_BUILD_EPOCH
@@ -294,6 +297,15 @@ bool BitchatBridge::startBasicMode(uint8_t channel)
     return saved;
 }
 
+bool BitchatBridge::setLink(bool value)
+{
+    const uint8_t stored = value;
+    if (!storageReady || storage.putBytes("link", &stored, 1) != 1)
+        return false;
+    link = value;
+    return true;
+}
+
 bool BitchatBridge::nextMode()
 {
     if (!settings.enabled) {
@@ -477,7 +489,16 @@ void BitchatBridge::answerApp()
     }
     if (command == Command::Help) {
         replyToApp("!bridge shows the state. Also: !bridge on, off, local (Bluetooth only), lora (Bitchat + LoRa on the "
-                   "channel where you send it), reset.");
+                   "channel where you send it), link on, link off, reset.");
+        return;
+    }
+    if (command == Command::LinkOn || command == Command::LinkOff) {
+        const bool value = command == Command::LinkOn;
+        if (!setLink(value))
+            replyToApp("Not changed: Storage error");
+        else
+            replyToApp(value ? "Link on: text a Meshtastic bridge brings to Bitchat also goes to this channel."
+                             : "Link off: text from Meshtastic bridges stays in Bitchat.");
         return;
     }
     if (command != Command::Status) {
@@ -514,8 +535,8 @@ void BitchatBridge::answerApp()
     displayCount(submittedRadio, tx);
     displayCount(importedRadio, rx);
     displayCount(drops(), missed);
-    snprintf(text, sizeof(text), "%s. Bluetooth %u, Bitchat %u, people %u. LoRa %.16s out %s in %s lost %s", status(),
-             unsigned(bleConnections()), phones, people, name, tx, rx, missed);
+    snprintf(text, sizeof(text), "%s. Bluetooth %u, Bitchat %u, people %u. LoRa %.16s out %s in %s lost %s. Link %s", status(),
+             unsigned(bleConnections()), phones, people, name, tx, rx, missed, link ? "on" : "off");
     replyToApp(text);
     diagnostics(text, sizeof(text));
     replyToApp(text);
@@ -638,7 +659,8 @@ void BitchatBridge::announce()
         return;
     std::array<uint8_t, 150> payload{};
     char name[24];
-    snprintf(name, sizeof(name), "LoRa bridge %04lx", static_cast<unsigned long>(host->nodeNumber() & 0xffff));
+    // The same four characters that open the radio's factory name.
+    snprintf(name, sizeof(name), "LoRa bridge %04lx", static_cast<unsigned long>(host->nodeNumber() >> 16));
     size_t length = strlen(name);
     payload[0] = 1;
     payload[1] = length;
@@ -745,9 +767,17 @@ bool BitchatBridge::handleFrame(Bytes frame, uint16_t source)
 void BitchatBridge::exportText(const Packet &packet, Peer &peer, const Digest &id)
 {
     Bytes body;
-    Result result = publicTextForLoRa(packet, body);
-    // Text from another bridge already came from LoRa: sending it back would loop.
-    if (result == Result::Ok && (peer.announcement.gateway || textConflict))
+    char label[LABEL_LIMIT + 8];
+    size_t labelSize = 0;
+    Result result;
+    if (peer.announcement.gateway) {
+        // Text from a bridge of this network already came from LoRa: sending it back would loop. What a
+        // bridge of the other network brought crosses to this one, once.
+        result = link ? foreignTextForLoRa(packet, label, sizeof(label), labelSize, body) : Result::Policy;
+    } else {
+        result = publicTextForLoRa(packet, body);
+    }
+    if (result == Result::Ok && textConflict)
         result = Result::Policy;
     if (result == Result::Ok && seen(id))
         result = Result::Duplicate;
@@ -755,13 +785,14 @@ void BitchatBridge::exportText(const Packet &packet, Peer &peer, const Digest &i
         reject(result);
         return;
     }
-    char label[LABEL_LIMIT + 8];
-    size_t labelSize = cleanLabel({reinterpret_cast<const uint8_t *>(peer.announcement.nickname.data()),
-                                   strnlen(peer.announcement.nickname.data(), peer.announcement.nickname.size())},
-                                  label, LABEL_LIMIT - 4);
-    // Same rule as the Bitchat app: equal nicknames are told apart by the start of the peer ID.
-    if (!labelSize || runtime->peers->nicknameShared(peer))
-        labelSize += snprintf(label + labelSize, 6, "#%02x%02x", peer.id[0], peer.id[1]);
+    if (!peer.announcement.gateway) {
+        labelSize = cleanLabel({reinterpret_cast<const uint8_t *>(peer.announcement.nickname.data()),
+                                strnlen(peer.announcement.nickname.data(), peer.announcement.nickname.size())},
+                               label, LABEL_LIMIT - 4);
+        // Same rule as the Bitchat app: equal nicknames are told apart by the start of the peer ID.
+        if (!labelSize || runtime->peers->nicknameShared(peer))
+            labelSize += snprintf(label + labelSize, 6, "#%02x%02x", peer.id[0], peer.id[1]);
+    }
     TextPlan plan;
     result = planNativeText(labelSize, body, plan);
     if (result == Result::Ok && (textGuard() || runtime->radioQueue.size() + plan.count > RadioItem::QUEUE ||
@@ -807,7 +838,9 @@ void BitchatBridge::importText(Bytes name, Bytes body, const Digest *id)
         if (makeBitchatText({reinterpret_cast<const uint8_t *>(label), labelSize}, body, plan, part, text) == Result::Ok)
             originate(2, text.bytes());
     }
-    ++importedRadio;
+    // Only what was heard on LoRa counts as received from it; app text has no record identifier.
+    if (id)
+        ++importedRadio;
 }
 
 void BitchatBridge::onChannelText(uint8_t channel, const uint8_t *packetHash, const char *text)

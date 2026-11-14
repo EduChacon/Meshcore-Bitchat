@@ -54,6 +54,8 @@ class BitchatBridge
     bool eligibleChannel(uint8_t index) const;
     // For a radio with one button: Bitchat + LoRa, then Bitchat only, then off.
     bool nextMode();
+    bool linked() const { return link; }
+    bool setLink(bool value);
     const char *modeName() const;
     // Phones that are talking, people known, and texts sent to and taken from LoRa.
     void counters(unsigned &phones, unsigned &people, uint32_t &out, uint32_t &in) const;
@@ -87,6 +89,8 @@ class BitchatBridge
     Preferences storage;
     bool storageReady = false, identityReady = false, advertisingChanged = true;
     bool defaultsPending = false, defaultChannelUnavailable = false;
+    // Text another network's bridge brought to Bitchat is taken to this one. Kept in its own stored entry.
+    bool link = true;
     bool textReady = false, wasActive = false, textConflict = false;
     // For a minute after Bluetooth comes up the radio advertises as the stock firmware does, so the
     // MeshCore app can always find it by restarting the radio.

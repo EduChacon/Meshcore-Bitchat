@@ -307,7 +307,7 @@ int main()
             if (!identity.gateway)
                 continue;
             CHECK(frame.size() <= 182 && packet.payload.size < 100);
-            CHECK(std::string(identity.nickname.data()) == "LoRa bridge ffee");
+            CHECK(std::string(identity.nickname.data()) == "LoRa bridge 00c0");
             bridgeId = packet.sender;
             ++own;
         }
@@ -506,6 +506,47 @@ int main()
     caio.write(other.packet(2, {reinterpret_cast<const uint8_t *>("de outra ponte"), 14}, 6));
     run(3000);
     CHECK(mesh.radio.empty());
+
+    // What a Meshtastic bridge brought to Bitchat crosses to this network once, under the name it had there.
+    const auto bridged = [&](const std::string &message) {
+        caio.write(other.packet(2, {reinterpret_cast<const uint8_t *>(message.data()), message.size()}, 6));
+        run(3000);
+    };
+    CHECK(bridge->linked());
+    bridged("[MT Node Fixo CJ] Oi");
+    CHECK(texts(mesh.radio) == std::vector<std::string>{"MT Node Fixo CJ: Oi"} && mesh.radio[0].channel == 1);
+    mesh.radio.clear();
+    bridged("[MT Node Fixo CJ 2/3] segunda parte");
+    CHECK(texts(mesh.radio) == std::vector<std::string>{"MT Node Fixo CJ 2/3: segunda parte"});
+    mesh.radio.clear();
+    // Text that already crossed, in either marking, and text of this network's own bridges stay where they are.
+    bridged("[MT MC ana] de volta");
+    bridged("[MT Node Fixo CJ] MC ana: de volta");
+    bridged("[MC Jo\xc3\xa3o] daqui mesmo");
+    bridged("[MT ] sem nome");
+    bridged("[MT sem fim");
+    CHECK(mesh.radio.empty());
+    // On this side it reaches other phones marked, so that no bridge takes it back.
+    fakeSent.clear();
+    fromLoRa("MT Node Fixo CJ: Oi");
+    run(300);
+    CHECK(chat(ana.handle, &bridgeId) == std::vector<std::string>{"[MC MT Node Fixo CJ] Oi"});
+    // The crossing can be turned off, and the choice is kept.
+    mesh.app.clear();
+    CHECK(fromApp("!bridge link off"));
+    run(100);
+    CHECK(!bridge->linked() && mesh.app.back().text.rfind("bridge: Link off", 0) == 0);
+    bridged("[MT Node Fixo CJ] com a liga\xc3\xa7\xc3\xa3o desligada");
+    CHECK(mesh.radio.empty());
+    CHECK(fromApp("!bridge"));
+    run(100);
+    CHECK(mesh.app.size() > 2 && mesh.app[1].text.find(". Link off") != std::string::npos);
+    CHECK(fromApp("!bridge link on"));
+    run(100);
+    CHECK(bridge->linked() && mesh.app.back().text.rfind("bridge: Link on", 0) == 0);
+    bridged("[MT Node Fixo CJ] ligada de novo");
+    CHECK(texts(mesh.radio) == std::vector<std::string>{"MT Node Fixo CJ: ligada de novo"});
+    mesh.radio.clear();
 
     // The radio holds text while it is busy and gives it up after two minutes.
     mesh.busy = true;

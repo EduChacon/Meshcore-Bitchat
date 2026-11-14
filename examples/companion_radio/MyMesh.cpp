@@ -2472,9 +2472,9 @@ uint32_t MyMesh::clockSeconds() {
 }
 
 uint32_t MyMesh::nodeNumber() {
-  uint32_t n;
-  memcpy(&n, self_id.pub_key, 4);
-  return n;
+  // first four bytes of the public key, in the order the default node name shows them
+  return ((uint32_t) self_id.pub_key[0] << 24) | ((uint32_t) self_id.pub_key[1] << 16) |
+         ((uint32_t) self_id.pub_key[2] << 8) | self_id.pub_key[3];
 }
 
 const char *MyMesh::nodeName() {

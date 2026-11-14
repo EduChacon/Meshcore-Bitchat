@@ -128,10 +128,30 @@ nesse aplicativo e **não são transmitidos**.
 | `!bridge off`   | Desliga a ponte; o rádio segue como MeshCore comum                            |
 | `!bridge local` | Só Bluetooth: os telefones Bitchat se falam pelo rádio, nada vai ao LoRa      |
 | `!bridge lora`  | Passa a usar o canal em que o comando foi digitado (o canal `Public` não vale) |
+| `!bridge link on`  | Liga a passagem de texto vindo de pontes Meshtastic (padrão)               |
+| `!bridge link off` | Desliga essa passagem; o texto delas fica só no Bitchat                    |
 | `!bridge reset` | Derruba as conexões Bluetooth para os telefones lerem os serviços de novo     |
 | `!bridge help`  | Lista os comandos                                                             |
 
 `!ponte` vale no lugar de `!bridge`. No Bitchat, `!bridge` no `#mesh` devolve só o estado.
+
+## Ligação com o Meshtastic
+
+Quando uma ponte deste projeto e uma ponte [Meshtastic–Bitchat](https://github.com/EduChacon/meshtastic-bitchat)
+estão ao alcance Bluetooth dos mesmos telefones Bitchat, as duas redes LoRa passam a conversar
+pelo Bitchat, sem ajuste algum:
+
+- o que a ponte Meshtastic traz ao Bitchat, `[MT nome] texto`, sai no canal do MeshCore como
+  `MT nome: texto`;
+- no sentido contrário, a ponte Meshtastic (a partir da `1.0.0-beta.6`) leva `[MC nome] texto` à
+  rede dela como `MC nome: texto`.
+
+Cada texto atravessa **uma vez só**: o que já veio da outra rede chega marcado e nenhuma ponte o
+leva de volta. É preciso haver ao menos um telefone com o Bitchat aberto entre as duas pontes,
+porque elas não se conectam uma à outra. `!bridge link off` desliga a passagem neste rádio.
+
+Limites dessa ligação: com mais de um lugar ligando as mesmas duas redes, o mesmo texto pode
+aparecer repetido; e ela **não foi ensaiada em aparelho**, só em simulação.
 
 ## Na tela do rádio
 
