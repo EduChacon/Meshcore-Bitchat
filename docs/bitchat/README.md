@@ -33,12 +33,12 @@ pagamentos não atravessam a ponte.
 
 ## Aparelhos
 
-| Aparelhos                                        | Estado                                              |
-| ------------------------------------------------ | --------------------------------------------------- |
-| Heltec V3 (ESP32-S3, SX1262)                     | Funcionou no ensaio do autor                        |
-| Outros ESP32, ESP32-S3 e ESP32-C3 da [lista](DEVICES.md) | Compilam; nenhum foi ligado                 |
-| ESP32-C6                                         | Fora: a biblioteca Bluetooth usada não os atende    |
-| nRF52 (T1000-E, RAK4631 etc.)                    | Fora por ora (ver "O que falta")                    |
+| Aparelhos                                                | Estado                                           |
+| -------------------------------------------------------- | ------------------------------------------------ |
+| Heltec V3 (ESP32-S3, SX1262)                             | Funcionou no ensaio do autor                     |
+| Outros ESP32, ESP32-S3 e ESP32-C3 da [lista](DEVICES.md) | Compilam; nenhum foi ligado                      |
+| ESP32-C6                                                 | Fora: a biblioteca Bluetooth usada não os atende |
+| nRF52 (T1000-E, RAK4631 etc.)                            | Fora por ora (ver "O que falta")                 |
 
 Há um arquivo por aparelho, com o mesmo nome do firmware _companion_ Bluetooth original e o final
 `_bitchat`. Nos aparelhos sem memória PSRAM (ESP32 clássico e C3) a ponte pode recusar-se a ligar
@@ -121,17 +121,17 @@ ajustada antes, uma vez.
 Digitados no aplicativo MeshCore, em qualquer canal do rádio que tem a ponte. São respondidos só
 nesse aplicativo e **não são transmitidos**.
 
-| Comando         | Efeito                                                                        |
-| --------------- | ----------------------------------------------------------------------------- |
-| `!bridge`       | Mostra o estado, os contadores e uma linha por conexão Bluetooth              |
-| `!bridge on`    | Liga a ponte                                                                  |
-| `!bridge off`   | Desliga a ponte; o rádio segue como MeshCore comum                            |
-| `!bridge local` | Só Bluetooth: os telefones Bitchat se falam pelo rádio, nada vai ao LoRa      |
-| `!bridge lora`  | Passa a usar o canal em que o comando foi digitado (o canal `Public` não vale) |
-| `!bridge link on`  | Liga a passagem de texto vindo de pontes Meshtastic (padrão)               |
-| `!bridge link off` | Desliga essa passagem; o texto delas fica só no Bitchat                    |
-| `!bridge reset` | Derruba as conexões Bluetooth para os telefones lerem os serviços de novo     |
-| `!bridge help`  | Lista os comandos                                                             |
+| Comando            | Efeito                                                                         |
+| ------------------ | ------------------------------------------------------------------------------ |
+| `!bridge`          | Mostra o estado, os contadores e uma linha por conexão Bluetooth               |
+| `!bridge on`       | Liga a ponte                                                                   |
+| `!bridge off`      | Desliga a ponte; o rádio segue como MeshCore comum                             |
+| `!bridge local`    | Só Bluetooth: os telefones Bitchat se falam pelo rádio, nada vai ao LoRa       |
+| `!bridge lora`     | Passa a usar o canal em que o comando foi digitado (o canal `Public` não vale) |
+| `!bridge link on`  | Liga a passagem de texto vindo de pontes Meshtastic (padrão)                   |
+| `!bridge link off` | Desliga essa passagem; o texto delas fica só no Bitchat                        |
+| `!bridge reset`    | Derruba as conexões Bluetooth para os telefones lerem os serviços de novo      |
+| `!bridge help`     | Lista os comandos                                                              |
 
 `!ponte` vale no lugar de `!bridge`. No Bitchat, `!bridge` no `#mesh` devolve só o estado.
 
@@ -215,14 +215,14 @@ ela se desliga e informa `Low memory: bridge OFF`. O consumo real não foi medid
 
 ## Para quem desenvolve
 
-| Onde                                    | O que há                                                            |
-| --------------------------------------- | ------------------------------------------------------------------- |
-| `src/helpers/bitchat/`                  | Núcleo da ponte (codec, assinaturas, estado, Bluetooth, texto)      |
-| `src/helpers/bitchat/BitchatBridge.*`   | Ligação com o MeshCore: canal, relógio, comandos, filas             |
-| `src/helpers/bitchat/esp32/`            | Interface Bluetooth do _companion_ sobre NimBLE                     |
-| `examples/companion_radio/`             | Três pontos de contato, todos sob `WITH_BITCHAT_BRIDGE`             |
-| `variants/bitchat/platformio.ini`       | Ambientes de compilação                                             |
-| `test/bitchat/`, `tools/bitchat/`       | Testes em computador e scripts                                      |
+| Onde                                  | O que há                                                       |
+| ------------------------------------- | -------------------------------------------------------------- |
+| `src/helpers/bitchat/`                | Núcleo da ponte (codec, assinaturas, estado, Bluetooth, texto) |
+| `src/helpers/bitchat/BitchatBridge.*` | Ligação com o MeshCore: canal, relógio, comandos, filas        |
+| `src/helpers/bitchat/esp32/`          | Interface Bluetooth do _companion_ sobre NimBLE                |
+| `examples/companion_radio/`           | Três pontos de contato, todos sob `WITH_BITCHAT_BRIDGE`        |
+| `variants/bitchat/platformio.ini`     | Ambientes de compilação                                        |
+| `test/bitchat/`, `tools/bitchat/`     | Testes em computador e scripts                                 |
 
 Os arquivos originais do MeshCore só mudam em `MyMesh.h`, `MyMesh.cpp` e `main.cpp`, em blocos
 `#ifdef WITH_BITCHAT_BRIDGE`. Sem essa opção, o firmware compila como o original.
