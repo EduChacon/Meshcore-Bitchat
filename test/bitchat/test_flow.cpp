@@ -264,8 +264,11 @@ int main()
     CHECK(std::all_of(mesh.channels[1].secret.begin() + 16, mesh.channels[1].secret.end(), [](uint8_t b) { return b == 0; }));
     // The companion clock was never set, and a date guessed at start is not used.
     CHECK(std::string(bridge->status()) == "Clock not set" && bridge->hint()[0]);
-    // The advertisement carries the Bitchat service; the scan response the companion service and a short name.
-    CHECK(refreshes >= 1 && fakeScanName == "MeshCore-1A" && fakeScanShort);
+    // For the first minute the radio advertises as the stock firmware, so its app finds it after a restart.
+    CHECK(refreshes >= 1 && fakeScanName.empty() && !bleAdvertise());
+    run(60000);
+    // Then the advertisement carries the Bitchat service; the scan response the companion service and a short name.
+    CHECK(fakeScanName == "MeshCore-1A" && fakeScanShort);
 
     // The self-test answers in the app even in this state, and is never transmitted.
     CHECK(fromApp("!bridge"));
@@ -288,8 +291,6 @@ int main()
     for (const auto *phone : {&ana, &bia, &caio})
         phone->write(phone->announce());
     run(400);
-    CHECK(std::string(bridge->status()).rfind("Starting LoRa: ", 0) == 0);
-    run(31000);
     CHECK(std::string(bridge->status()) == "Ready: Bitchat + LoRa" && !bridge->hint()[0]);
     // The companion clock itself is left alone: its date decides whether other nodes accept this one.
     CHECK(mesh.clockSeconds() < 1716000000);
@@ -468,6 +469,8 @@ int main()
     run(100);
     CHECK(bridge->textChannel() == 3 && mesh.app.back().text == "bridge: Bitchat + LoRa on this channel." &&
           mesh.app.back().channel == 3);
+    // A new channel is listened to for half a minute first, in case another bridge already serves it.
+    CHECK(std::string(bridge->status()).rfind("Starting LoRa: ", 0) == 0);
     run(31000);
     mesh.radio.clear();
     fakeSent.clear();
@@ -561,6 +564,8 @@ int main()
             phone->write(phone->announce());
         }
         run(32000);
+        CHECK(std::string(bridge->status()).rfind("Bitchat visible in ", 0) == 0);
+        run(30000);
         CHECK(std::string(bridge->status()) == "Ready: Bitchat + LoRa");
         fakeSent.clear();
         bridge->onChannelText(1, hash, "Lia: antes do rein\xc3\xad"

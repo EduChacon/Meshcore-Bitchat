@@ -83,6 +83,10 @@ class BitchatBridge
     bool storageReady = false, identityReady = false, advertisingChanged = true;
     bool defaultsPending = false, defaultChannelUnavailable = false;
     bool textReady = false, wasActive = false, textConflict = false;
+    // For a minute after Bluetooth comes up the radio advertises as the stock firmware does, so the
+    // MeshCore app can always find it by restarting the radio.
+    bool bluetoothWas = false, nativeWindow = false;
+    uint32_t bluetoothAt = 0;
     uint32_t ranAt = 0, interval = 1000;
     uint32_t textGuardAt = 0, conflictAt = 0, channelsAt = 0, announcedAt = 0, defaultChannelAt = 0;
     uint32_t lastBudget = 0, tokens = 0;

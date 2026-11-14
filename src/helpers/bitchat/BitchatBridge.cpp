@@ -16,6 +16,7 @@ static constexpr uint32_t GUARD_MS = 30000;
 static constexpr uint32_t CONFLICT_MS = 90000;
 static constexpr uint32_t RADIO_DEADLINE_MS = 120000;
 static constexpr uint32_t BUDGET_MS = 12000;
+static constexpr uint32_t NATIVE_WINDOW_MS = 60000;
 // What the attached app shows as the sender of the bridge's own answers.
 static constexpr char APP_SENDER[] = "bridge: ";
 // The well-known key of the MeshCore "Public" channel, where a bridge would be noise for everyone.
@@ -367,6 +368,11 @@ const char *BitchatBridge::status() const
         // A countdown, so the wait is visibly moving.
         const uint32_t left = (GUARD_MS - uint32_t(millis() - textGuardAt) + 999) / 1000;
         snprintf(guardText, sizeof(guardText), "Starting LoRa: %lu s", static_cast<unsigned long>(left));
+        return guardText;
+    }
+    if (nativeWindow) {
+        const uint32_t left = (NATIVE_WINDOW_MS - uint32_t(millis() - bluetoothAt) + 999) / 1000;
+        snprintf(guardText, sizeof(guardText), "Bitchat visible in %lu s", static_cast<unsigned long>(left));
         return guardText;
     }
     return textReady ? "Ready: Bitchat + LoRa" : "Ready: Bitchat only";
@@ -893,6 +899,14 @@ void BitchatBridge::work(uint32_t now)
         lastBudget = now;
         wasActive = active;
     }
+    if (bluetoothReady && !bluetoothWas)
+        bluetoothAt = now;
+    bluetoothWas = bluetoothReady;
+    const bool window = bluetoothReady && Throttle::isWithinTimespanMsAt(bluetoothAt, NATIVE_WINDOW_MS, now);
+    if (window != nativeWindow) {
+        nativeWindow = window;
+        advertisingChanged = true;
+    }
     if (appCommand != Command::None) {
         // A command may turn the bridge off or change its mode, so this tick ends here.
         answerApp();
@@ -910,7 +924,7 @@ void BitchatBridge::work(uint32_t now)
         advertisingChanged = true;
     }
     if (advertisingChanged) {
-        bleConfigure(active, false, false);
+        bleConfigure(active, nativeWindow, false);
         if (bluetoothReady)
             platformBluetooth.refreshBridgeAdvertising();
         advertisingChanged = false;

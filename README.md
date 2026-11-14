@@ -1,3 +1,11 @@
+> **MeshCore + ponte Bitchat (experimental).** Este repositório é o MeshCore oficial com uma ponte
+> embutida para o aplicativo Bitchat no firmware _companion_. Nada foi ensaiado em aparelho ainda.
+> Instruções e limites: [docs/bitchat/README.md](./docs/bitchat/README.md).
+>
+> **MeshCore + Bitchat bridge (experimental).** This is upstream MeshCore with a Bitchat bridge built
+> into the companion firmware. Not yet tested on hardware. The guide is in Portuguese:
+> [docs/bitchat/README.md](./docs/bitchat/README.md). Upstream: [meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore).
+
 ## About MeshCore
 
 MeshCore is a lightweight, portable C++ library that enables multi-hop packet routing for embedded projects using LoRa and other packet radios. It is designed for developers who want to create resilient, decentralized communication networks that work without the internet.
