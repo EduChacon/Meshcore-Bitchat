@@ -2,6 +2,9 @@
 
 #include <Arduino.h>
 #include <Mesh.h>
+#ifdef WITH_BITCHAT_BRIDGE
+#include <helpers/bitchat/BitchatBridge.h>
+#endif
 
 /*------------ Frame Protocol --------------*/
 #define FIRMWARE_VER_CODE 14
@@ -87,7 +90,11 @@ struct AdvertPath {
   uint8_t path[MAX_PATH_SIZE];
 };
 
-class MyMesh : public BaseChatMesh, public DataStoreHost {
+class MyMesh : public BaseChatMesh, public DataStoreHost
+#ifdef WITH_BITCHAT_BRIDGE
+  , public bitchat::MeshHost
+#endif
+{
 public:
   class Listener {
     public:
@@ -214,6 +221,19 @@ public:
 
   // To check if there is pending work
   bool hasPendingWork() const;
+
+#ifdef WITH_BITCHAT_BRIDGE
+  // bitchat::MeshHost methods
+  uint32_t clockSeconds() override;
+  uint32_t nodeNumber() override;
+  const char *nodeName() override;
+  uint8_t provideChannel(const char *name, const uint8_t secret[32]) override;
+  bool readChannel(uint8_t index, char name[32], uint8_t secret[32]) override;
+  uint32_t airtimeMs(size_t textSize) override;
+  bool radioBusy() override;
+  bool sendChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override;
+  void showChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override;
+#endif
 
 private:
   void writeOKFrame();

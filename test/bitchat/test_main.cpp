@@ -1,0 +1,386 @@
+#include "helpers/bitchat/BridgeCodec.h"
+#include "helpers/bitchat/BridgeCrypto.h"
+#include "helpers/bitchat/BridgeState.h"
+#include "helpers/bitchat/BridgeText.h"
+#include "vectors.h"
+#include <algorithm>
+#include <array>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <random>
+#include <string>
+#include <vector>
+
+using namespace bitchat;
+static BridgeCrypto crypto;
+static size_t checks = 0;
+static void check(bool passed, int line, const char *expression)
+{
+    ++checks;
+    if (!passed) {
+        std::cerr << "FAIL line " << line << ": " << expression << '\n';
+        std::exit(1);
+    }
+}
+#define CHECK(expression) check((expression), __LINE__, #expression)
+
+static std::vector<uint8_t> unhex(const char *text)
+{
+    const size_t length = std::strlen(text);
+    CHECK(length % 2 == 0);
+    std::vector<uint8_t> bytes(length / 2);
+    for (size_t i = 0; i < bytes.size(); ++i)
+        bytes[i] = uint8_t(std::stoul(std::string(text + 2 * i, 2), nullptr, 16));
+    return bytes;
+}
+static Bytes utf8(const char *value)
+{
+    return {reinterpret_cast<const uint8_t *>(value), std::strlen(value)};
+}
+static std::string string(const NativeText &value)
+{
+    return {reinterpret_cast<const char *>(value.data.data()), value.size};
+}
+static Bytes bytes(const std::vector<uint8_t> &data)
+{
+    return {data.data(), data.size()};
+}
+
+static void officialVectors()
+{
+    for (const auto &v : VECTORS) {
+        auto wire = unhex(v.wire);
+        auto canonical = unhex(v.canonical);
+        auto key = unhex(v.key);
+        Packet packet;
+        Frame output;
+        CHECK(decode(bytes(wire), packet) == Result::Ok);
+        size_t expectedLength = 0;
+        CHECK(wireFrameLength(bytes(wire), expectedLength) == Result::Ok);
+        CHECK(expectedLength == wire.size());
+        CHECK(signingBytes(bytes(wire), output) == Result::Ok);
+        if (!equalConstantTime(output.bytes(), bytes(canonical)))
+            std::cerr << "Canonical mismatch: " << v.name << '\n';
+        CHECK(equalConstantTime(output.bytes(), bytes(canonical)));
+        if (packet.signedPacket()) {
+            CHECK(crypto.verify(output.bytes(), packet.signature, key.data()));
+            wire[2] = 2;
+            CHECK(signingBytes(bytes(wire), output) == Result::Ok);
+            CHECK(crypto.verify(output.bytes(), packet.signature, key.data()));
+            wire[3] ^= 1;
+            CHECK(signingBytes(bytes(wire), output) == Result::Ok);
+            CHECK(!crypto.verify(output.bytes(), packet.signature, key.data()));
+        }
+    }
+}
+
+static void signatureRejections()
+{
+    auto wire = unhex(VECTORS[0].wire);
+    auto key = unhex(VECTORS[0].key);
+    Packet packet;
+    Frame canonical;
+    CHECK(decode(bytes(wire), packet) == Result::Ok);
+    CHECK(signingBytes(bytes(wire), canonical) == Result::Ok);
+    std::array<uint8_t, 64> signature;
+    std::copy_n(packet.signature.data, 64, signature.begin());
+    const auto order = unhex("edd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010");
+    unsigned carry = 0;
+    for (size_t i = 0; i < 32; ++i) {
+        carry += signature[32 + i] + order[i];
+        signature[32 + i] = carry & 255;
+        carry >>= 8;
+    }
+    CHECK(!crypto.verify(canonical.bytes(), {signature.data(), signature.size()}, key.data()));
+    std::array<uint8_t, 32> identity{};
+    identity[0] = 1;
+    signature.fill(0);
+    signature[0] = 1;
+    CHECK(!crypto.verify(canonical.bytes(), {signature.data(), signature.size()}, identity.data()));
+    CHECK(!crypto.verify(canonical.bytes(), {signature.data(), 63}, key.data()));
+    for (const char *point : {"0000000000000000000000000000000000000000000000000000000000000000",
+                              "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+                              "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+                              "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+                              "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a"}) {
+        const auto lowOrder = unhex(point);
+        CHECK(!crypto.verify(canonical.bytes(), packet.signature, lowOrder.data()));
+    }
+}
+
+static void identitiesAndText()
+{
+    auto announce = unhex(VECTORS[0].wire);
+    auto text = unhex(VECTORS[2].wire);
+    PeerTable peers;
+    Peer *peer = nullptr;
+    CHECK(peers.authenticate(crypto, bytes(text), 1795000000000ULL, 1, peer) == Result::Unauthenticated);
+    CHECK(peers.announce(crypto, bytes(announce), 0, 1, peer) == Result::NoClock);
+    CHECK(peers.announce(crypto, bytes(announce), 1795000000000ULL, 1, peer) == Result::Ok);
+    CHECK(peers.size() == 1);
+    CHECK(peers.authenticate(crypto, bytes(text), 1795000000000ULL, 2, peer) == Result::Ok);
+    CHECK(peers.authenticate(crypto, bytes(text), 1795000200000ULL, 2, peer) == Result::Expired);
+    Packet p;
+    CHECK(decode(bytes(text), p) == Result::Ok);
+    Bytes body;
+    CHECK(publicTextForLoRa(p, body) == Result::Ok);
+    p.flags |= 1;
+    CHECK(publicTextForLoRa(p, body) == Result::Policy);
+    p.flags &= uint8_t(~1);
+    CHECK(publicTextForLoRa(p, body) == Result::Ok);
+    // The prefix is optional; tunnel text and text another bridge imported never go to LoRa.
+    Packet typed = p;
+    typed.payload = utf8("plain chat");
+    CHECK(publicTextForLoRa(typed, body) == Result::Ok && body.size == 10);
+    typed.payload = utf8("!lora hello");
+    CHECK(publicTextForLoRa(typed, body) == Result::Ok && body.size == 5 && body.data[0] == 'h');
+    typed.payload = utf8("!lora ");
+    CHECK(publicTextForLoRa(typed, body) == Result::Malformed);
+    typed.payload = utf8("!bctun hello");
+    CHECK(publicTextForLoRa(typed, body) == Result::Policy);
+    typed.payload = utf8("[MC Ana] hello");
+    CHECK(publicTextForLoRa(typed, body) == Result::Policy);
+    typed.payload = utf8("[bridge] Ready");
+    CHECK(publicTextForLoRa(typed, body) == Result::Policy);
+    // The self-test word, as phone keyboards send it; anything longer is ordinary
+    // text.
+    CHECK(bridgeCommand(utf8("!bridge")) == Command::Status && bridgeCommand(utf8(" !Ponte \n")) == Command::Status);
+    CHECK(bridgeCommand(utf8("!BRIDGE RESET")) == Command::Reset && bridgeCommand(utf8("!ponte reset")) == Command::Reset);
+    CHECK(bridgeCommand(utf8("!bridge is nice")) == Command::None && bridgeCommand(utf8("bridge")) == Command::None);
+    CHECK(bridgeCommand(utf8("!bridges")) == Command::None && bridgeCommand(utf8("")) == Command::None);
+    CHECK(bridgeCommand(utf8("!lora !bridge")) == Command::None && bridgeCommand(utf8("!ponte  reset")) == Command::None);
+    CHECK(bridgeCommand(utf8("!bridge on")) == Command::On && bridgeCommand(utf8("!PONTE OFF")) == Command::Off);
+    CHECK(bridgeCommand(utf8("!Bridge Local")) == Command::Local && bridgeCommand(utf8("!ponte lora")) == Command::Lora);
+    CHECK(bridgeCommand(utf8("!bridge help")) == Command::Help && bridgeCommand(utf8("!bridge onn")) == Command::None);
+    CHECK(bridgeCommand(utf8("!bridge o")) == Command::None && bridgeCommand(utf8("!bridge off now")) == Command::None);
+    typed.payload = utf8("ok");
+    typed.flags &= uint8_t(~2);
+    CHECK(publicTextForLoRa(typed, body) == Result::Policy);
+    std::array<uint8_t, 32> key{};
+    key.fill(0x55);
+    const uint8_t malformed[] = {0xf0, 0x80, 0x80, 0x80};
+    CHECK(!validUtf8({malformed, sizeof(malformed)}));
+    const uint8_t emoji[] = {0xf0, 0x9f, 0x8c, 0x8e};
+    CHECK(validUtf8({emoji, sizeof(emoji)}));
+    CHECK(!validUtf8({emoji, 3}));
+    const uint8_t surrogate[] = {0xed, 0xa0, 0x80};
+    CHECK(!validUtf8({surrogate, sizeof(surrogate)}));
+
+    char label[LABEL_LIMIT + 1];
+    CHECK(cleanLabel(utf8("Ana"), label, sizeof(label)) == 3 && !std::strcmp(label, "Ana"));
+    CHECK(cleanLabel(utf8(" [MT x]:\n Jo\xc3\xa3o  "), label, sizeof(label)) == 11 && !std::strcmp(label, " MT x Jo\xc3\xa3o"));
+    CHECK(cleanLabel({malformed, sizeof(malformed)}, label, sizeof(label)) == 0);
+    CHECK(cleanLabel(utf8("\xc3\xa3\xc3\xa3\xc3\xa3"), label, 6) == 4);
+    std::string longName(80, 'n');
+    CHECK(cleanLabel(utf8(longName.c_str()), label, sizeof(label)) == LABEL_LIMIT);
+
+    NativeText native;
+    TextPlan plan;
+    CHECK(planNativeText(3, utf8("oi"), plan) == Result::Ok && plan.count == 1);
+    CHECK(makeNativeText(utf8("Ana"), utf8("oi"), plan, 0, native) == Result::Ok && string(native) == "Ana: oi");
+    CHECK(makeNativeText(utf8("Ana"), utf8("oi"), plan, 1, native) == Result::Malformed);
+    CHECK(planNativeText(0, utf8("oi"), plan) == Result::Malformed);
+    CHECK(planNativeText(3, {malformed, sizeof(malformed)}, plan) == Result::Malformed);
+    std::string exact(LORA_TEXT_LIMIT - 5, 'x');
+    CHECK(planNativeText(3, utf8(exact.c_str()), plan) == Result::Ok && plan.count == 1);
+    CHECK(makeNativeText(utf8("Ana"), utf8(exact.c_str()), plan, 0, native) == Result::Ok && native.size == LORA_TEXT_LIMIT);
+    // Longer text is split on spaces and never inside a character; nothing is truncated.
+    std::string longText;
+    while (longText.size() < 400)
+        longText += "ol\xc3\xa1 mundo ";
+    CHECK(planNativeText(3, utf8(longText.c_str()), plan) == Result::Ok && plan.count == 3);
+    std::string joined;
+    for (size_t part = 0; part < plan.count; ++part) {
+        CHECK(makeNativeText(utf8("Ana"), utf8(longText.c_str()), plan, part, native) == Result::Ok);
+        CHECK(native.size <= LORA_TEXT_LIMIT && validUtf8(native.bytes()));
+        const std::string head = "Ana (" + std::to_string(part + 1) + "/3): ";
+        CHECK(string(native).compare(0, head.size(), head) == 0);
+        if (part + 1 < plan.count)
+            CHECK(string(native).back() == ' ');
+        joined += string(native).substr(head.size());
+    }
+    CHECK(joined == longText);
+    std::string unbroken(3 * (LORA_TEXT_LIMIT - 11), 'y');
+    CHECK(planNativeText(3, utf8(unbroken.c_str()), plan) == Result::Ok && plan.count == 3);
+    unbroken += 'y';
+    CHECK(planNativeText(3, utf8(unbroken.c_str()), plan) == Result::Oversize);
+
+    CHECK(planBitchatText(3, utf8("oi"), plan) == Result::Ok && plan.count == 1);
+    CHECK(makeBitchatText(utf8("Ana"), utf8("oi"), plan, 0, native) == Result::Ok && string(native) == "[MC Ana] oi");
+    typed.flags |= 2;
+    typed.payload = native.bytes();
+    CHECK(publicTextForLoRa(typed, body) == Result::Policy);
+    CHECK(planBitchatText(0, utf8("oi"), plan) == Result::Malformed);
+    // The app re-encodes what it verifies and compresses payloads of 100 bytes or more, so signed text
+    // from the bridge never reaches that size: a full-length LoRa message becomes several short ones.
+    // With header, sender and signature the largest part is a 182-byte frame: one write at a 185-byte MTU.
+    CHECK(BITCHAT_TEXT_LIMIT < 100 && 22 + BITCHAT_TEXT_LIMIT + 64 <= 182);
+    std::string edge(BITCHAT_TEXT_LIMIT - 9, 'e');
+    CHECK(planBitchatText(3, utf8(edge.c_str()), plan) == Result::Ok && plan.count == 1);
+    CHECK(makeBitchatText(utf8("Ana"), utf8(edge.c_str()), plan, 0, native) == Result::Ok && native.size == BITCHAT_TEXT_LIMIT);
+    const std::string widest = longName.substr(0, LABEL_LIMIT);
+    for (const std::string &sample : {longText.substr(0, 200), std::string(200, 'z'), longText.substr(0, 233)}) {
+        CHECK(planBitchatText(widest.size(), utf8(sample.c_str()), plan) == Result::Ok && plan.count > 1);
+        std::string whole;
+        for (size_t part = 0; part < plan.count; ++part) {
+            CHECK(makeBitchatText(utf8(widest.c_str()), utf8(sample.c_str()), plan, part, native) == Result::Ok);
+            CHECK(native.size < 100 && validUtf8(native.bytes()));
+            const std::string head = "[MC " + widest + " " + std::to_string(part + 1) + "/" + std::to_string(plan.count) + "] ";
+            CHECK(string(native).compare(0, head.size(), head) == 0);
+            whole += string(native).substr(head.size());
+        }
+        CHECK(whole == sample);
+    }
+    std::string tooLong(400, 'q');
+    CHECK(planBitchatText(widest.size(), utf8(tooLong.c_str()), plan) == Result::Oversize);
+
+    std::array<uint8_t, 2 + GATEWAY_PROOF> proof;
+    proof[0] = GATEWAY_TLV;
+    proof[1] = GATEWAY_PROOF;
+    makeGatewayProof(crypto, p.sender, 17, key.data(), proof.data() + 2);
+    Packet owner = p;
+    owner.type = 1;
+    owner.payload = {proof.data(), proof.size()};
+    uint32_t node = 0;
+    CHECK(gatewayProofNode(crypto, owner, 18, key.data(), node) && node == 17);
+    CHECK(!gatewayProofNode(crypto, owner, 17, key.data(), node));
+    proof[9] ^= 1;
+    CHECK(!gatewayProofNode(crypto, owner, 18, key.data(), node));
+    proof[1] = 255;
+    CHECK(!gatewayProofNode(crypto, owner, 18, key.data(), node));
+}
+
+static void queuesAndTime()
+{
+    BoundedQueue<int, 2> queue;
+    CHECK(queue.push(1) && queue.push(2));
+    CHECK(!queue.push(3));
+    CHECK(*queue.front() == 1);
+    queue.pop();
+    CHECK(queue.push(3));
+    CHECK(*queue.front() == 2);
+    queue.pop();
+    CHECK(*queue.front() == 3);
+    queue.pop();
+    CHECK(queue.front() == nullptr);
+    RateGate gate;
+    CHECK(gate.admit(0xfffffff0U, 50));
+    CHECK(!gate.admit(20, 50));
+    CHECK(gate.admit(100, 50));
+    // A burst is admitted at once, then one message per refill interval, across a millis() wrap.
+    RateBucket bucket;
+    for (int i = 0; i < 3; ++i)
+        CHECK(bucket.admit(0xfffffff0U, 3, 100));
+    CHECK(!bucket.admit(0xfffffff0U, 3, 100));
+    CHECK(!bucket.admit(50, 3, 100));
+    CHECK(bucket.admit(100, 3, 100));
+    CHECK(!bucket.admit(150, 3, 100));
+    CHECK(bucket.admit(250, 3, 100));
+    for (int i = 0; i < 3; ++i)
+        CHECK(bucket.admit(100000, 3, 100));
+    CHECK(!bucket.admit(100000, 3, 100));
+    DedupCache<2> dedup;
+    Digest a{}, b{}, c{};
+    b[0] = 1;
+    c[0] = 2;
+    CHECK(dedup.insert(a, 0xfffffff0U, 50) == Result::Ok);
+    CHECK(dedup.insert(a, 20, 50) == Result::Duplicate);
+    CHECK(dedup.insert(b, 20, 50) == Result::Ok);
+    CHECK(dedup.insert(c, 20, 50) == Result::Full);
+    CHECK(dedup.insert(c, 100, 50) == Result::Ok);
+    CHECK(!fresh(0, 1795000000000ULL));
+    CHECK(!fresh(UINT64_MAX, 1));
+    CHECK(fresh(120001, 1));
+    CHECK(!fresh(120002, 1));
+}
+
+static void fragments()
+{
+    auto wire = unhex(VECTORS[0].wire);
+    Packet original;
+    CHECK(decode(bytes(wire), original) == Result::Ok);
+    BleReassembly assembly;
+    Frame out;
+    for (int index : {1, 0}) {
+        std::vector<uint8_t> payload(13);
+        payload[0] = 42;
+        write16(payload.data() + 8, uint16_t(index));
+        write16(payload.data() + 10, 2);
+        payload[12] = original.type;
+        const size_t begin = index ? wire.size() / 2 : 0;
+        const size_t end = index ? wire.size() : wire.size() / 2;
+        payload.insert(payload.end(), wire.begin() + begin, wire.begin() + end);
+        Frame fragmentWire;
+        CHECK(encode(0x20, original.sender, nullptr, original.timestamp, 5, bytes(payload), {}, fragmentWire) == Result::Ok);
+        Packet fragment;
+        CHECK(decode(fragmentWire.bytes(), fragment) == Result::Ok);
+        CHECK(assembly.accept(fragment, 100, out) == (index ? Result::Incomplete : Result::Ok));
+    }
+    CHECK(out.size == wire.size());
+    CHECK(out.data[2] == 5);
+    out.data[2] = wire[2];
+    CHECK(equalConstantTime(out.bytes(), bytes(wire)));
+}
+
+static void malformedInputs()
+{
+    auto wire = unhex(VECTORS[0].wire);
+    Packet packet;
+    for (size_t size = 0; size < wire.size(); ++size)
+        CHECK(decode({wire.data(), size}, packet) != Result::Ok);
+    auto invalid = wire;
+    invalid[11] |= 0x80;
+    CHECK(decode(bytes(invalid), packet) == Result::Unsupported);
+    invalid = wire;
+    invalid[12] = 0xff;
+    invalid[13] = 0xff;
+    CHECK(decode(bytes(invalid), packet) == Result::Oversize);
+    Frame output;
+    invalid = wire;
+    invalid[1] = 0x21;
+    CHECK(relay(bytes(invalid), output) == Result::Policy);
+    invalid = wire;
+    invalid[11] |= 0x10;
+    CHECK(relay(bytes(invalid), output) == Result::Policy);
+    invalid = wire;
+    invalid[2] = 1;
+    CHECK(relay(bytes(invalid), output) == Result::Policy);
+    for (const auto &vector : VECTORS) {
+        if (std::string(vector.name) != "compressed")
+            continue;
+        invalid = unhex(vector.wire);
+        CHECK(decode(bytes(invalid), packet) == Result::Ok);
+        const size_t offset = packet.payload.data - invalid.data();
+        invalid[offset] = 0xff;
+        invalid[offset + 1] = 0xff;
+        CHECK(decode(bytes(invalid), packet) == Result::Oversize);
+        invalid[offset] = invalid[offset + 1] = 0;
+        CHECK(decode(bytes(invalid), packet) == Result::Oversize);
+    }
+    std::mt19937 random(0xBC2026);
+    for (size_t i = 0; i < 100000; ++i) {
+        Frame mutated;
+        mutated.size = random() % (MAX_FRAME + 1);
+        for (size_t j = 0; j < mutated.size; ++j)
+            mutated.data[j] = uint8_t(random());
+        if (decode(mutated.bytes(), packet) == Result::Ok)
+            CHECK(signingBytes(mutated.bytes(), output) == Result::Ok);
+        size_t length = 0;
+        wireFrameLength(mutated.bytes(), length);
+        validUtf8(mutated.bytes());
+    }
+}
+
+int main()
+{
+    officialVectors();
+    signatureRejections();
+    identitiesAndText();
+    queuesAndTime();
+    fragments();
+    malformedInputs();
+    std::cout << "PASS: " << checks
+              << " assertions; 19 official-client vectors; 100000 "
+                 "malformed-input cases\n";
+}

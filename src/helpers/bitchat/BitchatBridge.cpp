@@ -1,0 +1,951 @@
+#ifdef WITH_BITCHAT_BRIDGE
+#include "BitchatBridge.h"
+#include "BridgeDiagnostics.h"
+#include "BridgePlatform.h"
+#include <Arduino.h>
+#include <Curve25519.h>
+#include <HKDF.h>
+#include <esp_system.h>
+#include <new>
+
+using namespace bitchat;
+BitchatBridge bitchat_bridge;
+static constexpr uint32_t DEDUP_MS = 125000;
+static constexpr uint64_t JOURNAL_MS = 600000;
+static constexpr uint32_t GUARD_MS = 30000;
+static constexpr uint32_t CONFLICT_MS = 90000;
+static constexpr uint32_t RADIO_DEADLINE_MS = 120000;
+static constexpr uint32_t BUDGET_MS = 12000;
+// What the attached app shows as the sender of the bridge's own answers.
+static constexpr char APP_SENDER[] = "bridge: ";
+// The well-known key of the MeshCore "Public" channel, where a bridge would be noise for everyone.
+static constexpr uint8_t MESH_PUBLIC_KEY[16] = {0x8b, 0x33, 0x87, 0xe9, 0xc5, 0xcd, 0xea, 0x6a,
+                                                0xc9, 0xe5, 0xed, 0xba, 0xa1, 0x15, 0xcd, 0x72};
+
+// A hashtag channel is keyed by the first 16 bytes of the SHA-256 of its name, so the name is all a
+// MeshCore user needs to join it.
+static void publicSecret(Crypto &crypto, uint8_t secret[32])
+{
+    Digest hash;
+    crypto.hash({reinterpret_cast<const uint8_t *>(PUBLIC_CHANNEL_NAME), sizeof(PUBLIC_CHANNEL_NAME) - 1}, hash);
+    std::fill_n(secret, 32, 0);
+    std::copy_n(hash.begin(), 16, secret);
+}
+
+static void bindingOf(const uint8_t secret[32], Digest &out)
+{
+    SHA256 sha;
+    static const char purpose[] = "meshcore-bitchat/channel/v1";
+    sha.update(purpose, sizeof(purpose));
+    sha.update(secret, 32);
+    sha.finalize(out.data(), out.size());
+}
+
+void BitchatBridge::begin(MeshHost &meshHost)
+{
+    host = &meshHost;
+    setupBootDiagnostics();
+    storageReady = storage.begin("bc-meshcore", false);
+    if (storageReady && storage.isKey("settings")) {
+        if (storage.getBytesLength("settings") != sizeof(settings) ||
+            storage.getBytes("settings", &settings, sizeof(settings)) != sizeof(settings) || settings.magic != 0x4243434d ||
+            settings.enabled > 1 || settings.localOnly > 1 || settings.applied > 1) {
+            settings = Settings{};
+            storageReady = false;
+        }
+    }
+    defaultsPending = storageReady && settings.applied == 0;
+    for (size_t i = 0; storageReady && i < journal.size(); ++i) {
+        char key[8];
+        snprintf(key, sizeof(key), "j%02u", unsigned(i));
+        auto &entry = journal[i];
+        if (storage.isKey(key) &&
+            (storage.getBytesLength(key) != sizeof(entry) || storage.getBytes(key, &entry, sizeof(entry)) != sizeof(entry)))
+            storageReady = false;
+    }
+    if (storageReady && storage.isKey("clock") && storage.getBytesLength("clock") == sizeof(clockFloor))
+        storage.getBytes("clock", &clockFloor, sizeof(clockFloor));
+#ifdef BRIDGE_BUILD_EPOCH
+    clockFloor = std::max<uint64_t>(clockFloor, uint64_t(BRIDGE_BUILD_EPOCH) * 1000);
+#endif
+    refreshChannel();
+    bleConfigure(false, false, false);
+    ranAt = millis();
+}
+
+// The firmware clock only jumps when the app, a GPS fix or an operator command sets it. What it
+// holds before that may be a guess from stored contacts, which is no use for packet freshness.
+void BitchatBridge::watchClock(uint32_t now)
+{
+    const uint32_t clock = host->clockSeconds();
+    if (clockSampled) {
+        const int64_t drift = int64_t(clock) - int64_t(clockRtc) - int64_t(uint32_t(now - clockAt) / 1000);
+        if (drift > 2 || drift < -2)
+            clockTrusted = true;
+    }
+    clockSampled = true;
+    clockRtc = clock;
+    clockAt = now;
+}
+
+uint64_t BitchatBridge::trustedUtc() const
+{
+    const uint64_t clock = uint64_t(host->clockSeconds()) * 1000;
+    return clockTrusted && clock >= clockFloor ? clock : 0;
+}
+
+uint64_t BitchatBridge::utc() const
+{
+    const uint64_t trusted = trustedUtc();
+    if (trusted || !peerClockUtc)
+        return trusted;
+    return peerClockUtc + uint32_t(millis() - peerClockAt);
+}
+
+// Until a trusted source sets the clock, a phone that announces itself directly supplies the time:
+// never before the last trusted time, and afterwards only forward. The firmware clock is left alone.
+void BitchatBridge::adoptPeerClock(Bytes frame, const Packet &packet)
+{
+    if (trustedUtc() || packet.type != 1 || packet.ttl != 7 || packet.timestamp < clockFloor)
+        return;
+    const uint64_t current = utc();
+    if (current && packet.timestamp <= current + FRESHNESS_MS)
+        return;
+    Peer *peer = nullptr;
+    if (runtime->peers->announce(crypto, frame, packet.timestamp, millis(), peer) != Result::Ok)
+        return;
+    peerClockUtc = packet.timestamp;
+    peerClockAt = millis();
+    announcedAt = peerClockAt - 60000;
+}
+
+void BitchatBridge::keepClock(uint32_t now)
+{
+    const uint64_t trusted = trustedUtc();
+    if (trusted ? (clockSaved && Throttle::isWithinTimespanMsAt(clockSavedAt, 3600000, now))
+                : (!peerClockUtc || Throttle::isWithinTimespanMsAt(peerClockAt, 3600000, now)))
+        return;
+    if (trusted) {
+        // Only a trusted time raises the floor kept across restarts; a phone could otherwise lock the bridge in the future.
+        clockFloor = trusted;
+        clockSaved = true;
+        clockSavedAt = now;
+        if (storageReady)
+            storage.putBytes("clock", &clockFloor, sizeof(clockFloor));
+    } else {
+        peerClockUtc += uint32_t(now - peerClockAt);
+        peerClockAt = now;
+    }
+}
+
+bool BitchatBridge::persist()
+{
+    settings.applied = 1;
+    defaultsPending = false;
+    advertisingChanged = true;
+    if (!storageReady || storage.putBytes("settings", &settings, sizeof(settings)) != sizeof(settings)) {
+        storageReady = false;
+        settings.enabled = false;
+        return false;
+    }
+    return true;
+}
+
+void BitchatBridge::applyDefaults()
+{
+    if (!defaultsPending || !storageReady || !ensureRuntime())
+        return;
+    if (!initIdentity())
+        return;
+    // Applied once; a later choice of off or Bluetooth only survives restarts.
+    settings.enabled = true;
+    textGuardAt = millis();
+    persist();
+    ensureDefaultChannel();
+}
+
+// The public channel is part of the out-of-the-box setup. Unless the operator chose Bluetooth only or
+// another channel, it is created again whenever it is missing, so a wiped channel list heals by itself.
+void BitchatBridge::ensureDefaultChannel()
+{
+    if (defaultsPending || !storageReady || !settings.enabled || settings.localOnly || textReady)
+        return;
+    uint8_t secret[32];
+    publicSecret(crypto, secret);
+    Digest standard;
+    bindingOf(secret, standard);
+    if (settings.channel != NO_CHANNEL && settings.binding != standard)
+        return;
+    const uint8_t channel = host->provideChannel(PUBLIC_CHANNEL_NAME, secret);
+    Digest fingerprint{};
+    if (channel == NO_CHANNEL || !binding(channel, fingerprint)) {
+        defaultChannelUnavailable = true;
+        return;
+    }
+    defaultChannelUnavailable = false;
+    if (settings.channel != channel || settings.binding != fingerprint) {
+        settings.channel = channel;
+        settings.binding = fingerprint;
+        textGuardAt = millis();
+        persist();
+    }
+    refreshChannel();
+}
+
+bool BitchatBridge::initIdentity()
+{
+    if (identityReady)
+        return true;
+    if (!storageReady)
+        return false;
+    if (storage.isKey("identity")) {
+        if (storage.getBytesLength("identity") != identity.size() ||
+            storage.getBytes("identity", identity.data(), identity.size()) != identity.size()) {
+            storageReady = false;
+            return false;
+        }
+    } else {
+        // The hardware generator needs the radio running to be unpredictable.
+        if (!platformBluetooth.isActive())
+            return false;
+        esp_fill_random(identity.data(), identity.size());
+        identity[32] &= 0xf8;
+        identity[63] = (identity[63] & 0x7f) | 0x40;
+        if (storage.putBytes("identity", identity.data(), identity.size()) != identity.size()) {
+            storageReady = false;
+            return false;
+        }
+    }
+    Ed25519::derivePublicKey(signingPublic.data(), identity.data());
+    if (!Curve25519::eval(noisePublic.data(), identity.data() + 32, nullptr))
+        return false;
+    Digest hash;
+    crypto.hash({noisePublic.data(), noisePublic.size()}, hash);
+    std::copy_n(hash.begin(), ownId.size(), ownId.begin());
+    identityReady = true;
+    return true;
+}
+
+bool BitchatBridge::setEnabled(bool value)
+{
+    resourceError = false;
+    if (value) {
+        if (!ensureRuntime())
+            return false;
+        if (!initIdentity()) {
+            releaseRuntime();
+            return false;
+        }
+    } else {
+        releaseRuntime();
+    }
+    settings.enabled = value;
+    textGuardAt = millis();
+    if (runtime)
+        runtime->radioQueue.clear();
+    tokens = value ? BUDGET_MS : 0;
+    lastBudget = millis();
+    return persist();
+}
+
+bool BitchatBridge::ensureRuntime()
+{
+    if (runtime)
+        return true;
+    if (!platformBluetooth.isActive())
+        return false;
+    memoryRequest("bridge-runtime", sizeof(Runtime) + sizeof(PeerTable) + sizeof(DedupCache<256>) + bleBufferSize(),
+                  std::max(sizeof(Runtime), sizeof(DedupCache<256>)));
+    if (allocateBuffer(runtime) && allocateBuffer(runtime->peers) && allocateBuffer(runtime->dedup) && bleAllocateBuffers()) {
+        bootDiagnostic("bridge-buffers-ready");
+        return true;
+    }
+    releaseRuntime();
+    resourceError = true;
+    bootDiagnostic("bridge-memory-refused");
+    return false;
+}
+
+bool BitchatBridge::startBasicMode(uint8_t channel)
+{
+    Digest fingerprint{};
+    if (channel != NO_CHANNEL && !binding(channel, fingerprint))
+        return false;
+    resourceError = false;
+    if (!ensureRuntime())
+        return false;
+    if (!initIdentity()) {
+        releaseRuntime();
+        return false;
+    }
+    settings.channel = channel;
+    settings.binding = fingerprint;
+    settings.localOnly = channel == NO_CHANNEL;
+    settings.enabled = true;
+    defaultChannelUnavailable = false;
+    textConflict = false;
+    textGuardAt = millis();
+    runtime->radioQueue.clear();
+    tokens = BUDGET_MS;
+    lastBudget = millis();
+    const bool saved = persist();
+    refreshChannel();
+    return saved;
+}
+
+void BitchatBridge::releaseRuntime()
+{
+    bleReleaseBuffers();
+    runtime.reset();
+}
+
+bool BitchatBridge::eligibleChannel(uint8_t index) const
+{
+    char name[32];
+    uint8_t secret[32];
+    return host && host->readChannel(index, name, secret) && name[0] != 0 &&
+           !std::equal(std::begin(MESH_PUBLIC_KEY), std::end(MESH_PUBLIC_KEY), secret);
+}
+
+bool BitchatBridge::binding(uint8_t index, Digest &out) const
+{
+    char name[32];
+    uint8_t secret[32];
+    if (!eligibleChannel(index) || !host->readChannel(index, name, secret))
+        return false;
+    bindingOf(secret, out);
+    return true;
+}
+
+void BitchatBridge::refreshChannel()
+{
+    Digest current;
+    const bool hadText = textReady;
+    textReady = settings.channel != NO_CHANNEL && binding(settings.channel, current) && current == settings.binding;
+    channelsAt = millis();
+    // Other bridges learn about this one from the proof in its next announcement.
+    if (textReady != hadText)
+        announcedAt = channelsAt - 60000;
+    if (textReady && textKeyBinding != settings.binding) {
+        char name[32];
+        uint8_t secret[32];
+        host->readChannel(settings.channel, name, secret);
+        static const char info[] = "meshcore-bitchat/text/v1";
+        hkdf<SHA256>(textKey.data(), textKey.size(), secret, 32, settings.binding.data(), 32, info, sizeof(info) - 1);
+        textKeyBinding = settings.binding;
+    }
+}
+
+bool BitchatBridge::textGuard() const
+{
+    return Throttle::isWithinTimespanMsAt(textGuardAt, GUARD_MS, millis());
+}
+
+const char *BitchatBridge::status() const
+{
+    if (platformBluetooth.startupFailed)
+        return "Bluetooth error";
+    if (!storageReady)
+        return "Storage error";
+    if (resourceError)
+        return "Low memory: bridge OFF";
+    if (!settings.enabled)
+        return "Bridge is off";
+    if (!platformBluetooth.isActive())
+        return "Bluetooth is off";
+    if (!identityReady)
+        return "Starting...";
+    if (!utc())
+        return "Clock not set";
+    if (settings.channel != NO_CHANNEL && !textReady)
+        return "LoRa channel changed";
+    if (settings.channel == NO_CHANNEL && !settings.localOnly && defaultChannelUnavailable)
+        return "No LoRa channel";
+    if (textConflict)
+        return "Standby: other bridge";
+    if (textReady && textGuard()) {
+        // A countdown, so the wait is visibly moving.
+        const uint32_t left = (GUARD_MS - uint32_t(millis() - textGuardAt) + 999) / 1000;
+        snprintf(guardText, sizeof(guardText), "Starting LoRa: %lu s", static_cast<unsigned long>(left));
+        return guardText;
+    }
+    return textReady ? "Ready: Bitchat + LoRa" : "Ready: Bitchat only";
+}
+
+// What the operator can do about the current status; empty when nothing is needed.
+const char *BitchatBridge::hint() const
+{
+    if (platformBluetooth.startupFailed || !storageReady || resourceError)
+        return "Restart the radio";
+    if (!settings.enabled)
+        return "To turn it on, send: !bridge on";
+    if (!platformBluetooth.isActive())
+        return "Turn Bluetooth on at the radio";
+    if (identityReady && !utc())
+        return "Open Bitchat nearby, or connect this app again";
+    if (settings.channel != NO_CHANNEL && !textReady)
+        return "Send !bridge lora in the channel to use";
+    if (settings.channel == NO_CHANNEL && !settings.localOnly && defaultChannelUnavailable)
+        return "Free a channel slot in the app";
+    return "";
+}
+
+// The clock the bridge is using and why phone packets were refused.
+void BitchatBridge::diagnostics(char *out, size_t size) const
+{
+    const uint32_t seconds = uint32_t(utc() / 1000);
+    const auto count = [this](Result result) { return static_cast<unsigned long>(rejected[static_cast<size_t>(result)]); };
+    snprintf(out, size, "UTC %02lu:%02lu:%02lu %s. rx %lu ok %lu tx %lu. old %lu sig %lu fmt %lu. ver %lu pol %lu full %lu",
+             static_cast<unsigned long>(seconds / 3600 % 24), static_cast<unsigned long>(seconds / 60 % 60),
+             static_cast<unsigned long>(seconds % 60),
+             trustedUtc()   ? "app"
+             : peerClockUtc ? "phone"
+                            : "none",
+             static_cast<unsigned long>(receivedBle), static_cast<unsigned long>(acceptedBle),
+             static_cast<unsigned long>(originatedBle), count(Result::Expired) + count(Result::NoClock),
+             count(Result::Unauthenticated), count(Result::Malformed) + count(Result::Oversize) + count(Result::Incomplete),
+             count(Result::Unsupported), count(Result::Policy), count(Result::Full));
+}
+
+static void displayCount(uint32_t value, char out[8])
+{
+    const char *suffix = "";
+    if (value >= 1000000000) {
+        value /= 1000000000;
+        suffix = "G";
+    } else if (value >= 1000000) {
+        value /= 1000000;
+        suffix = "M";
+    } else if (value >= 100000) {
+        value /= 1000;
+        suffix = "k";
+    }
+    snprintf(out, 8, "%lu%s", static_cast<unsigned long>(value), suffix);
+}
+
+// Shown only in the app attached to this radio, as a channel message from "bridge".
+void BitchatBridge::replyToApp(const char *text)
+{
+    char line[LORA_TEXT_LIMIT + 1];
+    const int size = snprintf(line, sizeof(line), "%s%s", APP_SENDER, text);
+    if (size > 0)
+        host->showChannelText(appChannel, host->clockSeconds(), line, std::min<size_t>(size, LORA_TEXT_LIMIT));
+}
+
+// Self-test asked from the MeshCore app: what the bridge sees, then what to do about it.
+void BitchatBridge::answerApp()
+{
+    const Command command = appCommand;
+    appCommand = Command::None;
+    char text[LORA_TEXT_LIMIT + 1];
+    if (command == Command::Reset) {
+        restartLinks();
+        replyToApp("Bluetooth restarts in 3 s. Then open Bitchat near the radio and wait 1 min.");
+        return;
+    }
+    if (command == Command::Help) {
+        replyToApp("!bridge shows the state. Also: !bridge on, off, local (Bluetooth only), lora (Bitchat + LoRa on the "
+                   "channel where you send it), reset.");
+        return;
+    }
+    if (command != Command::Status) {
+        bool done = false;
+        const char *result = "";
+        if (command == Command::Off) {
+            done = setEnabled(false);
+            result = "Bridge turned off. Send !bridge on to turn it back on.";
+        } else if (command == Command::On) {
+            done = setEnabled(true);
+            result = "Bridge turned on. Send !bridge to see its state.";
+        } else if (command == Command::Local) {
+            done = startBasicMode();
+            result = "Bitchat only: phones are relayed by Bluetooth, nothing goes to LoRa.";
+        } else if (!eligibleChannel(appChannel)) {
+            replyToApp("Not changed: the Public channel cannot be used. Send !bridge lora in another channel.");
+            return;
+        } else {
+            done = startBasicMode(appChannel);
+            result = "Bitchat + LoRa on this channel.";
+        }
+        if (done)
+            snprintf(text, sizeof(text), "%s", result);
+        else
+            snprintf(text, sizeof(text), "Not changed: %s", status());
+        replyToApp(text);
+        return;
+    }
+    const unsigned phones = unsigned(blePhones()), people = unsigned(runtime ? runtime->peers->size() : 0);
+    char tx[8], rx[8], missed[8], name[32] = "off";
+    uint8_t secret[32];
+    if (textReady)
+        host->readChannel(settings.channel, name, secret);
+    displayCount(submittedRadio, tx);
+    displayCount(importedRadio, rx);
+    displayCount(drops(), missed);
+    snprintf(text, sizeof(text), "%s. Bluetooth %u, Bitchat %u, people %u. LoRa %.16s out %s in %s lost %s", status(),
+             unsigned(bleConnections()), phones, people, name, tx, rx, missed);
+    replyToApp(text);
+    diagnostics(text, sizeof(text));
+    replyToApp(text);
+    // One line per message: the counters, then each Bluetooth link.
+    char links[280];
+    bleDescribe(links, sizeof(links));
+    for (char *line = links; line && *line;) {
+        char *end = strchr(line, '\n');
+        if (end)
+            *end = 0;
+        replyToApp(line);
+        line = end ? end + 1 : nullptr;
+    }
+    if (hint()[0])
+        snprintf(text, sizeof(text), "%s", hint());
+    else if (!wasActive)
+        snprintf(text, sizeof(text), "The bridge is not running: %s", status());
+    else if (!phones)
+        snprintf(text, sizeof(text), "No Bitchat app has talked to this radio. Open Bitchat nearby and wait 1 min. If it "
+                                     "stays at 0, send: !bridge reset");
+    else if (!people)
+        snprintf(text, sizeof(text), "Bitchat is talking but nobody was accepted: see old, sig and fmt above.");
+    else
+        snprintf(text, sizeof(text), "Bitchat link OK. Send !bridge in Bitchat #mesh to test the way back.");
+    replyToApp(text);
+}
+
+// Self-test asked from Bitchat: seeing this answer proves both directions of the Bluetooth link.
+void BitchatBridge::answerBitchat()
+{
+    char text[BITCHAT_TEXT_LIMIT + 1], tx[8], rx[8], missed[8];
+    displayCount(submittedRadio, tx);
+    displayCount(importedRadio, rx);
+    displayCount(drops(), missed);
+    const int size = snprintf(text, sizeof(text), "%s%s. Phones %u, people %u. LoRa out %s, in %s, lost %s", REPLY_PREFIX,
+                              status(), unsigned(blePhones()), unsigned(runtime->peers->size()), tx, rx, missed);
+    if (!Throttle::isWithinTimespanMsAt(announcedAt, 5000, millis()))
+        announce();
+    originate(2, {reinterpret_cast<const uint8_t *>(text), std::min<size_t>(size, BITCHAT_TEXT_LIMIT)});
+}
+
+void BitchatBridge::reject(Result result)
+{
+    if (result != Result::Ok && result != Result::Incomplete)
+        ++rejected[static_cast<size_t>(result)];
+}
+
+uint32_t BitchatBridge::drops() const
+{
+    // Duplicates and policy refusals are normal mesh traffic, not lost messages.
+    return bleDrops() + lost;
+}
+
+bool BitchatBridge::seen(const Digest &id) const
+{
+    const uint64_t now = utc();
+    for (const auto &entry : journal)
+        if (entry.utc && std::equal(entry.id.begin(), entry.id.end(), id.begin()) &&
+            (entry.utc > now || now - entry.utc < JOURNAL_MS))
+            return true;
+    return false;
+}
+
+bool BitchatBridge::record(const Digest &id)
+{
+    const uint64_t now = utc();
+    if (!storageReady || !now || seen(id))
+        return false;
+    // A full journal gives up its oldest entry: refusing new messages would silence the bridge.
+    size_t slot = 0;
+    for (size_t i = 1; i < journal.size(); ++i)
+        if (journal[i].utc < journal[slot].utc)
+            slot = i;
+    auto &entry = journal[slot];
+    std::copy_n(id.begin(), entry.id.size(), entry.id.begin());
+    entry.utc = now;
+    char key[8];
+    snprintf(key, sizeof(key), "j%02u", unsigned(slot));
+    if (storage.putBytes(key, &entry, sizeof(entry)) == sizeof(entry))
+        return true;
+    storageReady = false;
+    advertisingChanged = true;
+    return false;
+}
+
+void BitchatBridge::originate(uint8_t type, Bytes payload)
+{
+    if (!identityReady || !utc()) {
+        reject(Result::NoClock);
+        return;
+    }
+    // Two messages in the same instant still need distinct timestamps; a corrected clock must not keep an old lead.
+    uint64_t timestamp = utc();
+    if (lastOriginTimestamp >= timestamp && lastOriginTimestamp - timestamp < 1000)
+        timestamp = lastOriginTimestamp + 1;
+    lastOriginTimestamp = timestamp;
+    if (encode(type, ownId, nullptr, timestamp, 7, payload, {}, runtime->working) != Result::Ok ||
+        signingBytes(runtime->working.bytes(), runtime->canonical) != Result::Ok)
+        return;
+    std::array<uint8_t, 64> signature;
+    Ed25519::sign(signature.data(), identity.data(), signingPublic.data(), runtime->canonical.data.data(),
+                  runtime->canonical.size);
+    if (encode(type, ownId, nullptr, timestamp, 7, payload, {signature.data(), signature.size()}, runtime->working) != Result::Ok)
+        return;
+    Digest id;
+    packetDigest(crypto, runtime->working.bytes(), id);
+    if (runtime->dedup->insert(id, millis(), DEDUP_MS) != Result::Ok) {
+        reject(Result::Full);
+        return;
+    }
+    if (!bleBroadcast(runtime->working.bytes()))
+        reject(Result::Full);
+    else
+        ++originatedBle;
+}
+
+void BitchatBridge::announce()
+{
+    if (!utc())
+        return;
+    std::array<uint8_t, 150> payload{};
+    char name[24];
+    snprintf(name, sizeof(name), "LoRa bridge %04lx", static_cast<unsigned long>(host->nodeNumber() & 0xffff));
+    size_t length = strlen(name);
+    payload[0] = 1;
+    payload[1] = length;
+    std::copy_n(reinterpret_cast<uint8_t *>(name), length, payload.begin() + 2);
+    size_t offset = length + 2;
+    payload[offset++] = 2;
+    payload[offset++] = 32;
+    std::copy(noisePublic.begin(), noisePublic.end(), payload.begin() + offset);
+    offset += 32;
+    payload[offset++] = 3;
+    payload[offset++] = 32;
+    std::copy(signingPublic.begin(), signingPublic.end(), payload.begin() + offset);
+    offset += 32;
+    if (textReady) {
+        payload[offset++] = GATEWAY_TLV;
+        payload[offset++] = GATEWAY_PROOF;
+        makeGatewayProof(crypto, ownId, host->nodeNumber(), textKey.data(), payload.data() + offset);
+        offset += GATEWAY_PROOF;
+    }
+    announcedAt = millis();
+    originate(1, {payload.data(), offset});
+}
+
+// Returns true when the frame cost a signature check, so the caller can pace the next one.
+bool BitchatBridge::handleFrame(Bytes frame, uint16_t source)
+{
+    const uint32_t now = millis();
+    Packet packet;
+    Result result = decode(frame, packet);
+    if (result != Result::Ok) {
+        reject(result);
+        return false;
+    }
+    if (packet.type == 0x20) {
+        if (!allocateBuffer(runtime->fragments)) {
+            reject(Result::Full);
+            ++lost;
+            return false;
+        }
+        result = runtime->fragments->accept(packet, now, runtime->assembled);
+        if (result != Result::Ok) {
+            reject(result);
+            return false;
+        }
+        frame = runtime->assembled.bytes();
+        if (decode(frame, packet) != Result::Ok)
+            return false;
+    }
+    if (packet.sender == ownId || packet.type == 0x21 || packet.replay()) {
+        reject(Result::Policy);
+        return false;
+    }
+    adoptPeerClock(frame, packet);
+    Digest id;
+    result = packetDigest(crypto, frame, id);
+    // Every phone relays what it hears, so most arrivals are copies: drop them before the signature check.
+    if (result == Result::Ok && runtime->dedup->contains(id, now, DEDUP_MS))
+        result = Result::Duplicate;
+    if (result != Result::Ok) {
+        reject(result);
+        return false;
+    }
+    Peer *peer = nullptr;
+    result = runtime->peers->authenticate(crypto, frame, utc(), now, peer);
+    if (result == Result::Ok && !peer)
+        result = Result::Unauthenticated;
+    if (result == Result::Ok)
+        result = runtime->dedup->insert(id, now, DEDUP_MS);
+    if (result != Result::Ok) {
+        reject(result);
+        return true;
+    }
+    ++acceptedBle;
+    uint32_t other = 0;
+    // Two bridges on one channel would duplicate every text: the higher node number stands by.
+    if (textReady && packet.type == 1 && gatewayProofNode(crypto, packet, host->nodeNumber(), textKey.data(), other) &&
+        other < host->nodeNumber()) {
+        textConflict = true;
+        conflictAt = now;
+    }
+    if (!peer->traffic.admit(now, 30)) {
+        reject(Result::Full);
+        ++lost;
+        return true;
+    }
+    if (relay(frame, runtime->working) == Result::Ok) {
+        if (bleBroadcast(runtime->working.bytes(), source))
+            ++forwardedBle;
+    }
+    const bool publicMessage = packet.type == 2 && !packet.directed();
+    if (publicMessage && !packet.compressed() && bridgeCommand(packet.payload) != Command::None) {
+        // Anyone nearby may ask, so answers are spaced out; only the state is ever answered here.
+        if (!Throttle::isWithinTimespanMsAt(repliedAt, 5000, now)) {
+            repliedAt = now;
+            answerBitchat();
+        }
+        return true;
+    }
+    if (textReady && publicMessage)
+        exportText(packet, *peer, id);
+    return true;
+}
+
+void BitchatBridge::exportText(const Packet &packet, Peer &peer, const Digest &id)
+{
+    Bytes body;
+    Result result = publicTextForLoRa(packet, body);
+    // Text from another bridge already came from LoRa: sending it back would loop.
+    if (result == Result::Ok && (peer.announcement.gateway || textConflict))
+        result = Result::Policy;
+    if (result == Result::Ok && seen(id))
+        result = Result::Duplicate;
+    if (result != Result::Ok) {
+        reject(result);
+        return;
+    }
+    char label[LABEL_LIMIT + 8];
+    size_t labelSize = cleanLabel({reinterpret_cast<const uint8_t *>(peer.announcement.nickname.data()),
+                                   strnlen(peer.announcement.nickname.data(), peer.announcement.nickname.size())},
+                                  label, LABEL_LIMIT - 4);
+    // Same rule as the Bitchat app: equal nicknames are told apart by the start of the peer ID.
+    if (!labelSize || runtime->peers->nicknameShared(peer))
+        labelSize += snprintf(label + labelSize, 6, "#%02x%02x", peer.id[0], peer.id[1]);
+    TextPlan plan;
+    result = planNativeText(labelSize, body, plan);
+    if (result == Result::Ok && (textGuard() || runtime->radioQueue.size() + plan.count > RadioItem::QUEUE ||
+                                 !peer.lora.admit(millis(), 6, 6000) || !record(id)))
+        result = Result::Full;
+    if (result != Result::Ok) {
+        reject(result);
+        ++lost;
+        return;
+    }
+    for (size_t part = 0; part < plan.count; ++part) {
+        NativeText native;
+        if (makeNativeText({reinterpret_cast<const uint8_t *>(label), labelSize}, body, plan, part, native) != Result::Ok)
+            continue;
+        RadioItem item;
+        item.size = uint16_t(native.size);
+        item.queuedAt = millis();
+        std::copy_n(native.data.begin(), native.size, item.payload.begin());
+        if (!runtime->radioQueue.push(item))
+            reject(Result::Full);
+    }
+}
+
+// Text for the Bitchat side, shown as "[MC name] text" under the bridge's own identity.
+void BitchatBridge::importText(Bytes name, Bytes body, const Digest *id)
+{
+    char label[LABEL_LIMIT + 1];
+    size_t labelSize = cleanLabel(name, label, sizeof(label));
+    if (!labelSize)
+        labelSize = snprintf(label, sizeof(label), "mesh");
+    TextPlan plan;
+    const Result result = planBitchatText(labelSize, body, plan);
+    if (result != Result::Ok || (id && !record(*id))) {
+        reject(result == Result::Ok ? Result::Full : result);
+        ++lost;
+        return;
+    }
+    // A phone that just connected may not know the bridge key yet; its messages would be discarded.
+    if (!Throttle::isWithinTimespanMsAt(announcedAt, 5000, millis()))
+        announce();
+    for (size_t part = 0; part < plan.count; ++part) {
+        NativeText text;
+        if (makeBitchatText({reinterpret_cast<const uint8_t *>(label), labelSize}, body, plan, part, text) == Result::Ok)
+            originate(2, text.bytes());
+    }
+    ++importedRadio;
+}
+
+void BitchatBridge::onChannelText(uint8_t channel, const uint8_t *packetHash, const char *text)
+{
+    if (!host || !text || !settings.enabled || !runtime || !wasActive || !storageReady || !identityReady || !utc())
+        return;
+    refreshChannel();
+    if (!textReady || textConflict || textGuard() || channel != settings.channel)
+        return;
+    // Bitchat keeps no mailbox on the bridge: without a phone connected there is nobody to deliver to.
+    if (!blePhones())
+        return;
+    const size_t size = strlen(text);
+    // MeshCore channel text is "sender: text" by convention.
+    const char *split = strstr(text, ": ");
+    Bytes name{reinterpret_cast<const uint8_t *>(text), split ? size_t(split - text) : 0};
+    Bytes body{reinterpret_cast<const uint8_t *>(split ? split + 2 : text), split ? size - name.size - 2 : size};
+    // Commands are for the app attached to a radio; one heard on the air is neither obeyed nor relayed.
+    if (!body.size || bridgeCommand(body) != Command::None)
+        return;
+    std::array<uint8_t, 42> material{};
+    material[0] = 'M';
+    material[1] = 'C';
+    std::copy(settings.binding.begin(), settings.binding.end(), material.begin() + 2);
+    std::copy_n(packetHash, 8, material.begin() + 34);
+    Digest id;
+    crypto.hash({material.data(), material.size()}, id);
+    if (seen(id)) {
+        reject(Result::Duplicate);
+        return;
+    }
+    importText(name, body, &id);
+}
+
+bool BitchatBridge::onAppText(uint8_t channel, const char *text, size_t size)
+{
+    if (!host || !text)
+        return false;
+    const Bytes body{reinterpret_cast<const uint8_t *>(text), strnlen(text, size)};
+    const Command command = bridgeCommand(body);
+    if (command != Command::None) {
+        // Answered on the next tick, in the channel where it was typed.
+        appCommand = command;
+        appChannel = channel;
+        interval = 0;
+        return true;
+    }
+    if (!settings.enabled || !runtime || !wasActive || !storageReady || !identityReady || !utc())
+        return false;
+    refreshChannel();
+    if (textReady && !textConflict && !textGuard() && channel == settings.channel && blePhones() && body.size) {
+        const char *name = host->nodeName();
+        importText({reinterpret_cast<const uint8_t *>(name), strlen(name)}, body, nullptr);
+    }
+    return false;
+}
+
+void BitchatBridge::sendRadio()
+{
+    auto *item = runtime->radioQueue.front();
+    if (!item)
+        return;
+    if (!Throttle::isWithinTimespanMsAt(item->queuedAt, RADIO_DEADLINE_MS, millis()) || !textReady || textConflict) {
+        reject(Result::Expired);
+        ++lost;
+        runtime->radioQueue.pop();
+        return;
+    }
+    if (host->radioBusy() || !runtime->radioGate.admit(millis(), 1500))
+        return;
+    const uint32_t cost = host->airtimeMs(item->size);
+    if (cost > tokens)
+        return;
+    // The bridge's own clock dates the message: the firmware's may never have been set.
+    if (!host->sendChannelText(settings.channel, uint32_t(utc() / 1000), reinterpret_cast<const char *>(item->payload.data()),
+                               item->size)) {
+        reject(Result::Full);
+        return;
+    }
+    tokens -= cost;
+    runtime->radioQueue.pop();
+    ++submittedRadio;
+}
+
+void BitchatBridge::loop()
+{
+    if (!host)
+        return;
+    const uint32_t now = millis();
+    if (Throttle::isWithinTimespanMsAt(ranAt, interval, now))
+        return;
+    ranAt = now;
+    interval = 1000;
+    work(now);
+}
+
+void BitchatBridge::work(uint32_t now)
+{
+    watchClock(now);
+    const bool bluetoothReady = platformBluetooth.isActive();
+    if (bluetoothReady && !resourceError)
+        applyDefaults();
+    if (!Throttle::isWithinTimespanMsAt(defaultChannelAt, 10000, now)) {
+        defaultChannelAt = now;
+        ensureDefaultChannel();
+    }
+    if (settings.enabled && storageReady && bluetoothReady && !resourceError && ensureRuntime() && !identityReady)
+        initIdentity();
+    const bool active = settings.enabled && storageReady && identityReady && runtime && bluetoothReady;
+    if (!active && runtime)
+        releaseRuntime();
+    if (active != wasActive) {
+        advertisingChanged = true;
+        tokens = active ? BUDGET_MS : 0;
+        lastBudget = now;
+        wasActive = active;
+    }
+    if (appCommand != Command::None) {
+        // A command may turn the bridge off or change its mode, so this tick ends here.
+        answerApp();
+        interval = 20;
+        return;
+    }
+    if (restart == 1 && bluetoothReady) {
+        bleServicesChanged();
+        restart = 2;
+        restartAt = now;
+    } else if (restart == 2 && !Throttle::isWithinTimespanMsAt(restartAt, 3000, now)) {
+        restart = 0;
+        if (bluetoothReady)
+            bleDropConnections();
+        advertisingChanged = true;
+    }
+    if (advertisingChanged) {
+        bleConfigure(active, false, false);
+        if (bluetoothReady)
+            platformBluetooth.refreshBridgeAdvertising();
+        advertisingChanged = false;
+    }
+    if (!active)
+        return;
+    interval = 20;
+    keepClock(now);
+    if (!Throttle::isWithinTimespanMsAt(channelsAt, 1000, now))
+        refreshChannel();
+    if (textConflict && !Throttle::isWithinTimespanMsAt(conflictAt, CONFLICT_MS, now)) {
+        textConflict = false;
+        textGuardAt = now;
+    }
+    const uint32_t elapsed = now - lastBudget;
+    if (elapsed >= 1000) {
+        // LoRa airtime the bridge allows itself: 10% of the time, in bursts of at most 12 s.
+        tokens = std::min<uint32_t>(BUDGET_MS, tokens + std::min<uint32_t>(elapsed, 60000) / 10);
+        lastBudget = now;
+    }
+    // Signing costs CPU: announce to a phone that just subscribed, then only while someone listens.
+    if (bleNeedsAnnouncement() || (bleListeners() && !Throttle::isWithinTimespanMsAt(announcedAt, 20000, now)))
+        announce();
+    if (runtime->cryptoGate.admit(now, 30))
+        for (unsigned frames = 0; frames < 4 && bleReceive(runtime->input); ++frames) {
+            ++receivedBle;
+            if (handleFrame(runtime->input.frame.bytes(), runtime->input.link))
+                break;
+        }
+    blePoll();
+    if (runtime->fragments) {
+        runtime->fragments->expire(now);
+        if (runtime->fragments->empty())
+            runtime->fragments.reset();
+    }
+    sendRadio();
+}
+#endif

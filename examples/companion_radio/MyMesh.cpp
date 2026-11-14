@@ -557,6 +557,13 @@ void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uin
 
 void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                                   const char *text) {
+#ifdef WITH_BITCHAT_BRIDGE
+  {
+    uint8_t pkt_hash[MAX_HASH_SIZE];
+    pkt->calculatePacketHash(pkt_hash);
+    bitchat_bridge.onChannelText(findChannelIdx(channel), pkt_hash, text);
+  }
+#endif
   int i = 0;
   if (app_target_ver >= 3) {
     out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
@@ -1186,6 +1193,10 @@ void MyMesh::handleCmdFrame(size_t len) {
 
     if (txt_type != TXT_TYPE_PLAIN) {
       writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+#ifdef WITH_BITCHAT_BRIDGE
+    } else if (bitchat_bridge.onAppText(channel_idx, text, len - i)) {
+      writeOKFrame();   // a bridge command: answered in the app, never transmitted
+#endif
     } else {
       ChannelDetails channel;
       bool success = getChannel(channel_idx, channel);
@@ -2452,3 +2463,113 @@ bool MyMesh::advert() {
 bool MyMesh::hasPendingWork() const {
   return _mgr->getOutboundTotal() > 0 || dirty_contacts_expiry != 0;
 }
+
+#ifdef WITH_BITCHAT_BRIDGE
+// ---------- bitchat::MeshHost: what the Bitchat bridge asks of the companion
+
+uint32_t MyMesh::clockSeconds() {
+  return getRTCClock()->getCurrentTime();
+}
+
+uint32_t MyMesh::nodeNumber() {
+  uint32_t n;
+  memcpy(&n, self_id.pub_key, 4);
+  return n;
+}
+
+const char *MyMesh::nodeName() {
+  return _prefs.node_name;
+}
+
+uint8_t MyMesh::provideChannel(const char *name, const uint8_t secret[32]) {
+  ChannelDetails ch;
+  int free_idx = -1;
+  for (int i = 0; i < MAX_GROUP_CHANNELS && getChannel(i, ch); i++) {
+    if (ch.name[0] == 0) {
+      if (free_idx < 0 && i > 0) free_idx = i;   // slot 0 is left for the Public channel
+    } else if (memcmp(ch.channel.secret, secret, sizeof(ch.channel.secret)) == 0) {
+      return i;
+    }
+  }
+  if (free_idx < 0) return bitchat::NO_CHANNEL;
+
+  memset(&ch, 0, sizeof(ch));
+  StrHelper::strncpy(ch.name, name, sizeof(ch.name));
+  memcpy(ch.channel.secret, secret, sizeof(ch.channel.secret));
+  if (!setChannel(free_idx, ch)) return bitchat::NO_CHANNEL;
+  saveChannels();
+  return free_idx;
+}
+
+bool MyMesh::readChannel(uint8_t index, char name[32], uint8_t secret[32]) {
+  ChannelDetails ch;
+  if (index >= MAX_GROUP_CHANNELS || !getChannel(index, ch) || ch.name[0] == 0) return false;
+  memcpy(name, ch.name, sizeof(ch.name));
+  name[sizeof(ch.name) - 1] = 0;
+  memcpy(secret, ch.channel.secret, sizeof(ch.channel.secret));
+  return true;
+}
+
+uint32_t MyMesh::airtimeMs(size_t textSize) {
+  // header, transport codes, path length, channel hash and MAC, then the text in whole cipher blocks
+  return _radio->getEstAirtimeFor(9 + ((5 + textSize + CIPHER_BLOCK_SIZE - 1) / CIPHER_BLOCK_SIZE) * CIPHER_BLOCK_SIZE);
+}
+
+bool MyMesh::radioBusy() {
+  return _mgr->getFreeCount() < 6 || _mgr->getOutboundTotal() >= 3;
+}
+
+bool MyMesh::sendChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) {
+  ChannelDetails ch;
+  if (size == 0 || size > MAX_TEXT_LEN || !getChannel(index, ch) || ch.name[0] == 0) return false;
+
+  uint8_t temp[5 + MAX_TEXT_LEN + 1];
+  memcpy(temp, &timestamp, 4);
+  temp[4] = TXT_TYPE_PLAIN;
+  memcpy(&temp[5], text, size);   // already "<sender>: <msg>"
+  temp[5 + size] = 0;
+
+  auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, ch.channel, temp, 5 + size);
+  if (pkt == NULL) return false;
+
+  if (_listener) {
+    _listener->onChannelMessageRecv(pkt, ch, (const char *) &temp[5]);
+  }
+  sendFloodScoped(ch.channel, pkt);
+  showChannelText(index, timestamp, text, size);   // the app attached to this radio sees it as received
+  return true;
+}
+
+void MyMesh::showChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) {
+  int i = 0;
+  if (app_target_ver >= 3) {
+    out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
+    out_frame[i++] = 0; // SNR: not heard on the air
+    out_frame[i++] = 0; // reserved1
+    out_frame[i++] = 0; // reserved2
+  } else {
+    out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV;
+  }
+  out_frame[i++] = index;
+  out_frame[i++] = 0xFF;   // no path
+  out_frame[i++] = TXT_TYPE_PLAIN;
+  memcpy(&out_frame[i], &timestamp, 4);
+  i += 4;
+  int tlen = size;
+  if (i + tlen > MAX_FRAME_SIZE) {
+    tlen = MAX_FRAME_SIZE - i;
+  }
+  memcpy(&out_frame[i], text, tlen);
+  i += tlen;
+  addToOfflineQueue(out_frame, i);
+
+  if (_serial->isConnected()) {
+    uint8_t frame[1];
+    frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
+    _serial->writeFrame(frame, 1);
+  }
+  if (_listener) {
+    _listener->onQueueSizeChanged(offline_queue_len);
+  }
+}
+#endif

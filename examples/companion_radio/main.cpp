@@ -20,7 +20,11 @@ MultiSerialInterface interface_manager;
 #if defined(BLE_PIN_CODE)
   #ifdef ESP32
     // include esp32 bluetooth interface
-    #include <helpers/esp32/SerialBLEInterface.h>
+    #ifdef WITH_BITCHAT_BRIDGE
+      #include <helpers/bitchat/esp32/SerialBLEInterface.h>   // shares the links with the Bitchat bridge
+    #else
+      #include <helpers/esp32/SerialBLEInterface.h>
+    #endif
     SerialBLEInterface bluetooth_interface;
   #elif defined(NRF52_PLATFORM)
     // include nrf52 bluetooth interface
@@ -275,6 +279,9 @@ void setup() {
 #endif
 
   the_mesh.startInterface(interface_manager);
+#ifdef WITH_BITCHAT_BRIDGE
+  bitchat_bridge.begin(the_mesh);
+#endif
   sensors.begin();
 
 #if ENV_INCLUDE_GPS == 1
@@ -292,6 +299,9 @@ void setup() {
 void loop() {
   the_mesh.loop();
   interface_manager.loop();
+#ifdef WITH_BITCHAT_BRIDGE
+  bitchat_bridge.loop();
+#endif
   sensors.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();

@@ -1,0 +1,91 @@
+name: Bitchat bridge
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+    paths:
+      - 'src/**'
+      - 'examples/companion_radio/**'
+      - 'variants/bitchat/**'
+      - 'variants/heltec_v3/**'
+      - 'test/bitchat/**'
+      - 'tools/bitchat/**'
+      - 'platformio.ini'
+      - '.github/workflows/bitchat-bridge.yml'
+
+concurrency:
+  group: bitchat-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  BRIDGE_ENV: Heltec_v3_companion_radio_ble_bitchat
+  STOCK_ENV: Heltec_v3_companion_radio_ble
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v6
+
+      - name: Init Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-bitchat
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Host tests
+        run: |
+          set -o pipefail
+          pio pkg install -e "$BRIDGE_ENV" 2>&1 | tail -5
+          python tools/bitchat/run_tests.py --crypto-dir ".pio/libdeps/$BRIDGE_ENV/Crypto" 2>&1 | tee tests.log
+
+      - name: Build companion with the bridge
+        run: |
+          set -o pipefail
+          pio run -e "$BRIDGE_ENV" 2>&1 | tee build.log | tail -40
+          pio run -e "$BRIDGE_ENV" -t mergebin 2>&1 | tail -5
+
+      - name: Build stock companion (bridge flag absent)
+        run: |
+          set -o pipefail
+          pio run -e "$STOCK_ENV" 2>&1 | tee stock.log | tail -15
+
+      - name: Summary
+        if: always()
+        run: |
+          for log in tests.log build.log stock.log; do
+            [ -f "$log" ] || continue
+            grep -E "^PASS|^RAM:|^Flash:|SUCCESS" "$log" | head -4 | while IFS= read -r line; do echo "::notice title=$log::$line"; done
+            grep -E "error:|Error [0-9]|undefined reference|^FAIL|did not compile|failed$" "$log" | head -8 | while IFS= read -r line; do echo "::error title=$log::$line"; done
+          done
+
+      - name: Collect firmware
+        run: |
+          mkdir -p firmware
+          cp ".pio/build/$BRIDGE_ENV/firmware.bin" firmware/meshcore-bitchat-heltec-v3.bin
+          cp ".pio/build/$BRIDGE_ENV/firmware-merged.bin" firmware/meshcore-bitchat-heltec-v3-merged.bin
+          sha256sum firmware/* | tee firmware/SHA256SUMS
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: meshcore-bitchat-heltec-v3
+          path: firmware/
