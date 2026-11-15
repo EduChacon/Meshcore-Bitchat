@@ -68,6 +68,9 @@ void BitchatBridge::begin(MeshHost &meshHost)
     uint8_t stored = 1;
     if (storageReady && storage.isKey("link") && storage.getBytesLength("link") == 1 && storage.getBytes("link", &stored, 1) == 1)
         link = stored != 0;
+    stored = 0;
+    if (storageReady && storage.isKey("saver") && storage.getBytesLength("saver") == 1 && storage.getBytes("saver", &stored, 1) == 1)
+        saver = stored != 0;
     if (storageReady && storage.isKey("clock") && storage.getBytesLength("clock") == sizeof(clockFloor))
         storage.getBytes("clock", &clockFloor, sizeof(clockFloor));
 #ifdef BRIDGE_BUILD_EPOCH
@@ -307,6 +310,15 @@ bool BitchatBridge::setLink(bool value)
     return true;
 }
 
+bool BitchatBridge::setSaving(bool value)
+{
+    const uint8_t stored = value;
+    if (!storageReady || storage.putBytes("saver", &stored, 1) != 1)
+        return false;
+    saver = value;
+    return true;
+}
+
 bool BitchatBridge::nextMode()
 {
     if (!settings.enabled) {
@@ -490,7 +502,19 @@ void BitchatBridge::answerApp()
     }
     if (command == Command::Help) {
         replyToApp("!bridge shows the state. Also: !bridge on, off, local (Bluetooth only), lora (Bitchat + LoRa on the "
-                   "channel where you send it), link on, link off, reset.");
+                   "channel where you send it), reset.");
+        replyToApp("Options: !bridge link on, link off (text from Meshtastic bridges); economy on, economy off (slower "
+                   "Bluetooth while no Bitchat phone is near).");
+        return;
+    }
+    if (command == Command::EconomyOn || command == Command::EconomyOff) {
+        const bool value = command == Command::EconomyOn;
+        if (!setSaving(value))
+            replyToApp("Not changed: Storage error");
+        else
+            replyToApp(value ? "Economy on: after 3 min with no Bitchat phone the radio announces itself once a second. "
+                               "Apps may take longer to find it."
+                             : "Economy off: the radio always announces itself at full speed.");
         return;
     }
     if (command == Command::LinkOn || command == Command::LinkOff) {
@@ -536,8 +560,9 @@ void BitchatBridge::answerApp()
     displayCount(submittedRadio, tx);
     displayCount(importedRadio, rx);
     displayCount(drops(), missed);
-    snprintf(text, sizeof(text), "%s. Bluetooth %u, Bitchat %u, people %u. LoRa %.16s out %s in %s lost %s. Link %s", status(),
-             unsigned(bleConnections()), phones, people, name, tx, rx, missed, link ? "on" : "off");
+    snprintf(text, sizeof(text), "%s. Bluetooth %u, Bitchat %u, people %u. LoRa %.16s out %s in %s lost %s. Link %s. Economy %s",
+             status(), unsigned(bleConnections()), phones, people, name, tx, rx, missed, link ? "on" : "off",
+             !saver ? "off" : economy ? "active" : "on");
     replyToApp(text);
     diagnostics(text, sizeof(text));
     replyToApp(text);
@@ -1006,7 +1031,7 @@ void BitchatBridge::work(uint32_t now)
     }
     if (active && blePhones())
         phoneAt = now;
-    const bool quiet = active && !Throttle::isWithinTimespanMsAt(phoneAt, ECONOMY_AFTER_MS, now);
+    const bool quiet = saver && active && !Throttle::isWithinTimespanMsAt(phoneAt, ECONOMY_AFTER_MS, now);
     if (quiet != economy) {
         economy = quiet;
         advertisingChanged = true;

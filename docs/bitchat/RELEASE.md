@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.5
+# MeshCore + Bitchat v1.18.0-bitchat0.6
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -15,17 +15,22 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.5`
+## O que há de novo na `bitchat0.6`
 
-- **Modo econômico da ponte:** depois de três minutos sem nenhum telefone Bitchat, o rádio passa a
-  se anunciar cerca de uma vez por segundo, em vez de várias, e a ponte trabalha com menos
-  frequência. O primeiro telefone que falar traz o ritmo normal de volta. O ganho de bateria não foi
-  medido, e o Bitchat pode levar mais tempo para encontrar o rádio.
-- A ponte pode ser usada por outro projeto que carregue este repositório como biblioteca (é o caso
-  do [Saitama com ponte](https://github.com/EduChacon/Saitama-mesh---BC-)).
+- **O modo econômico passou a ser opcional e vem desligado.** Na `bitchat0.5` ele era automático.
+  Liga-se com `!bridge economy on` e desliga-se com `!bridge economy off`; a escolha fica gravada.
+  Motivo: em ritmo lento, o aplicativo MeshCore também pode demorar mais para encontrar o rádio, e
+  não só o Bitchat. **Quem gravou a `bitchat0.5` e quer manter a economia precisa ligá-la uma vez.**
+- `!bridge` mostra o estado do modo econômico; `!bridge help` passou a responder em duas mensagens.
 
 ## Das versões anteriores
 
+- **Modo econômico da ponte** (`bitchat0.5`): depois de três minutos sem nenhum telefone Bitchat, o
+  rádio passa a se anunciar cerca de uma vez por segundo, em vez de várias, e a ponte trabalha com
+  menos frequência. O primeiro telefone que falar traz o ritmo normal de volta. O ganho de bateria
+  não foi medido.
+- A ponte pode ser usada por outro projeto que carregue este repositório como biblioteca
+  (`bitchat0.5`; é o caso do [Saitama com ponte](https://github.com/EduChacon/Saitama-mesh---BC-)).
 - **Cardputer ADV, duas correções** (`bitchat0.4`) achadas pela leitura do código, não em aparelho:
   `Backspace` não apagava na `bitchat0.3` (a biblioteca do aparelho mudou em maio de 2026 e agora
   fica fixada na versão anterior); e mais de 64 contatos corrompiam a memória (defeito herdado do

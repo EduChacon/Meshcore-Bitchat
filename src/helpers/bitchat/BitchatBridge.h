@@ -62,6 +62,8 @@ class BitchatBridge
     bool nextMode();
     bool linked() const { return link; }
     bool setLink(bool value);
+    bool saving() const { return saver; }
+    bool setSaving(bool value);
     const char *modeName() const;
     // Phones that are talking, people known, and texts sent to and taken from LoRa.
     void counters(unsigned &phones, unsigned &people, uint32_t &out, uint32_t &in) const;
@@ -102,9 +104,10 @@ class BitchatBridge
     // MeshCore app can always find it by restarting the radio.
     bool bluetoothWas = false, nativeWindow = false;
     uint32_t bluetoothAt = 0;
-    // With no Bitchat phone for a while the radio announces itself about once a second and the bridge
-    // looks at its queues less often; the first phone brings both back to full speed.
-    bool economy = false;
+    // The operator's choice, off unless asked for. Kept in its own stored entry. When on, with no Bitchat
+    // phone for a while the radio announces itself about once a second and the bridge looks at its queues
+    // less often; the first phone brings both back to full speed.
+    bool saver = false, economy = false;
     uint32_t phoneAt = 0;
     uint32_t ranAt = 0, interval = 1000;
     uint32_t textGuardAt = 0, conflictAt = 0, channelsAt = 0, announcedAt = 0, defaultChannelAt = 0;

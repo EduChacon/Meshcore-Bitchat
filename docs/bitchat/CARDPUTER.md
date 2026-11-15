@@ -63,8 +63,8 @@ c) O que os telefones Bitchat escrevem no `#mesh` aparece na conversa do canal, 
 `apelido: texto`.
 
 d) `!bridge`, digitado em qualquer canal, mostra o estado da ponte na própria conversa e não é
-transmitido. Os demais comandos (`on`, `off`, `local`, `lora`, `link on`, `link off`) valem do
-mesmo modo.
+transmitido. Os demais comandos (`on`, `off`, `local`, `lora`, `link on`, `link off`,
+`economy on`, `economy off`) valem do mesmo modo.
 
 e) A tela **Device Info**, nos ajustes, mostra o estado da ponte e quantos telefones estão falando
 com o rádio.

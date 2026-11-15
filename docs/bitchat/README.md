@@ -124,17 +124,19 @@ ajustada antes, uma vez.
 Digitados no aplicativo MeshCore, em qualquer canal do rádio que tem a ponte. São respondidos só
 nesse aplicativo e **não são transmitidos**.
 
-| Comando            | Efeito                                                                         |
-| ------------------ | ------------------------------------------------------------------------------ |
-| `!bridge`          | Mostra o estado, os contadores e uma linha por conexão Bluetooth               |
-| `!bridge on`       | Liga a ponte                                                                   |
-| `!bridge off`      | Desliga a ponte; o rádio segue como MeshCore comum                             |
-| `!bridge local`    | Só Bluetooth: os telefones Bitchat se falam pelo rádio, nada vai ao LoRa       |
-| `!bridge lora`     | Passa a usar o canal em que o comando foi digitado (o canal `Public` não vale) |
-| `!bridge link on`  | Liga a passagem de texto vindo de pontes Meshtastic (padrão)                   |
-| `!bridge link off` | Desliga essa passagem; o texto delas fica só no Bitchat                        |
-| `!bridge reset`    | Derruba as conexões Bluetooth para os telefones lerem os serviços de novo      |
-| `!bridge help`     | Lista os comandos                                                              |
+| Comando               | Efeito                                                                         |
+| --------------------- | ------------------------------------------------------------------------------ |
+| `!bridge`             | Mostra o estado, os contadores e uma linha por conexão Bluetooth               |
+| `!bridge on`          | Liga a ponte                                                                   |
+| `!bridge off`         | Desliga a ponte; o rádio segue como MeshCore comum                             |
+| `!bridge local`       | Só Bluetooth: os telefones Bitchat se falam pelo rádio, nada vai ao LoRa       |
+| `!bridge lora`        | Passa a usar o canal em que o comando foi digitado (o canal `Public` não vale) |
+| `!bridge link on`     | Liga a passagem de texto vindo de pontes Meshtastic (padrão)                   |
+| `!bridge link off`    | Desliga essa passagem; o texto delas fica só no Bitchat                        |
+| `!bridge economy on`  | Liga o modo econômico (ver abaixo)                                             |
+| `!bridge economy off` | Desliga o modo econômico (padrão)                                              |
+| `!bridge reset`       | Derruba as conexões Bluetooth para os telefones lerem os serviços de novo      |
+| `!bridge help`        | Lista os comandos                                                              |
 
 `!ponte` vale no lugar de `!bridge`. No Bitchat, `!bridge` no `#mesh` devolve só o estado.
 
@@ -144,10 +146,15 @@ Com a ponte ligada, o rádio gasta mais: anuncia-se por Bluetooth várias vezes 
 ligação com cada telefone Bitchat próximo e transmite pelo LoRa o que leva do Bitchat. O consumo não
 foi medido.
 
-a) **Modo econômico, automático:** depois de três minutos sem nenhum telefone Bitchat falando com o
-rádio, ele passa a se anunciar cerca de uma vez por segundo e a ponte examina as filas com menos
-frequência. O primeiro telefone que falar traz o ritmo normal de volta. Nesse modo o Bitchat pode
-demorar mais para encontrar o rádio; por isso os avisos pedem para esperar dois minutos.
+a) **Modo econômico, opcional:** vem desligado. `!bridge economy on` liga, `!bridge economy off`
+desliga, e a escolha fica gravada. Ligado, depois de três minutos sem nenhum telefone Bitchat falando
+com o rádio, ele passa a se anunciar cerca de uma vez por segundo e a ponte examina as filas com menos
+frequência. O primeiro telefone que falar traz o ritmo normal de volta. `!bridge` mostra `Economy off`,
+`Economy on` (ligado, em ritmo normal) ou `Economy active` (ligado, em ritmo lento).
+
+Enquanto o ritmo está lento, o Bitchat pode demorar mais para encontrar o rádio. O aplicativo MeshCore
+também: passado o primeiro minuto depois de ligar o Bluetooth, ele acha o rádio pelo mesmo anúncio.
+Depois de conectado, o uso é o normal. Nem o ganho de bateria nem essa demora foram medidos.
 
 b) **Ponte desligada:** `!bridge off` desliga tudo o que é da ponte, e a escolha fica gravada. É o
 recomendado quando a ponte não está em uso. `!bridge on` religa.

@@ -648,20 +648,29 @@ int main()
     run(1500);
     CHECK(std::string(bridge->status()) != "Bluetooth is off" && bridge->enabled());
 
-    // With no Bitchat phone for three minutes the radio announces itself about once a second; the first
-    // phone that talks brings the fast rhythm back.
+    // The economy mode is the operator's choice and starts off: with no Bitchat phone the radio keeps
+    // announcing itself at full speed.
     run(61000);
-    CHECK(bleAdvertise() && fakeAdvertisingInterval == 244 && blePhones() == 3);
-    run(200000);
-    CHECK(fakeAdvertisingInterval == 244);   // phones are still talking
+    CHECK(bleAdvertise() && fakeAdvertisingInterval == 244 && blePhones() == 3 && !bridge->saving());
     for (const auto *phone : {&ana, &bia, &caio})
         bleDisconnect(phone->handle);
-    run(1000);
+    run(200000);
     CHECK(blePhones() == 0 && fakeAdvertisingInterval == 244);
-    run(175000);
-    CHECK(fakeAdvertisingInterval == 244);
-    run(8000);
+    mesh.app.clear();
+    CHECK(fromApp("!bridge"));
+    run(100);
+    CHECK(mesh.app.size() > 2 && mesh.app[0].text.find(". Economy off") != std::string::npos);
+    // Turned on with every phone long gone, it takes effect at once and shows in the state.
+    CHECK(fromApp("!bridge economy on"));
+    run(300);
+    CHECK(bridge->saving() && mesh.app.back().text.rfind("bridge: Economy on", 0) == 0);
     CHECK(fakeAdvertisingInterval == 1636 && bridge->enabled());
+    mesh.app.clear();
+    CHECK(fromApp("!bridge"));
+    run(300);
+    CHECK(mesh.app.size() > 2 && mesh.app[0].text.find(". Economy active") != std::string::npos);
+    // The first phone that talks brings the fast rhythm back; three minutes after it leaves, the slow
+    // one returns.
     {
         Phone dora("dora", 4, 21);
         dora.connect();
@@ -669,7 +678,36 @@ int main()
         dora.write(dora.announce());
         run(600);
         CHECK(blePhones() == 1 && fakeAdvertisingInterval == 244);
+        run(200000);
+        CHECK(fakeAdvertisingInterval == 244);   // the phone is still talking
+        bleDisconnect(dora.handle);
+        run(1000);
+        CHECK(blePhones() == 0 && fakeAdvertisingInterval == 244);
+        run(175000);
+        CHECK(fakeAdvertisingInterval == 244);
+        run(8000);
+        CHECK(fakeAdvertisingInterval == 1636);
     }
+    // The choice survives a restart, and turning it off restores full speed without waiting.
+    delete bridge;
+    bridge = new BitchatBridge;
+    bridge->begin(mesh);
+    run(1500);
+    CHECK(bridge->saving() && bridge->enabled());
+    run(185000);
+    CHECK(fakeAdvertisingInterval == 1636);
+    CHECK(fromApp("!bridge economy off"));
+    run(300);
+    CHECK(!bridge->saving() && mesh.app.back().text.rfind("bridge: Economy off", 0) == 0);
+    CHECK(fakeAdvertisingInterval == 244);
+    run(200000);
+    CHECK(fakeAdvertisingInterval == 244);
+    // Help fits in two messages and names the option.
+    mesh.app.clear();
+    CHECK(fromApp("!bridge help"));
+    run(100);
+    CHECK(mesh.app.size() == 2 && mesh.app[0].text.back() == '.' && mesh.app[1].text.back() == '.' &&
+          mesh.app[1].text.find("economy on") != std::string::npos);
 
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;
