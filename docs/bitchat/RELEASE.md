@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.8
+# MeshCore + Bitchat v1.18.0-bitchat0.9
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -11,24 +11,24 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   travessia pelo LoRa.
 - **O que veio depois da `bitchat0.1` não foi ligado em aparelho:** a página da ponte na tela, a
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
-  pacotes por país e o histórico. Passou nos testes em computador
+  pacotes por país, o histórico e a lista de nomes. Passou nos testes em computador
   e compila.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.8`
+## O que há de novo na `bitchat0.9`
 
-- **Histórico para quem chega depois.** O texto que vem do LoRa passa a ser guardado mesmo sem
-  telefone conectado: as últimas 24 mensagens (8 no T1000-E), por até seis horas. O telefone que
-  chega recebe o que falta, pelo mesmo mecanismo que o Bitchat usa entre telefones ("ouvido aqui
-  antes"). `!bridge` mostra `Kept N`. Limites no
-  [guia](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md#histórico-para-quem-chega-depois).
-  **Não foi ensaiado com o aplicativo real.**
-- [Roteiro](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/ROADMAP.md) do que
-  está pronto, do que vem em seguida e do que ainda é estudo.
+- **`!bridge who`** (ou `!ponte quem`, em português): lista os nomes ouvidos no canal LoRa nas
+  últimas seis horas, do mais recente ao mais antigo. Vale no aplicativo MeshCore e no `#mesh` do
+  Bitchat, cujo `/who` só mostra quem está na malha Bluetooth.
 
 ## Das versões anteriores
 
+- **Histórico para quem chega depois** (`bitchat0.8`): o texto que vem do LoRa é guardado mesmo sem
+  telefone conectado (24 mensagens, 8 no T1000-E, por até seis horas) e entregue ao telefone que
+  chega, pelo mecanismo do próprio Bitchat. Não foi ensaiado com o aplicativo real.
+  [Roteiro](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/ROADMAP.md) das
+  ideias.
 - **Pacotes por país** (`bitchat0.7`): `…-Brasil.zip`, `…-EUA.zip` e `…-Europa-e-Reino-Unido.zip`; um
   aparelho gravado do zero já sai na frequência de lá e não precisa do aplicativo MeshCore.
 - **Guia dentro da ponte** (`bitchat0.7`): `!bridge guide` ou `!ponte guia`, no aplicativo ou no

@@ -186,13 +186,21 @@ nesse aplicativo e **não são transmitidos**.
 | `!bridge economy on`  | Liga o modo econômico (ver abaixo)                                             |
 | `!bridge economy off` | Desliga o modo econômico (padrão)                                              |
 | `!bridge reset`       | Derruba as conexões Bluetooth para os telefones lerem os serviços de novo      |
+| `!bridge who`         | Lista os nomes ouvidos no canal LoRa nas últimas seis horas, em inglês         |
+| `!ponte quem`         | A mesma lista, em português                                                    |
 | `!bridge guide`       | Explica a ponte em quatro mensagens curtas, em inglês                          |
 | `!ponte guia`         | O mesmo guia, em português                                                     |
 | `!bridge help`        | Lista os comandos                                                              |
 
-`!ponte` vale no lugar de `!bridge`. No Bitchat, escritos no `#mesh`, valem dois: `!bridge`, que
-devolve o estado, e `!bridge guide` (ou `!ponte guia`), que devolve o guia a todos os telefones
-próximos, no máximo uma vez a cada 30 segundos. O guia diz se o texto está indo ao LoRa ou não.
+`!ponte` vale no lugar de `!bridge`. No Bitchat, escritos no `#mesh`, valem três: `!bridge`, que
+devolve o estado; `!bridge who` (ou `!ponte quem`), que devolve os nomes ouvidos no LoRa; e
+`!bridge guide` (ou `!ponte guia`), que devolve o guia, no máximo uma vez a cada 30 segundos. As
+respostas vão a todos os telefones próximos. O guia diz se o texto está indo ao LoRa ou não.
+
+O `/who` do Bitchat só mostra quem está na malha Bluetooth; quem fala pelo LoRa não aparece ali.
+`!bridge who` cobre essa falta: lista até doze nomes, do mais recente ao mais antigo, e, quando
+nem todos cabem em uma mensagem, informa quantos ficaram de fora (`+3`). A lista fica na memória
+do rádio e some ao desligar.
 
 ## Histórico para quem chega depois
 

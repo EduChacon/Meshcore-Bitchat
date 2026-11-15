@@ -421,7 +421,7 @@ int main()
     {
         const auto guide = chat(bia.handle, &bridgeId);
         CHECK(guide.size() == GUIDE_LINES && guide[0].rfind("[bridge] Guia 1/4:", 0) == 0 &&
-              guide[3].rfind("[bridge] 4/4: envie !bridge", 0) == 0);
+              guide[3].rfind("[bridge] 4/4: aqui, !bridge", 0) == 0);
         for (const auto &line : guide)
             CHECK(line.size() <= BITCHAT_TEXT_LIMIT);
         CHECK(mesh.radio.empty());
@@ -750,7 +750,7 @@ int main()
     CHECK(fromApp("!Ponte Guia"));
     run(100);
     CHECK(mesh.app.size() == GUIDE_LINES && mesh.app[0].text.rfind("bridge: Guia 1/4:", 0) == 0 &&
-          mesh.app[3].text.find("lista os comandos") != std::string::npos);
+          mesh.app[3].text.find("!bridge help o resto") != std::string::npos);
     for (const auto &line : mesh.app)
         CHECK(line.text.size() <= 160);
 
@@ -771,6 +771,11 @@ int main()
         run(1000);
     }
     CHECK(blePhones() == 0 && std::string(bridge->status()) == "Ready: Bitchat + LoRa");
+    // Nobody spoke on LoRa since this start.
+    mesh.app.clear();
+    CHECK(fromApp("!ponte quem"));
+    run(100);
+    CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: Ninguém foi ouvido no LoRa nas últimas 6 h.");
     fakeSent.clear();
     for (const char *text : {"Rita: primeira", "Rita: segunda", "Rita: terceira", "Rita: quarta"}) {
         fromLoRa(text);
@@ -847,6 +852,38 @@ int main()
         run(100);
         CHECK(mesh.app[0].text.find(". Kept 5") != std::string::npos);
         CHECK(mesh.radio.empty() || texts(mesh.radio).empty());
+        // Who spoke on LoRa, the latest first: asked from Bitchat or from the app, in either language.
+        fromLoRa("Zeca: oi");
+        run(5000);
+        fakeSent.clear();
+        eva.write(eva.say("!ponte quem"));
+        run(600);
+        CHECK((chat(eva.handle, &bridgeId) == std::vector<std::string>{"[bridge] No LoRa, últimas 6 h: Zeca, Rita"}));
+        mesh.app.clear();
+        CHECK(fromApp("!bridge who"));
+        run(100);
+        CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: On LoRa, last 6 h: Zeca, Rita");
+        // More names than fit one Bitchat message: whole names, then how many were left out.
+        for (int i = 0; i < 14; ++i) {
+            fromLoRa("Pessoa de nome longo " + std::to_string(10 + i) + ": oi");
+            run(300);
+        }
+        run(5000);
+        fakeSent.clear();
+        eva.write(eva.say("!bridge who"));
+        run(600);
+        {
+            const auto who = chat(eva.handle, &bridgeId);
+            CHECK(who.size() == 1 && who[0].size() <= BITCHAT_TEXT_LIMIT &&
+                  who[0].rfind("[bridge] On LoRa, last 6 h: Pessoa de nome longo 23, Pessoa de nome longo 22", 0) == 0);
+            CHECK(who[0].substr(who[0].size() - 4) == " +10");
+        }
+        // Six hours later nobody is listed.
+        run(6 * 60 * 60 * 1000 + 1000);
+        mesh.app.clear();
+        CHECK(fromApp("!bridge who"));
+        run(100);
+        CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: Nobody was heard on LoRa in the last 6 h.");
     }
 
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";

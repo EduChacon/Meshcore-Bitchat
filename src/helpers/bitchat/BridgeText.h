@@ -36,8 +36,8 @@ struct TextPlan {
     std::array<uint16_t, BITCHAT_PARTS + 1> offsets{};
 };
 
-// Status and the guide may be asked from either app; the others are accepted only from the app attached to
-// the radio.
+// Status, the guide and the list of names may be asked from either app; the others are accepted only from
+// the app attached to the radio.
 enum class Command : uint8_t {
     None,
     Status,
@@ -52,7 +52,9 @@ enum class Command : uint8_t {
     EconomyOn,
     EconomyOff,
     Guide,
-    GuidePt
+    GuidePt,
+    Who,
+    WhoPt
 };
 // "!bridge" or "!ponte" in any letter case asks for a self-test; " reset" after
 // it restarts the Bluetooth links.
