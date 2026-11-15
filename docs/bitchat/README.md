@@ -9,6 +9,8 @@ abaixo e relatou que tudo funcionou. O relato não traz medições: alcance, con
 duração não foram medidos, e ele não detalha quais trajetos foram conferidos. Os demais aparelhos
 da [lista](DEVICES.md) só foram compilados; nenhum foi ligado. Trate como versão experimental.
 
+O que está pronto, o que vem em seguida e o que ainda é estudo: [roteiro](ROADMAP.md).
+
 ## O que faz
 
 a) **Bitchat → MeshCore.** Texto público do `#mesh` do Bitchat sai no canal `#bitchat` do
