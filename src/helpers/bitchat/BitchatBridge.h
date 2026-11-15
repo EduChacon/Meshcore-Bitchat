@@ -7,6 +7,12 @@
 #include <Preferences.h>
 #include <memory>
 
+// Messages remembered across restarts so they are not taken to LoRa twice; each one is a stored entry.
+// A project with little settings storage can ask for fewer.
+#ifndef BITCHAT_JOURNAL_ENTRIES
+#define BITCHAT_JOURNAL_ENTRIES 64
+#endif
+
 namespace bitchat
 {
 inline constexpr char PUBLIC_CHANNEL_NAME[] = "#bitchat";
@@ -109,7 +115,7 @@ class BitchatBridge
     std::array<uint8_t, 32> signingPublic{}, noisePublic{};
     bitchat::PeerId ownId{};
     bitchat::Digest textKey{}, textKeyBinding{};
-    std::array<JournalEntry, 64> journal{};
+    std::array<JournalEntry, BITCHAT_JOURNAL_ENTRIES> journal{};
     bitchat::BridgeCrypto crypto;
     mutable char guardText[32]{};
     struct Runtime {
