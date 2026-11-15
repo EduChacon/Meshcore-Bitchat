@@ -8,11 +8,7 @@
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
 #ifdef DISPLAY_CLASS
-  #ifdef TDECK_KEYBOARD_UI
-    #include <TDeckCardDisplay.h>
-  #else
-    #include <helpers/ui/ST7789LCDDisplay.h>
-  #endif
+  #include <helpers/ui/ST7789LCDDisplay.h>
   #include <helpers/ui/MomentaryButton.h>
 #endif
 #include "helpers/sensors/EnvironmentSensorManager.h"

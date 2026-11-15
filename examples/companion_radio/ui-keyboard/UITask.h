@@ -199,9 +199,6 @@ private:
     void renderNotification();
     
     void handleKeyPress(Keyboard_Class::KeysState& status);
-#ifdef TDECK_KEYBOARD_UI
-    bool adaptKeys(Keyboard_Class::KeysState& status);
-#endif
     void handleNavigation(Keyboard_Class::KeysState& status);
     void sendMessage();
     void loadSettings();

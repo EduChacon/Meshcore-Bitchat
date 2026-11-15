@@ -2,7 +2,6 @@
 
 #include <M5Cardputer.h>
 #include "DisplayDriver.h"
-#include "CardColor.h"
 
 // M5Cardputer uses standard color constants
 #ifndef TFT_BLACK
@@ -15,6 +14,10 @@
 #define TFT_ORANGE 0xFD20
 #endif
 
+// The keyboard UI names colours by role, as older MeshCore did; this display maps them to the theme.
+struct CardColor {
+  enum : ColorVal { DARK = 0, LIGHT, RED, GREEN, BLUE, YELLOW, ORANGE };
+};
 
 class M5CardputerDisplay : public DisplayDriver {
 private:

@@ -2,7 +2,7 @@
 #include "UITask.h"
 #include <Preferences.h>
 #include <M5Cardputer.h>
-#include "target.h"
+#include <helpers/ui/M5CardputerDisplay.h>
 
 void UITask::loadSettings() {
     Preferences prefs;
@@ -74,7 +74,7 @@ void UITask::applyTheme() {
     
     // Update DisplayDriver colors - cast to M5CardputerDisplay
     if (_display) {
-        DISPLAY_CLASS* m5_display = static_cast<DISPLAY_CLASS*>(_display);
+        M5CardputerDisplay* m5_display = static_cast<M5CardputerDisplay*>(_display);
         m5_display->setLightColor(main_color.rgb565);
         m5_display->setDarkColor(secondary_color.rgb565);
     }

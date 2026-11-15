@@ -309,12 +309,8 @@ void loop() {
   sensors.loop();
 #ifdef DISPLAY_CLASS
 #ifdef HEADLESS_UI
-  // Keyboard UI: the G0 button sends an advert; on the T-Deck, holding the trackball down does
-#ifdef TDECK_KEYBOARD_UI
-  if (M5Cardputer.Keyboard.takeLongPress()) {
-#else
+  // Keyboard UI: the G0 button sends an advert
   if (user_btn.check() == BUTTON_EVENT_CLICK) {
-#endif
     the_mesh.advert();
     display.startFrame();
     display.setTextSize(2);

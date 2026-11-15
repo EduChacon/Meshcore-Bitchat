@@ -10,23 +10,21 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   Bitchat e os dois autotestes. Não há medições de alcance, consumo ou duração, nem ensaio da
   travessia pelo LoRa.
 - **O que veio depois da `bitchat0.1` não foi ligado em aparelho:** a página da ponte na tela, a
-  ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E e o T-Deck com teclado. Passou nos
-  testes em computador e compila.
+  ligação com as pontes Meshtastic, o Cardputer ADV e o T1000-E. Passou nos testes em computador
+  e compila.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
 ## O que há de novo na `bitchat0.4`
 
-- **LilyGo T-Deck e T-Deck Plus com teclado:** novo arquivo
-  `LilyGo_TDeck_keyboard_companion_radio_ble_bitchat`, com a conversa no próprio aparelho. É a
-  interface do Cardputer ADV, mostrada ampliada, com o teclado e a esfera do T-Deck no lugar das
-  teclas do Cardputer. O arquivo sem teclado continua disponível.
-  [Notas](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/TDECK.md).
 - **Cardputer ADV, duas correções** achadas pela leitura do código, não em aparelho:
   `Backspace` não apagava na `bitchat0.3` (a biblioteca do aparelho mudou em maio de 2026 e agora
   fica fixada na versão anterior); e mais de 64 contatos corrompiam a memória (defeito herdado do
   projeto original). **Quem gravou a `bitchat0.3` no Cardputer ADV deve trocar por esta.**
   [Notas](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/CARDPUTER.md).
+- **T-Deck e T-Deck Plus:** [notas](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/TDECK.md)
+  sobre o que o arquivo faz (o teclado do aparelho não é usado) e sobre os sistemas próprios para
+  ele. O arquivo não mudou.
 
 ## Das versões anteriores
 
@@ -65,6 +63,6 @@ Instalação, comandos e limites:
 - Depois de gravar, pode ser preciso remover o rádio dos aparelhos Bluetooth pareados do telefone
   e parear de novo.
 - A frequência e a predefinição de rádio são ajustadas no aplicativo MeshCore, ou nos ajustes do
-  Cardputer ADV e do T-Deck com teclado, como no original.
+  Cardputer ADV, como no original.
 - O canal `#bitchat` é aberto: qualquer pessoa entra nele pelo nome.
 - Os demais nRF52 (RAK4631 etc.) e os ESP32-C6 não têm arquivo nesta versão.
