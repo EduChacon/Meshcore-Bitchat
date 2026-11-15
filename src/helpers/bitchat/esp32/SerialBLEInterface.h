@@ -75,6 +75,8 @@ public:
   // Sets up the advertising again: the bridge's when it is running, the companion's own otherwise.
   void advertise();
   const char* deviceName() const { return dev_name; }
+  // A new pairing PIN for links made from now on.
+  void setPin(uint32_t pin_code);
 
   // BaseSerialInterface methods
   void enable() override;

@@ -66,6 +66,11 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   bitchat::bleAttach(pServer);
 }
 
+void SerialBLEInterface::setPin(uint32_t pin_code) {
+  _pin_code = pin_code;
+  if (pServer) NimBLEDevice::setSecurityPasskey(pin_code);
+}
+
 // -------- NimBLEServerCallbacks methods
 
 uint32_t SerialBLEInterface::onPassKeyRequest() {

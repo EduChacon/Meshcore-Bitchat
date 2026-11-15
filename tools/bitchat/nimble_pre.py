@@ -15,13 +15,18 @@ except (OSError, subprocess.CalledProcessError, ValueError):
 env.Append(CPPDEFINES=[("BRIDGE_BUILD_EPOCH", built)])
 
 patched = False
+TOOLS = "tools/bitchat/patch_nimble.py"
 
 
 def patch_nimble(build_env, node):
     global patched
     if not patched:
         library = Path(node.srcnode().get_abspath()).parent.parent
-        script = Path(build_env.subst("$PROJECT_DIR")) / "tools/bitchat/patch_nimble.py"
+        project = Path(build_env.subst("$PROJECT_DIR"))
+        # in this repository, or in a project that carries it as lib/MeshCore
+        script = next(
+            (path for path in (project / TOOLS, project / "lib/MeshCore" / TOOLS) if path.exists()), project / TOOLS
+        )
         runpy.run_path(str(script))["apply"](library)
         patched = True
         print("Bridge: verified and applied NimBLE 1.4.3 startup guard")

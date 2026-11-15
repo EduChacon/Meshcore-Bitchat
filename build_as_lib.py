@@ -61,6 +61,13 @@ for item in menv.get("CPPDEFINES", []):
             break
         src_filter.append(f"+<../examples/{example_name}/{ui_flavor}/*.cpp>")
         
+# BITCHAT BRIDGE: its Bluetooth interface replaces the stock ESP32 one
+defines = [item[0] if isinstance(item, tuple) else item for item in menv.get("CPPDEFINES", [])]
+if "WITH_BITCHAT_BRIDGE" in defines and "ESP32" in defines:
+    src_filter.append("-<helpers/esp32/SerialBLEInterface.cpp>")
+    src_filter.append("+<helpers/bitchat/*.cpp>")
+    src_filter.append("+<helpers/bitchat/esp32/*.cpp>")
+
 menv.Replace(SRC_FILTER=src_filter)
 
 #print (menv.Dump())
