@@ -102,7 +102,7 @@ jobs:
   build:
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
@@ -139,25 +139,30 @@ jobs:
           grep -E "error:|Error [0-9]|undefined reference" build.log | head -8 | while IFS= read -r line; do echo "::error title=${{ matrix.environment }}::$line"; done
 
       - name: Collect firmware
-        run: |
-          mkdir -p firmware
-          out=".pio/build/${{ matrix.environment }}"
-          if [ -f "$out/firmware.bin" ]; then
-            # ESP32: the application image and the complete one
-            pio run -e "${{ matrix.environment }}" -t mergebin 2>&1 | tail -5
-            cp "$out/firmware.bin" "firmware/${{ matrix.environment }}.bin"
-            cp "$out/firmware-merged.bin" "firmware/${{ matrix.environment }}-merged.bin"
-          else
-            # nRF52: a UF2 for the bootloader drive and the package for the update tool
-            python3 bin/uf2conv/uf2conv.py "$out/firmware.hex" -c -o "firmware/${{ matrix.environment }}.uf2" -f 0xADA52840
-            cp "$out/firmware.zip" "firmware/${{ matrix.environment }}.zip"
-          fi
+        run: tools/bitchat/collect_firmware.sh "${{ matrix.environment }}" firmware
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ matrix.environment }}
           path: firmware/
+
+      # The same environment again for each country of tools/bitchat/regions.json: only the radio a
+      # never-configured device starts with changes.
+      - name: Build for each country
+        run: |
+          set -o pipefail
+          for region in $(python3 -c "import json; print(' '.join(json.load(open('tools/bitchat/regions.json'))))"); do
+            export BITCHAT_REGION="$region"
+            pio run -e "${{ matrix.environment }}" 2>&1 | tee "build-$region.log" | grep -E "Bridge: factory radio|^RAM:|^Flash:|SUCCESS|FAILED|error:"
+            tools/bitchat/collect_firmware.sh "${{ matrix.environment }}" "countries/$region"
+          done
+
+      - name: Upload country firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: country-${{ matrix.environment }}
+          path: countries/
 
   release:
     needs: [verify, build]
@@ -179,6 +184,16 @@ jobs:
           pattern: firmware-*
           path: published
           merge-multiple: true
+
+      - name: Download country firmware
+        uses: actions/download-artifact@v4
+        with:
+          pattern: country-*
+          path: countries
+          merge-multiple: true
+
+      - name: One package per country
+        run: python3 tools/bitchat/pack_regions.py countries published "${{ needs.verify.outputs.version }}"
 
       - name: Checksums
         run: |

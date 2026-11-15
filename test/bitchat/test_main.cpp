@@ -152,6 +152,19 @@ static void identitiesAndText()
     CHECK(bridgeCommand(utf8("!bridge economy on")) == Command::EconomyOn &&
           bridgeCommand(utf8("!Ponte Economy Off ")) == Command::EconomyOff);
     CHECK(bridgeCommand(utf8("!bridge economy")) == Command::None && bridgeCommand(utf8("!bridge economy onn")) == Command::None);
+    CHECK(bridgeCommand(utf8("!bridge guide")) == Command::Guide && bridgeCommand(utf8("!Ponte Guia ")) == Command::GuidePt);
+    CHECK(bridgeCommand(utf8("!bridge guides")) == Command::None);
+    // Every guide line fits a signed Bitchat message after the reply prefix, in both languages and for both readers.
+    for (int variant = 0; variant < 8; ++variant) {
+        for (size_t line = 0; line < GUIDE_LINES; ++line) {
+            const char *text = guideLine(variant & 1, variant & 2, variant & 4, line);
+            CHECK(text && std::strlen(text) + std::strlen(REPLY_PREFIX) <= BITCHAT_TEXT_LIMIT);
+            CHECK(std::string(text).find(std::to_string(line + 1) + "/4: ") != std::string::npos);
+        }
+        CHECK(!guideLine(variant & 1, variant & 2, variant & 4, GUIDE_LINES));
+    }
+    CHECK(std::string(guideLine(false, false, false, 0)).find("LoRa is off") != std::string::npos &&
+          std::string(guideLine(true, true, true, 3)).find("lista os comandos") != std::string::npos);
     {
         // Text of the other network's bridge: taken across once, with that network's letters before the name.
         char crossing[LABEL_LIMIT + 8];

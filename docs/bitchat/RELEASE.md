@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.6
+# MeshCore + Bitchat v1.18.0-bitchat0.7
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -10,21 +10,30 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   Bitchat e os dois autotestes. Não há medições de alcance, consumo ou duração, nem ensaio da
   travessia pelo LoRa.
 - **O que veio depois da `bitchat0.1` não foi ligado em aparelho:** a página da ponte na tela, a
-  ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E e o modo econômico. Passou nos testes em computador
+  ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia e os
+  pacotes por país. Passou nos testes em computador
   e compila.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.6`
+## O que há de novo na `bitchat0.7`
 
-- **O modo econômico passou a ser opcional e vem desligado.** Na `bitchat0.5` ele era automático.
-  Liga-se com `!bridge economy on` e desliga-se com `!bridge economy off`; a escolha fica gravada.
-  Motivo: em ritmo lento, o aplicativo MeshCore também pode demorar mais para encontrar o rádio, e
-  não só o Bitchat. **Quem gravou a `bitchat0.5` e quer manter a economia precisa ligá-la uma vez.**
-- `!bridge` mostra o estado do modo econômico; `!bridge help` passou a responder em duas mensagens.
+- **Pacotes por país.** Além dos arquivos gerais, a página traz `…-Brasil.zip`, `…-EUA.zip` e
+  `…-Europa-e-Reino-Unido.zip`, cada um com os arquivos de todos os aparelhos. Um aparelho gravado
+  do zero com o pacote do país já sai na frequência de lá e **não precisa do aplicativo MeshCore**
+  para o primeiro uso. Valores e limites no
+  [guia](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md#arquivos-por-país).
+  Transmitir em frequência não permitida no lugar de uso pode ser proibido.
+- **Guia dentro da ponte.** `!bridge guide` (em inglês) ou `!ponte guia` (em português) explica a
+  ponte em quatro mensagens curtas, no aplicativo MeshCore ou no próprio `#mesh` do Bitchat, para
+  quem só usa o Bitchat. No Bitchat, o guia sai no máximo uma vez a cada 30 segundos.
+- `!bridge help` passou a responder em três mensagens.
 
 ## Das versões anteriores
 
+- **O modo econômico é opcional e vem desligado** (`bitchat0.6`; na `bitchat0.5` era automático).
+  Liga-se com `!bridge economy on` e desliga-se com `!bridge economy off`; a escolha fica gravada.
+  Em ritmo lento, o aplicativo MeshCore também pode demorar mais para encontrar o rádio.
 - **Modo econômico da ponte** (`bitchat0.5`): depois de três minutos sem nenhum telefone Bitchat, o
   rádio passa a se anunciar cerca de uma vez por segundo, em vez de várias, e a ponte trabalha com
   menos frequência. O primeiro telefone que falar traz o ritmo normal de volta. O ganho de bateria
@@ -64,6 +73,8 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   Bluetooth; gravar no endereço `0x10000`, mantendo os dados).
 - T1000-E: `t1000e_companion_radio_ble_bitchat.uf2`, copiado para a unidade que o aparelho mostra
   em modo de gravação; o `.zip` é o pacote para a ferramenta de atualização da Nordic.
+- `MeshCore-Bitchat-<versão>-<país>.zip`: os mesmos arquivos, para todos os aparelhos, já com o
+  rádio do país (`Brasil`, `EUA`, `Europa-e-Reino-Unido`).
 - `SHA256SUMS`: somas de conferência.
 
 Instalação, comandos e limites:

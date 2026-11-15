@@ -929,6 +929,14 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.sf = LORA_SF;
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
+#ifdef BITCHAT_FACTORY_FREQ
+  // a file made for one country: what a never-configured radio starts with (tools/bitchat/regions.json)
+  _prefs.freq = BITCHAT_FACTORY_FREQ;
+  _prefs.bw = BITCHAT_FACTORY_BW;
+  _prefs.sf = BITCHAT_FACTORY_SF;
+  _prefs.cr = BITCHAT_FACTORY_CR;
+  _prefs.path_hash_mode = BITCHAT_FACTORY_PATH_HASH_MODE;
+#endif
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default

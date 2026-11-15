@@ -413,6 +413,32 @@ int main()
         CHECK(mesh.radio.empty());
     }
 
+    // The guide is answered in Bitchat too, in the language of the word used, and not more than twice a minute.
+    fakeSent.clear();
+    ana.write(ana.say("!ponte guia"));
+    run(600);
+    {
+        const auto guide = chat(bia.handle, &bridgeId);
+        CHECK(guide.size() == GUIDE_LINES && guide[0].rfind("[bridge] Guia 1/4:", 0) == 0 &&
+              guide[3].rfind("[bridge] 4/4: envie !bridge", 0) == 0);
+        for (const auto &line : guide)
+            CHECK(line.size() <= BITCHAT_TEXT_LIMIT);
+        CHECK(mesh.radio.empty());
+    }
+    fakeSent.clear();
+    bia.write(bia.say("!bridge guide"));
+    run(600);
+    CHECK(chat(ana.handle, &bridgeId).empty());
+    run(30000);
+    fakeSent.clear();
+    bia.write(bia.say("!bridge guide "));
+    run(600);
+    {
+        const auto guide = chat(ana.handle, &bridgeId);
+        CHECK(guide.size() == GUIDE_LINES && guide[0].rfind("[bridge] Guide 1/4:", 0) == 0);
+        CHECK(mesh.radio.empty());
+    }
+
     // The full report in the app: state, counters and one line per Bluetooth link, each a short message.
     mesh.app.clear();
     CHECK(fromApp("!Bridge "));
@@ -491,6 +517,11 @@ int main()
     run(15000);
     CHECK(mesh.radio.empty() && chat(bia.handle) == std::vector<std::string>{"s\xc3\xb3 por perto"});
     CHECK(bridge->textChannel() == NO_CHANNEL);
+    // In this mode the guide says that nothing goes to LoRa.
+    mesh.app.clear();
+    CHECK(fromApp("!bridge guide", 3));
+    run(100);
+    CHECK(mesh.app.size() == GUIDE_LINES && mesh.app[0].text.find("LoRa is off") != std::string::npos);
 
     // Back to the public channel, which still exists.
     CHECK(fromApp("!bridge lora", 1));
@@ -702,12 +733,25 @@ int main()
     CHECK(fakeAdvertisingInterval == 244);
     run(200000);
     CHECK(fakeAdvertisingInterval == 244);
-    // Help fits in two messages and names the option.
+    // Help fits in three messages and names the option and the guide.
     mesh.app.clear();
     CHECK(fromApp("!bridge help"));
     run(100);
-    CHECK(mesh.app.size() == 2 && mesh.app[0].text.back() == '.' && mesh.app[1].text.back() == '.' &&
-          mesh.app[1].text.find("economy on") != std::string::npos);
+    CHECK(mesh.app.size() == 3 && mesh.app[0].text.back() == '.' && mesh.app[1].text.back() == '.' &&
+          mesh.app[1].text.find("economy on") != std::string::npos && mesh.app[2].text.find("!ponte guia") != std::string::npos);
+    // The guide in the app attached to the radio ends with the commands, in either language.
+    mesh.app.clear();
+    CHECK(fromApp("!bridge guide"));
+    run(100);
+    CHECK(mesh.app.size() == GUIDE_LINES && mesh.app[0].text.rfind("bridge: Guide 1/4:", 0) == 0 &&
+          mesh.app[3].text.find("!bridge help") != std::string::npos);
+    mesh.app.clear();
+    CHECK(fromApp("!Ponte Guia"));
+    run(100);
+    CHECK(mesh.app.size() == GUIDE_LINES && mesh.app[0].text.rfind("bridge: Guia 1/4:", 0) == 0 &&
+          mesh.app[3].text.find("lista os comandos") != std::string::npos);
+    for (const auto &line : mesh.app)
+        CHECK(line.text.size() <= 160);
 
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;

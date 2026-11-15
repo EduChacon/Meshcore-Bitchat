@@ -505,6 +505,12 @@ void BitchatBridge::answerApp()
                    "channel where you send it), reset.");
         replyToApp("Options: !bridge link on, link off (text from Meshtastic bridges); economy on, economy off (slower "
                    "Bluetooth while no Bitchat phone is near).");
+        replyToApp("!bridge guide explains the bridge, here or in Bitchat; !ponte guia does it in Portuguese.");
+        return;
+    }
+    if (command == Command::Guide || command == Command::GuidePt) {
+        for (size_t line = 0; line < GUIDE_LINES; ++line)
+            replyToApp(guideLine(command == Command::GuidePt, true, textReady, line));
         return;
     }
     if (command == Command::EconomyOn || command == Command::EconomyOff) {
@@ -602,6 +608,18 @@ void BitchatBridge::answerBitchat()
     if (!Throttle::isWithinTimespanMsAt(announcedAt, 5000, millis()))
         announce();
     originate(2, {reinterpret_cast<const uint8_t *>(text), std::min<size_t>(size, BITCHAT_TEXT_LIMIT)});
+}
+
+// The guide asked from Bitchat: a few signed messages, for people who never see the radio's own app.
+void BitchatBridge::guideBitchat(bool portuguese)
+{
+    if (!Throttle::isWithinTimespanMsAt(announcedAt, 5000, millis()))
+        announce();
+    for (size_t line = 0; line < GUIDE_LINES; ++line) {
+        char text[BITCHAT_TEXT_LIMIT + 1];
+        const int size = snprintf(text, sizeof(text), "%s%s", REPLY_PREFIX, guideLine(portuguese, false, textReady, line));
+        originate(2, {reinterpret_cast<const uint8_t *>(text), std::min<size_t>(size, BITCHAT_TEXT_LIMIT)});
+    }
 }
 
 void BitchatBridge::reject(Result result)
@@ -777,9 +795,15 @@ bool BitchatBridge::handleFrame(Bytes frame, uint16_t source)
             ++forwardedBle;
     }
     const bool publicMessage = packet.type == 2 && !packet.directed();
-    if (publicMessage && !packet.compressed() && bridgeCommand(packet.payload) != Command::None) {
-        // Anyone nearby may ask, so answers are spaced out; only the state is ever answered here.
-        if (!Throttle::isWithinTimespanMsAt(repliedAt, 5000, now)) {
+    const Command asked = publicMessage && !packet.compressed() ? bridgeCommand(packet.payload) : Command::None;
+    if (asked != Command::None) {
+        // Anyone nearby may ask, so answers are spaced out; only the state and the guide are answered here.
+        if (asked == Command::Guide || asked == Command::GuidePt) {
+            if (!Throttle::isWithinTimespanMsAt(guidedAt, 30000, now)) {
+                guidedAt = now;
+                guideBitchat(asked == Command::GuidePt);
+            }
+        } else if (!Throttle::isWithinTimespanMsAt(repliedAt, 5000, now)) {
             repliedAt = now;
             answerBitchat();
         }

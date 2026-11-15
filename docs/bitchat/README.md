@@ -47,6 +47,40 @@ Há um arquivo por aparelho, com o mesmo nome do firmware _companion_ Bluetooth 
 `_bitchat`. Nos aparelhos sem memória PSRAM (ESP32 clássico e C3) a ponte pode recusar-se a ligar
 por falta de memória e avisar `Low memory: bridge OFF`; o rádio segue como MeshCore comum.
 
+## Arquivos por país
+
+A página de cada versão traz, além dos arquivos gerais, um pacote por país:
+
+| Pacote                 | Frequência  | Banda    | SF  | CR  | _Hash_ do caminho |
+| ---------------------- | ----------- | -------- | --- | --- | ----------------- |
+| `Brasil`               | 923,125 MHz | 62,5 kHz | 8   | 8   | 2 bytes           |
+| `EUA`                  | 910,525 MHz | 62,5 kHz | 7   | 5   | 1 byte            |
+| `Europa-e-Reino-Unido` | 869,618 MHz | 62,5 kHz | 8   | 8   | 1 byte            |
+
+Os valores de rádio são os das predefinições do aplicativo oficial (`Brazil`, `USA` e
+`EU/UK (Narrow)`), lidas em <https://api.meshcore.nz/api/v1/config> em 2026-11-15; os 2 bytes do
+Brasil seguem a [comunidade MeshCore Brasil](https://meshcore.com.br/valores-de-referencia/).
+
+a) Dentro de cada pacote há uma pasta com os arquivos de todos os aparelhos, as somas de
+conferência e um `LEIA-ME.txt`.
+
+b) O programa é o mesmo dos arquivos gerais. Muda só o rádio com que um aparelho **nunca
+configurado** começa. Gravado do zero com o pacote do país, o rádio já sai na frequência certa e
+**não precisa do aplicativo MeshCore**: a ponte cria o canal e toma a hora do primeiro telefone
+Bitchat.
+
+c) Na atualização (arquivo sem `merged`, ou T1000-E que já rodava MeshCore), a configuração que
+o aparelho tinha é mantida, inclusive a frequência antiga.
+
+d) Os arquivos gerais continuam saindo em 869,618 MHz, 62,5 kHz, SF 8, CR 5, como o MeshCore
+original, e pedem o ajuste da frequência pelo aplicativo.
+
+e) Transmitir em frequência não permitida no lugar de uso pode ser proibido. O cumprimento da
+regra local é de quem usa o rádio.
+
+Os pacotes por país compilam, e o ajuste foi conferido no arquivo gerado; **nenhum foi ligado em
+aparelho**.
+
 ## Instalação
 
 Cada aparelho tem dois arquivos na página da versão: `<aparelho>_bitchat.bin` e
@@ -116,8 +150,22 @@ ou a cópia de segurança no endereço `0x0`.
    MeshCore deste rádio e dos outros da malha que tenham o canal.
 
 Sem o aplicativo MeshCore por perto, a ponte funciona do mesmo modo: ela toma a hora do
-primeiro telefone Bitchat que se apresenta. A frequência do rádio, porém, precisa ter sido
-ajustada antes, uma vez.
+primeiro telefone Bitchat que se apresenta. A frequência do rádio, porém, precisa estar certa:
+ou ajustada antes pelo aplicativo, uma vez, ou vinda de um [arquivo do país](#arquivos-por-país).
+
+### Várias casas, cada uma com um rádio
+
+a) **Pela rede existente:** o rádio de conversa do MeshCore não repassa mensagens de outros;
+quem repassa são os repetidores. As casas conversam se cada uma alcança um repetidor, ou se os
+rádios se alcançam diretamente.
+
+b) **Rede própria:** o MeshCore deixa o rádio de conversa repassar mensagens (`Ativar Modo de
+Repetição`, no aplicativo) somente em 433,000, 869,495 e 918,000 MHz. Todos os rádios nessa
+frequência e com a repetição ligada formam uma malha à parte, fora da rede dos repetidores. Esse
+arranjo exige o aplicativo uma vez em cada rádio e não foi ensaiado com a ponte.
+
+c) Só o texto público do `#mesh` atravessa o LoRa. As mensagens privadas do Bitchat ficam no
+Bluetooth.
 
 ## Comandos
 
@@ -136,9 +184,13 @@ nesse aplicativo e **não são transmitidos**.
 | `!bridge economy on`  | Liga o modo econômico (ver abaixo)                                             |
 | `!bridge economy off` | Desliga o modo econômico (padrão)                                              |
 | `!bridge reset`       | Derruba as conexões Bluetooth para os telefones lerem os serviços de novo      |
+| `!bridge guide`       | Explica a ponte em quatro mensagens curtas, em inglês                          |
+| `!ponte guia`         | O mesmo guia, em português                                                     |
 | `!bridge help`        | Lista os comandos                                                              |
 
-`!ponte` vale no lugar de `!bridge`. No Bitchat, `!bridge` no `#mesh` devolve só o estado.
+`!ponte` vale no lugar de `!bridge`. No Bitchat, escritos no `#mesh`, valem dois: `!bridge`, que
+devolve o estado, e `!bridge guide` (ou `!ponte guia`), que devolve o guia a todos os telefones
+próximos, no máximo uma vez a cada 30 segundos. O guia diz se o texto está indo ao LoRa ou não.
 
 ## Consumo e modo econômico
 

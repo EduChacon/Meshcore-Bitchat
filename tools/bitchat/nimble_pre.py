@@ -1,5 +1,7 @@
-"""Bridge builds only: date the build and patch the pinned BLE dependency before its compilation."""
+"""Bridge builds only: date the build, set the factory radio of a country and patch the pinned BLE dependency."""
 
+import json
+import os
 import runpy
 import subprocess
 import time
@@ -13,6 +15,26 @@ try:
 except (OSError, subprocess.CalledProcessError, ValueError):
     built = int(time.time())
 env.Append(CPPDEFINES=[("BRIDGE_BUILD_EPOCH", built)])
+
+# BITCHAT_REGION names an entry of regions.json: the radio a never-configured device starts with.
+region = os.environ.get("BITCHAT_REGION", "")
+if region:
+    project = Path(env.subst("$PROJECT_DIR"))
+    table = next((path for path in (project / "tools/bitchat/regions.json", project / "lib/MeshCore/tools/bitchat/regions.json") if path.exists()))
+    regions = json.loads(table.read_text(encoding="utf-8"))
+    if region not in regions:
+        raise SystemExit(f"Bridge: unknown BITCHAT_REGION {region!r}; known: {', '.join(regions)}")
+    radio = regions[region]
+    env.Append(
+        CPPDEFINES=[
+            ("BITCHAT_FACTORY_FREQ", f"{radio['freq']}f"),
+            ("BITCHAT_FACTORY_BW", f"{radio['bw']}f"),
+            ("BITCHAT_FACTORY_SF", radio["sf"]),
+            ("BITCHAT_FACTORY_CR", radio["cr"]),
+            ("BITCHAT_FACTORY_PATH_HASH_MODE", radio["path_hash_bytes"] - 1),
+        ]
+    )
+    print(f"Bridge: factory radio for {region}: {radio['freq']} MHz, BW {radio['bw']}, SF {radio['sf']}, CR {radio['cr']}")
 
 patched = False
 TOOLS = "tools/bitchat/patch_nimble.py"

@@ -140,13 +140,14 @@ class BitchatBridge
     uint8_t restart = 0;
     bitchat::Command appCommand = bitchat::Command::None;
     uint8_t appChannel = 0;
-    uint32_t restartAt = 0, repliedAt = 0;
+    uint32_t restartAt = 0, repliedAt = 0, guidedAt = 0;
 
     void work(uint32_t now);
     void channelText(uint8_t channel, const uint8_t *packetHash, const char *text);
     bool appText(uint8_t channel, const char *text, size_t size);
     void answerApp();
     void answerBitchat();
+    void guideBitchat(bool portuguese);
     void replyToApp(const char *text);
     bool ensureRuntime();
     void releaseRuntime();
