@@ -130,7 +130,7 @@ jobs:
       - name: Build
         run: |
           set -o pipefail
-          pio run -e "${{ matrix.environment }}" -t mergebin 2>&1 | tee build.log | tail -30
+          pio run -e "${{ matrix.environment }}" 2>&1 | tee build.log | tail -30
 
       - name: Summary
         if: always()
@@ -141,8 +141,17 @@ jobs:
       - name: Collect firmware
         run: |
           mkdir -p firmware
-          cp ".pio/build/${{ matrix.environment }}/firmware.bin" "firmware/${{ matrix.environment }}.bin"
-          cp ".pio/build/${{ matrix.environment }}/firmware-merged.bin" "firmware/${{ matrix.environment }}-merged.bin"
+          out=".pio/build/${{ matrix.environment }}"
+          if [ -f "$out/firmware.bin" ]; then
+            # ESP32: the application image and the complete one
+            pio run -e "${{ matrix.environment }}" -t mergebin 2>&1 | tail -5
+            cp "$out/firmware.bin" "firmware/${{ matrix.environment }}.bin"
+            cp "$out/firmware-merged.bin" "firmware/${{ matrix.environment }}-merged.bin"
+          else
+            # nRF52: a UF2 for the bootloader drive and the package for the update tool
+            python3 bin/uf2conv/uf2conv.py "$out/firmware.hex" -c -o "firmware/${{ matrix.environment }}.uf2" -f 0xADA52840
+            cp "$out/firmware.zip" "firmware/${{ matrix.environment }}.zip"
+          fi
 
       - name: Upload firmware
         uses: actions/upload-artifact@v4
@@ -174,7 +183,8 @@ jobs:
       - name: Checksums
         run: |
           cd published
-          sha256sum *.bin > SHA256SUMS
+          sha256sum * > ../SHA256SUMS
+          mv ../SHA256SUMS .
           ls | wc -l
 
       - name: Publish

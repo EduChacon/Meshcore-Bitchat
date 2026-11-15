@@ -38,7 +38,9 @@ pagamentos não atravessam a ponte.
 | Heltec V3 (ESP32-S3, SX1262)                             | Funcionou no ensaio do autor                     |
 | Outros ESP32, ESP32-S3 e ESP32-C3 da [lista](DEVICES.md) | Compilam; nenhum foi ligado                      |
 | ESP32-C6                                                 | Fora: a biblioteca Bluetooth usada não os atende |
-| nRF52 (T1000-E, RAK4631 etc.)                            | Fora por ora (ver "O que falta")                 |
+| M5Stack Cardputer ADV com Cap LoRa-1262                  | Compila; não foi ligado. [Notas](CARDPUTER.md)   |
+| SenseCAP T1000-E (nRF52)                                 | Experimental; não foi ligado. [Notas](T1000E.md) |
+| Outros nRF52 (RAK4631 etc.)                              | Fora por ora (ver "O que falta")                 |
 
 Há um arquivo por aparelho, com o mesmo nome do firmware _companion_ Bluetooth original e o final
 `_bitchat`. Nos aparelhos sem memória PSRAM (ESP32 clássico e C3) a ponte pode recusar-se a ligar
@@ -245,6 +247,10 @@ Testes em computador (sem aparelho), depois de uma compilação ter baixado as b
 python tools/bitchat/run_tests.py --crypto-dir .pio/libdeps/Heltec_v3_companion_radio_ble_bitchat/Crypto
 ```
 
+A definição do Cardputer ADV e a interface de teclado vêm do projeto
+[MeshCore-Cardputer-ADV](https://github.com/Stachugit/MeshCore-Cardputer-ADV), de Stachu (licença
+MIT), como descrito nas [notas](CARDPUTER.md).
+
 O núcleo veio da ponte para Meshtastic do mesmo autor
 ([EduChacon/meshtastic-bitchat](https://github.com/EduChacon/meshtastic-bitchat), _commit_
 `47d4d67`). A base é o MeshCore oficial no _commit_ `75b04ef` (versão 1.18.0).
@@ -253,9 +259,8 @@ O núcleo veio da ponte para Meshtastic do mesmo autor
 
 a) Ensaio em aparelho de todos os modelos além do Heltec V3, e medições no próprio Heltec V3.
 
-b) nRF52 (T1000-E, RAK4631): o MeshCore usa ali a biblioteca Bluefruit. A ponte para Meshtastic
-tem uma camada de adaptação para esse chip, que ainda não foi ligada em aparelho algum; só faz
-sentido trazê-la para cá depois desse ensaio.
+b) Os demais nRF52 (RAK4631 e outros): só o T1000-E foi preparado, e ainda não foi ligado; os
+outros dependem do resultado desse ensaio.
 
 c) Página da ponte nas outras interfaces de tela (`ui-orig`, `ui-tiny`).
 

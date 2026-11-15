@@ -1,18 +1,28 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.2
+# MeshCore + Bitchat v1.18.0-bitchat0.3
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
 
 ## Estado
 
-- **Heltec V3:** o autor instalou a versão anterior (`bitchat0.1`), seguiu o roteiro de primeiro
-  uso e relatou que tudo funcionou. Não há medições de alcance, consumo ou duração.
+- **Heltec V3:** o autor instalou a `bitchat0.1`, seguiu o roteiro de primeiro uso e relatou que
+  tudo funcionou; as capturas mostram texto nos dois sentidos entre o aplicativo MeshCore e o
+  Bitchat e os dois autotestes. Não há medições de alcance, consumo ou duração, nem ensaio da
+  travessia pelo LoRa.
+- **O que veio depois da `bitchat0.1` não foi ligado em aparelho:** a página da ponte na tela, a
+  ligação com as pontes Meshtastic, o Cardputer ADV e o T1000-E. Passou nos testes em computador e
+  compila.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
-  só compilados; nenhum foi ligado. Os arquivos desta página são gerados pela compilação automática do
-  GitHub; se o de algum aparelho da lista faltar, é porque a compilação dele falhou.
-- **Esta versão (`bitchat0.2`)** acrescenta à anterior a página da ponte na tela do rádio, a
-  ligação com as pontes Meshtastic e os arquivos dos outros aparelhos. Ela passou nos testes em
-  computador e compila; **não foi ligada em aparelho**, nem no Heltec V3.
+  só compilados; nenhum foi ligado.
+
+## O que há de novo na `bitchat0.3`
+
+- **M5Stack Cardputer ADV com Cap LoRa-1262:** conversa no próprio aparelho, pelo teclado
+  (contatos, canais, ajustes), com a ponte ligada a ela. A interface vem do projeto
+  [MeshCore-Cardputer-ADV](https://github.com/Stachugit/MeshCore-Cardputer-ADV), de Stachu (MIT).
+  [Notas](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/CARDPUTER.md).
+- **SenseCAP T1000-E, experimental:** primeira versão da ponte para o chip nRF52.
+  [Notas e riscos](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/T1000E.md).
 
 ## O que faz
 
@@ -26,12 +36,13 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 
 ## Arquivos
 
-Dois por aparelho; **confira o nome do seu aparelho antes de gravar**.
+**Confira o nome do seu aparelho antes de gravar.**
 
-- `<aparelho>_bitchat-merged.bin`: rádio novo ou vindo de outro firmware. Apagar a memória e gravar
-  no endereço `0x0`.
-- `<aparelho>_bitchat.bin`: rádio que já roda o MeshCore _companion_ Bluetooth. Gravar no endereço
-  `0x10000`; os dados do rádio são mantidos.
+- ESP32: `<aparelho>_bitchat-merged.bin` (rádio novo ou vindo de outro firmware; apagar a memória e
+  gravar no endereço `0x0`) e `<aparelho>_bitchat.bin` (rádio que já roda o MeshCore _companion_
+  Bluetooth; gravar no endereço `0x10000`, mantendo os dados).
+- T1000-E: `t1000e_companion_radio_ble_bitchat.uf2`, copiado para a unidade que o aparelho mostra
+  em modo de gravação; o `.zip` é o pacote para a ferramenta de atualização da Nordic.
 - `SHA256SUMS`: somas de conferência.
 
 Instalação, comandos e limites:
@@ -41,6 +52,7 @@ Instalação, comandos e limites:
 
 - Depois de gravar, pode ser preciso remover o rádio dos aparelhos Bluetooth pareados do telefone
   e parear de novo.
-- A frequência e a predefinição de rádio são ajustadas no aplicativo MeshCore, como no original.
+- A frequência e a predefinição de rádio são ajustadas no aplicativo MeshCore, ou nos ajustes do
+  Cardputer ADV, como no original.
 - O canal `#bitchat` é aberto: qualquer pessoa entra nele pelo nome.
-- nRF52 (T1000-E, RAK4631 etc.) e ESP32-C6 não têm arquivo nesta versão.
+- Os demais nRF52 (RAK4631 etc.) e os ESP32-C6 não têm arquivo nesta versão.

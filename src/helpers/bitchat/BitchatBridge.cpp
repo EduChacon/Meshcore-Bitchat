@@ -843,7 +843,7 @@ void BitchatBridge::importText(Bytes name, Bytes body, const Digest *id)
         ++importedRadio;
 }
 
-void BitchatBridge::onChannelText(uint8_t channel, const uint8_t *packetHash, const char *text)
+void BitchatBridge::channelText(uint8_t channel, const uint8_t *packetHash, const char *text)
 {
     if (!host || !text || !settings.enabled || !runtime || !wasActive || !storageReady || !identityReady || !utc())
         return;
@@ -875,7 +875,7 @@ void BitchatBridge::onChannelText(uint8_t channel, const uint8_t *packetHash, co
     importText(name, body, &id);
 }
 
-bool BitchatBridge::onAppText(uint8_t channel, const char *text, size_t size)
+bool BitchatBridge::appText(uint8_t channel, const char *text, size_t size)
 {
     if (!host || !text)
         return false;
@@ -925,6 +925,7 @@ void BitchatBridge::sendRadio()
     ++submittedRadio;
 }
 
+// The three entry points hand their work to a stack large enough for it; see onLargeStack.
 void BitchatBridge::loop()
 {
     if (!host)
@@ -934,7 +935,50 @@ void BitchatBridge::loop()
         return;
     ranAt = now;
     interval = 1000;
-    work(now);
+    struct Call {
+        BitchatBridge *self;
+        uint32_t now;
+    } call{this, now};
+    onLargeStack(
+        [](void *argument) {
+            auto *c = static_cast<Call *>(argument);
+            c->self->work(c->now);
+        },
+        &call);
+}
+
+void BitchatBridge::onChannelText(uint8_t channel, const uint8_t *packetHash, const char *text)
+{
+    struct Call {
+        BitchatBridge *self;
+        uint8_t channel;
+        const uint8_t *hash;
+        const char *text;
+    } call{this, channel, packetHash, text};
+    onLargeStack(
+        [](void *argument) {
+            auto *c = static_cast<Call *>(argument);
+            c->self->channelText(c->channel, c->hash, c->text);
+        },
+        &call);
+}
+
+bool BitchatBridge::onAppText(uint8_t channel, const char *text, size_t size)
+{
+    struct Call {
+        BitchatBridge *self;
+        uint8_t channel;
+        const char *text;
+        size_t size;
+        bool command;
+    } call{this, channel, text, size, false};
+    onLargeStack(
+        [](void *argument) {
+            auto *c = static_cast<Call *>(argument);
+            c->command = c->self->appText(c->channel, c->text, c->size);
+        },
+        &call);
+    return call.command;
 }
 
 void BitchatBridge::work(uint32_t now)

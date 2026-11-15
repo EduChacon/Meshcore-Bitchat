@@ -130,6 +130,8 @@ class BitchatBridge
     uint32_t restartAt = 0, repliedAt = 0;
 
     void work(uint32_t now);
+    void channelText(uint8_t channel, const uint8_t *packetHash, const char *text);
+    bool appText(uint8_t channel, const char *text, size_t size);
     void answerApp();
     void answerBitchat();
     void replyToApp(const char *text);

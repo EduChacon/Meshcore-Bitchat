@@ -23,7 +23,7 @@ build_unflags =
 build_flags =
   -std=gnu++17
   -D WITH_BITCHAT_BRIDGE=1
-  -D FIRMWARE_VERSION='"v1.18.0-bitchat0.2"'
+  -D FIRMWARE_VERSION='"v1.18.0-bitchat0.3"'
   -D ARDUINO_LOOP_STACK_SIZE=16384
   -D CONFIG_BT_NIMBLE_ENABLED
   -D CONFIG_BT_NIMBLE_MAX_BONDS=6
@@ -68,6 +68,42 @@ extra_scripts =
 """
 
 
+# nRF52: experimental, one board at a time. The SoftDevice gets 40 KB of RAM instead of 24 KB for the
+# second link and the larger attribute table; the value is an estimate, not a measurement.
+NRF52 = """
+[bitchat_bridge_nrf52]
+build_unflags =
+  -std=gnu++11
+build_flags =
+  -std=gnu++17
+  -I src/helpers/bitchat/nrf52/shim
+  -D WITH_BITCHAT_BRIDGE=1
+  -D FIRMWARE_VERSION='"v1.18.0-bitchat0.3"'
+  ; fewer messages kept for an absent app: that memory goes to the bridge and the Bluetooth stack
+  -D OFFLINE_QUEUE_SIZE=96
+build_src_filter =
+  -<helpers/nrf52/SerialBLEInterface.cpp>
+  +<helpers/bitchat/*.cpp>
+  +<helpers/bitchat/nrf52/*.cpp>
+extra_scripts =
+  pre:tools/bitchat/nimble_pre.py
+
+[env:t1000e_companion_radio_ble_bitchat]
+extends = env:t1000e_companion_radio_ble
+board_build.ldscript = variants/bitchat/nrf52840_s140_v7_extrafs_bridge.ld
+build_unflags = ${bitchat_bridge_nrf52.build_unflags}
+build_flags =
+  ${env:t1000e_companion_radio_ble.build_flags}
+  ${bitchat_bridge_nrf52.build_flags}
+build_src_filter =
+  ${env:t1000e_companion_radio_ble.build_src_filter}
+  ${bitchat_bridge_nrf52.build_src_filter}
+extra_scripts =
+  ${nrf52_base.extra_scripts}
+  ${bitchat_bridge_nrf52.extra_scripts}
+"""
+
+
 def text(value):
     return " ".join(value) if isinstance(value, list) else str(value or "")
 
@@ -95,7 +131,7 @@ def main():
     # The generated file must not feed its own input.
     TARGET.write_text(HEADER)
     stock = stock_environments()
-    TARGET.write_text(HEADER + "".join(BLOCK.format(name=name.rstrip("_") + SUFFIX, stock=name) for name in stock))
+    TARGET.write_text(HEADER + "".join(BLOCK.format(name=name.rstrip("_") + SUFFIX, stock=name) for name in stock) + NRF52)
     print(f"{len(stock)} bridge environments written to {TARGET.relative_to(ROOT)}")
 
 

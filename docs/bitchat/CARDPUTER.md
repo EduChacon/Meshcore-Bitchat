@@ -1,0 +1,80 @@
+# Cardputer ADV
+
+Firmware para o M5Stack Cardputer-Adv com o módulo **Cap LoRa-1262**: MeshCore com uma interface de
+conversa no próprio aparelho, pelo teclado, e a ponte Bitchat.
+
+**Estado em 2026-11-15: compila; nunca foi ligado em aparelho.** A interface vem de um projeto que
+é usado em aparelhos reais, mas na versão dele; a adaptação feita aqui não foi ensaiada.
+
+## Origem
+
+A definição do aparelho, o controlador de tela e a interface de teclado vêm do projeto
+[MeshCore-Cardputer-ADV](https://github.com/Stachugit/MeshCore-Cardputer-ADV), de Stachu
+(licença MIT, a mesma do MeshCore), no estado `e341957`, baseado no MeshCore 1.11. Foram
+adaptados aqui ao MeshCore 1.18 e ligados à ponte. O que mudou em relação ao original:
+
+a) a interface passou a receber as mensagens pelo mecanismo atual do MeshCore;
+
+b) o tempo de desligamento da tela é guardado com os ajustes da própria interface;
+
+c) a chave de antena do Cap LoRa-1262 é ligada como a M5Stack documenta (pino P0 do expansor em
+nível alto);
+
+d) a pilha Bluetooth é a NimBLE, compartilhada com a ponte, e não a do projeto original.
+
+## Teclado
+
+As teclas são as do projeto original:
+
+| Tecla                     | Efeito                                  |
+| ------------------------- | --------------------------------------- |
+| Setas para cima e baixo   | Percorrem a lista                       |
+| Seta para a esquerda      | Vai para os contatos                    |
+| Seta para a direita       | Vai para os canais                      |
+| Enter                     | Seleciona, ou envia a mensagem          |
+| Backspace                 | Apaga; mantida, apaga tudo              |
+| Fn + Esc, ou Opt          | Volta                                   |
+| Fn + setas cima/baixo     | Rolam as mensagens durante a escrita    |
+| Fn + Del                  | Remove o contato ou o canal selecionado |
+| Botão G0 (canto superior) | Envia um anúncio do rádio               |
+
+O menu de ajustes fica no ícone do canto superior esquerdo: nome, frequência e demais parâmetros
+de rádio, GPS, tema, tempo de tela e informações do aparelho.
+
+## A ponte neste aparelho
+
+a) O canal `#bitchat` é criado sozinho e aparece na lista de canais.
+
+b) O que for escrito nesse canal, no teclado, sai pelo LoRa e também chega aos telefones Bitchat
+próximos, como `[MC nome] texto`.
+
+c) O que os telefones Bitchat escrevem no `#mesh` aparece na conversa do canal, como
+`apelido: texto`.
+
+d) `!bridge`, digitado em qualquer canal, mostra o estado da ponte na própria conversa e não é
+transmitido. Os demais comandos (`on`, `off`, `local`, `lora`, `link on`, `link off`) valem do
+mesmo modo.
+
+e) A tela **Device Info**, nos ajustes, mostra o estado da ponte e quantos telefones estão falando
+com o rádio.
+
+O aplicativo MeshCore no telefone continua podendo conectar por Bluetooth; o PIN aparece na tela.
+
+## Instalação
+
+Arquivo `M5Stack_Cardputer_ADV_companion_radio_ble_bitchat-merged.bin`, gravado no endereço `0x0`
+depois de apagar a memória, como descrito no [guia](README.md#instalação). O chip é `esp32-s3` e a
+memória tem 8 MB. **Tudo o que havia no aparelho é perdido**; para voltar ao que estava, faça antes
+a cópia de segurança completa descrita no guia.
+
+## O que não se sabe
+
+a) Se a tela, o teclado e o rádio iniciam: nada foi ligado.
+
+b) Se a chave de antena fica correta com a mudança do item (c) acima. O projeto original usa outra
+sequência; a adotada aqui é a da documentação da M5Stack e a do Meshtastic.
+
+c) A faixa de frequência do seu módulo. O Cap LoRa-1262 é vendido para a faixa de 868 MHz; confira
+se o seu atende a frequência usada na sua região antes de transmitir.
+
+d) O consumo e a duração da bateria com a ponte ligada.

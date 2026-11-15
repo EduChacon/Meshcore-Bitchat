@@ -28,7 +28,11 @@ MultiSerialInterface interface_manager;
     SerialBLEInterface bluetooth_interface;
   #elif defined(NRF52_PLATFORM)
     // include nrf52 bluetooth interface
-    #include <helpers/nrf52/SerialBLEInterface.h>
+    #ifdef WITH_BITCHAT_BRIDGE
+      #include <helpers/bitchat/nrf52/SerialBLEInterface.h>   // a second link for the Bitchat bridge
+    #else
+      #include <helpers/nrf52/SerialBLEInterface.h>
+    #endif
     SerialBLEInterface bluetooth_interface;
   #elif defined(RP2040_PLATFORM)
     // include rp2040 (Pico W / CYW43) bluetooth interface
