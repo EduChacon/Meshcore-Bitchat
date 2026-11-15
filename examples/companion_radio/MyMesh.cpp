@@ -2467,6 +2467,8 @@ bool MyMesh::hasPendingWork() const {
 #ifdef WITH_BITCHAT_BRIDGE
 // ---------- bitchat::MeshHost: what the Bitchat bridge asks of the companion
 
+static bool bridge_text_on_air = false;
+
 uint32_t MyMesh::clockSeconds() {
   return getRTCClock()->getCurrentTime();
 }
@@ -2536,11 +2538,16 @@ bool MyMesh::sendChannelText(uint8_t index, uint32_t timestamp, const char *text
     _listener->onChannelMessageRecv(pkt, ch, (const char *) &temp[5]);
   }
   sendFloodScoped(ch.channel, pkt);
+  bridge_text_on_air = true;
   showChannelText(index, timestamp, text, size);   // the app attached to this radio sees it as received
+  bridge_text_on_air = false;
   return true;
 }
 
 void MyMesh::showChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) {
+#ifdef HEADLESS_UI
+  if (!bridge_text_on_air) showChannelTextOnDevice(index, text, size);   // text sent on air was shown already
+#endif
   int i = 0;
   if (app_target_ver >= 3) {
     out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
@@ -2572,4 +2579,20 @@ void MyMesh::showChannelText(uint8_t index, uint32_t timestamp, const char *text
     _listener->onQueueSizeChanged(offline_queue_len);
   }
 }
+
+#ifdef HEADLESS_UI
+// The keyboard UI keeps its own chat on the screen: lines meant for the attached app go there as well.
+void MyMesh::showChannelTextOnDevice(uint8_t index, const char *text, size_t size) {
+  ChannelDetails ch;
+  if (!_listener || !getChannel(index, ch) || ch.name[0] == 0) return;
+  char line[MAX_TEXT_LEN + 1];
+  if (size > MAX_TEXT_LEN) size = MAX_TEXT_LEN;
+  memcpy(line, text, size);
+  line[size] = 0;
+  mesh::Packet none;   // not heard on the air: no path, no signal
+  none.header = 0;
+  none.path_len = 0;
+  _listener->onChannelMessageRecv(&none, ch, line);
+}
+#endif
 #endif

@@ -304,6 +304,18 @@ void loop() {
 #endif
   sensors.loop();
 #ifdef DISPLAY_CLASS
+#ifdef HEADLESS_UI
+  // Keyboard UI: the G0 button sends an advert
+  if (user_btn.check() == BUTTON_EVENT_CLICK) {
+    the_mesh.advert();
+    display.startFrame();
+    display.setTextSize(2);
+    display.drawTextCentered(display.width() / 2, (display.height() - 16) / 2, "Advert sent");
+    display.endFrame();
+    delay(1000);
+    ui_task.requestRefresh();
+  }
+#endif
   ui_task.loop();
 #endif
   rtc_clock.tick();

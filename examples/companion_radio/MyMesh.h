@@ -222,6 +222,13 @@ public:
   // To check if there is pending work
   bool hasPendingWork() const;
 
+#ifdef HEADLESS_UI
+  // the keyboard UI edits contacts and channels on the device itself
+  void uiSaveContacts() { saveContacts(); }
+  void uiSaveChannels() { saveChannels(); }
+  void uiFactoryReset() { _store->formatFileSystem(); }
+#endif
+
 #ifdef WITH_BITCHAT_BRIDGE
   // bitchat::MeshHost methods
   uint32_t clockSeconds() override;
@@ -233,6 +240,9 @@ public:
   bool radioBusy() override;
   bool sendChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override;
   void showChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override;
+#ifdef HEADLESS_UI
+  void showChannelTextOnDevice(uint8_t index, const char *text, size_t size);
+#endif
 #endif
 
 private:
