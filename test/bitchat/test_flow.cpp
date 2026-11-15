@@ -878,6 +878,43 @@ int main()
                   who[0].rfind("[bridge] On LoRa, last 6 h: Pessoa de nome longo 23, Pessoa de nome longo 22", 0) == 0);
             CHECK(who[0].substr(who[0].size() - 4) == " +10");
         }
+        // What a phone wrote is kept too, under its own signature, for the phone that arrives after it left.
+        fakeSent.clear();
+        eva.write(eva.say("Eva: volto as 18h"));
+        run(600);
+        {
+            Phone fia("fia", 7, 24);
+            bleDisconnect(eva.handle);
+            run(1000);
+            fia.connect();
+            run(300);
+            fia.write(fia.announce());
+            run(600);
+            run(5000);
+            fakeSent.clear();
+            const auto wire = syncRequest(crypto, {});
+            fia.write(fia.packet(0x21, {wire.data(), wire.size()}, 0));
+            run(600);
+            bool found = false;
+            for (const auto &frame : received(fia.handle)) {
+                Packet packet;
+                CHECK(decode({frame.data(), frame.size()}, packet) == Result::Ok);
+                if (packet.type != 2 || !(packet.sender == eva.id))
+                    continue;
+                // the phone's own signature, still valid with the answer's time to live and flag
+                Frame canonical;
+                CHECK(packet.ttl == 0 && packet.replay() && signingBytes({frame.data(), frame.size()}, canonical) == Result::Ok);
+                CHECK(crypto.verify(canonical.bytes(), packet.signature, eva.signingPublic.data()));
+                found = text(packet.payload) == "Eva: volto as 18h";
+            }
+            CHECK(found);
+            bleDisconnect(fia.handle);
+            run(1000);
+            eva.connect();
+            run(300);
+            eva.write(eva.announce());
+            run(600);
+        }
         // Six hours later nobody is listed.
         run(6 * 60 * 60 * 1000 + 1000);
         mesh.app.clear();

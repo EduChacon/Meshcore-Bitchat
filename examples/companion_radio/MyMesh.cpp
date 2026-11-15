@@ -948,6 +948,10 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
 #endif
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
   _prefs.setRepeatEn(false);
+#ifdef BITCHAT_FACTORY_REPEAT
+  // a package for a network of its own: every radio of it passes on what it hears
+  _prefs.setRepeatEn(isValidClientRepeatFreq(uint32_t(_prefs.freq * 1000 + 0.5f)));
+#endif
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
   _prefs.rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;

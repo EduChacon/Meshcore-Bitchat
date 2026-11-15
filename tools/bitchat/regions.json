@@ -22,5 +22,14 @@
     "sf": 8,
     "cr": 8,
     "path_hash_bytes": 1
+  },
+  "rede-propria": {
+    "title": "Rede propria 918 MHz",
+    "freq": 918.0,
+    "bw": 62.5,
+    "sf": 8,
+    "cr": 8,
+    "path_hash_bytes": 2,
+    "repeat": true
   }
 }

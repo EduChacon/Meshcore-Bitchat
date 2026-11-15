@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.9
+# MeshCore + Bitchat v1.18.0-bitchat0.10
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -11,19 +11,26 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   travessia pelo LoRa.
 - **O que veio depois da `bitchat0.1` não foi ligado em aparelho:** a página da ponte na tela, a
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
-  pacotes por país, o histórico e a lista de nomes. Passou nos testes em computador
+  pacotes por país, o histórico, a lista de nomes e a rede própria. Passou nos testes em computador
   e compila.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.9`
+## O que há de novo na `bitchat0.10`
 
-- **`!bridge who`** (ou `!ponte quem`, em português): lista os nomes ouvidos no canal LoRa nas
-  últimas seis horas, do mais recente ao mais antigo. Vale no aplicativo MeshCore e no `#mesh` do
-  Bitchat, cujo `/who` só mostra quem está na malha Bluetooth.
+- **Histórico, segunda parte.** A ponte passa a guardar também o que os telefones escrevem no
+  `#mesh` perto do rádio, com a assinatura de quem escreveu, para quem chega depois. Quem chega só
+  vê essas mensagens se já conheceu o autor antes (regra do próprio Bitchat).
+- **Pacote `Rede-propria-918-MHz`.** Para casas sem repetidor por perto: 918,000 MHz, com a
+  repetição já ligada; os rádios gravados com ele formam uma malha à parte, fora da rede da
+  comunidade.
+- [Estudo de privacidade e pagamento](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/PRIVACY.md):
+  o que já é possível (canal com chave própria) e o que depende de ensaio.
 
 ## Das versões anteriores
 
+- **`!bridge who`** (`bitchat0.9`), ou `!ponte quem`: nomes ouvidos no canal LoRa nas últimas seis
+  horas, no aplicativo MeshCore ou no `#mesh` do Bitchat.
 - **Histórico para quem chega depois** (`bitchat0.8`): o texto que vem do LoRa é guardado mesmo sem
   telefone conectado (24 mensagens, 8 no T1000-E, por até seis horas) e entregue ao telefone que
   chega, pelo mecanismo do próprio Bitchat. Não foi ensaiado com o aplicativo real.
@@ -76,7 +83,8 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - T1000-E: `t1000e_companion_radio_ble_bitchat.uf2`, copiado para a unidade que o aparelho mostra
   em modo de gravação; o `.zip` é o pacote para a ferramenta de atualização da Nordic.
 - `MeshCore-Bitchat-<versão>-<país>.zip`: os mesmos arquivos, para todos os aparelhos, já com o
-  rádio do país (`Brasil`, `EUA`, `Europa-e-Reino-Unido`).
+  rádio do país (`Brasil`, `EUA`, `Europa-e-Reino-Unido`) ou da rede própria em 918 MHz
+  (`Rede-propria-918-MHz`).
 - `SHA256SUMS`: somas de conferência.
 
 Instalação, comandos e limites:

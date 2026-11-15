@@ -19,7 +19,7 @@ Um aparelho gravado do zero com um destes arquivos já parte com o rádio assim:
   Hash do caminho ....... {path_hash_bytes} byte(s)
 
 Com isso, não é preciso abrir o aplicativo MeshCore para ajustar a frequência.
-O uso destas frequências fora do lugar indicado pode ser proibido: confira a regra local.
+{repeat_note}O uso destas frequências fora do lugar indicado pode ser proibido: confira a regra local.
 
 Qual arquivo usar (confira o nome do seu aparelho):
   <aparelho>_bitchat-merged.bin  ESP32, instalação limpa: apagar a memória e gravar em 0x0.
@@ -32,6 +32,12 @@ SHA256SUMS traz as somas de conferência dos arquivos desta pasta.
 Guia: https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md
 """
 
+REPEAT_NOTE = """
+REDE PRÓPRIA: este pacote não fala com a rede MeshCore da comunidade (923,125 MHz). Ele forma
+uma malha à parte, para casas sem repetidor por perto: todos os rádios gravados com ele repassam
+o que ouvem ("Ativar Modo de Repetição" já vem ligado). Repassar ocupa mais tempo de transmissão
+e gasta mais bateria. O MeshCore só permite essa repetição em 433, 869,495 e 918 MHz.
+"""
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -47,7 +53,8 @@ def main():
         if not files:
             raise SystemExit(f"No firmware was built for {name}")
         title = radio["title"]
-        note = NOTE.format(version=args.version, **radio)
+        repeat_note = REPEAT_NOTE if radio.get("repeat") else ""
+        note = NOTE.format(version=args.version, repeat_note=repeat_note, **radio)
         sums = "".join(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n" for path in files)
         target = args.output / f"MeshCore-Bitchat-{args.version}-{title.replace(' ', '-')}.zip"
         top = f"{title.replace(' ', '-')}/"

@@ -24,31 +24,24 @@ de presente não precisa conhecer o MeshCore nem o Meshtastic.
 | Pacotes por país, sem aplicativo no primeiro uso                | sim      | sim        | não                                        |
 | Histórico: texto do LoRa guardado para quem chega depois        | sim      | sim        | não                                        |
 | `!bridge who`: nomes ouvidos no LoRa                            | sim      | sim        | não                                        |
+| Histórico também do que os telefones escrevem                   | sim      | sim        | não                                        |
+| Rede própria entre casas (pacote em 918 MHz com repetição)      | sim      | nativo     | não                                        |
+| Canal LoRa com chave própria (privacidade parcial)              | sim      | sim        | não                                        |
 
 ## Em seguida
 
-1. **Histórico, segunda parte.** Guardar também o que os telefones da casa escreveram, com o anúncio
-   de cada autor, para quem chega e não encontra mais ninguém. Depende de ver, em aparelho, como o
-   aplicativo trata anúncios antigos.
-2. **Rede própria entre casas no MeshCore.** Pacote à parte em 918,000 MHz com a repetição ligada,
-   para lugares sem repetidor. Fora dele, as casas dependem de repetidores ou de alcance direto.
+1. **Ensaio em aparelho** do que está pronto, a começar pelo histórico e pela ligação entre casas.
+2. **Túnel privado do Meshtastic**, que já existe em laboratório: ensaiar com dois rádios e dois
+   telefones. Dele dependem as mensagens privadas e o pagamento pelo LoRa.
+3. **Porte do túnel para o MeshCore**, só depois do item 2.
 
-## Em estudo, antes de programar
-
-3. **Mensagens privadas, grupos e pagamento.** No Bitchat são cifrados de ponta a ponta e hoje não
-   atravessam o LoRa. A ideia é a ponte transportar os pacotes cifrados sem conseguir lê-los. Custos
-   conhecidos: cada pacote ocupa duas ou mais transmissões, o primeiro contato exige várias
-   mensagens, e quem escuta ainda vê quem fala e quando. O pagamento (`/pay`, token Cashu) só é
-   seguro em conversa privada, por isso depende deste item.
-4. **"Ponte mesh" nativa do Bitchat.** O aplicativo tem um mecanismo próprio para ligar grupos
-   próximos pela internet, com o nome do autor e um símbolo de ponte. Usá-lo pelo LoRa daria uma
-   apresentação melhor do que `[MC nome]`. Dúvidas: tamanho das mensagens assinadas, a área de cerca
-   de 1 km para a qual o recurso foi feito e a opção que cada pessoa teria de ligar no telefone.
-
-Os itens 3 e 4 pedem um desenho escrito, com tamanhos e tempos de transmissão, aprovado antes de
-qualquer código.
+O estudo completo, com tamanhos e tempos de transmissão, está em
+[PRIVACY.md](PRIVACY.md). A "ponte mesh" nativa do Bitchat foi estudada e descartada para o LoRa:
+cada mensagem custaria de 3 a 5 transmissões, contra 1 do formato atual.
 
 ## Fora do alcance
+
+- Na coluna do Meshtastic, "nativo" quer dizer que todo rádio Meshtastic já repassa mensagens.
 
 - Canais locais do Bitchat (dependem de internet).
 - Voz, arquivos e imagens: não cabem no LoRa.

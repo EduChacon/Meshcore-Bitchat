@@ -34,6 +34,9 @@ if region:
             ("BITCHAT_FACTORY_PATH_HASH_MODE", radio["path_hash_bytes"] - 1),
         ]
     )
+    if radio.get("repeat"):
+        # MeshCore lets a companion radio repeat only on a few frequencies; 918.000 MHz is one of them.
+        env.Append(CPPDEFINES=[("BITCHAT_FACTORY_REPEAT", 1)])
     print(f"Bridge: factory radio for {region}: {radio['freq']} MHz, BW {radio['bw']}, SF {radio['sf']}, CR {radio['cr']}")
 
 patched = False

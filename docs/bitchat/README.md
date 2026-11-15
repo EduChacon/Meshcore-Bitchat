@@ -58,6 +58,7 @@ A página de cada versão traz, além dos arquivos gerais, um pacote por país:
 | `Brasil`               | 923,125 MHz | 62,5 kHz | 8   | 8   | 2 bytes           |
 | `EUA`                  | 910,525 MHz | 62,5 kHz | 7   | 5   | 1 byte            |
 | `Europa-e-Reino-Unido` | 869,618 MHz | 62,5 kHz | 8   | 8   | 1 byte            |
+| `Rede-propria-918-MHz` | 918,000 MHz | 62,5 kHz | 8   | 8   | 2 bytes           |
 
 Os valores de rádio são os das predefinições do aplicativo oficial (`Brazil`, `USA` e
 `EU/UK (Narrow)`), lidas em <https://api.meshcore.nz/api/v1/config> em 2026-11-15; os 2 bytes do
@@ -79,6 +80,12 @@ original, e pedem o ajuste da frequência pelo aplicativo.
 
 e) Transmitir em frequência não permitida no lugar de uso pode ser proibido. O cumprimento da
 regra local é de quem usa o rádio.
+
+f) **`Rede-propria-918-MHz`** não fala com a rede da comunidade (923,125 MHz). É para casas sem
+repetidor por perto: todos os rádios gravados com ele repassam o que ouvem (`Ativar Modo de
+Repetição` já vem ligado) e formam uma malha à parte. O MeshCore só permite essa repetição em
+433, 869,495 e 918 MHz; 918 MHz está na faixa de 915 a 928 MHz usada no Brasil. Repassar ocupa
+mais tempo de transmissão e gasta mais bateria.
 
 Os pacotes por país compilam, e o ajuste foi conferido no arquivo gerado; **nenhum foi ligado em
 aparelho**.
@@ -162,12 +169,13 @@ quem repassa são os repetidores. As casas conversam se cada uma alcança um rep
 rádios se alcançam diretamente.
 
 b) **Rede própria:** o MeshCore deixa o rádio de conversa repassar mensagens (`Ativar Modo de
-Repetição`, no aplicativo) somente em 433,000, 869,495 e 918,000 MHz. Todos os rádios nessa
-frequência e com a repetição ligada formam uma malha à parte, fora da rede dos repetidores. Esse
-arranjo exige o aplicativo uma vez em cada rádio e não foi ensaiado com a ponte.
+Repetição`) somente em 433,000, 869,495 e 918,000 MHz. O pacote `Rede-propria-918-MHz` já sai
+assim, sem o aplicativo: todos os rádios gravados com ele formam uma malha à parte, fora da rede
+dos repetidores. Não foi ensaiado.
 
 c) Só o texto público do `#mesh` atravessa o LoRa. As mensagens privadas do Bitchat ficam no
-Bluetooth.
+Bluetooth. Para que quem está fora do grupo não leia o LoRa, use um canal com chave própria; ver o
+[estudo de privacidade](PRIVACY.md).
 
 ## Comandos
 
@@ -214,8 +222,12 @@ nova para a mais antiga; o telefone repete a pergunta a cada 15 segundos, e o re
 b) Ficam guardadas as últimas 24 mensagens (8 no T1000-E), por até seis horas, na memória do
 rádio. Desligar o rádio, ou `!bridge off`, apaga tudo.
 
-c) Só entra no histórico o que veio do LoRa ou do aplicativo MeshCore deste rádio. O que os
-telefones escrevem entre si não é guardado pela ponte; eles o trocam diretamente.
+c) A partir da `bitchat0.10`, entra também o que os telefones escrevem no `#mesh` perto do rádio,
+com a assinatura de quem escreveu: a ponte faz o papel de um telefone que fica em casa. Quem
+chega depois só vê essas mensagens se já conheceu o autor antes; o Bitchat aceita o anúncio de
+uma pessoa por 15 minutos e, depois disso, usa as identidades que guardou. Mensagens com 100
+bytes ou mais (que o Bitchat compacta) não são guardadas. As últimas mensagens, das duas
+origens, dividem a mesma tabela.
 
 d) Depois de religado sem ninguém por perto, o rádio fica sem hora e não consegue assinar: o
 texto que chegar até o primeiro telefone (ou o aplicativo MeshCore) aparecer se perde, como antes.
