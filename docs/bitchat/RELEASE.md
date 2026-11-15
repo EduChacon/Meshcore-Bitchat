@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.4
+# MeshCore + Bitchat v1.18.0-bitchat0.5
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -10,24 +10,30 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   Bitchat e os dois autotestes. Não há medições de alcance, consumo ou duração, nem ensaio da
   travessia pelo LoRa.
 - **O que veio depois da `bitchat0.1` não foi ligado em aparelho:** a página da ponte na tela, a
-  ligação com as pontes Meshtastic, o Cardputer ADV e o T1000-E. Passou nos testes em computador
+  ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E e o modo econômico. Passou nos testes em computador
   e compila.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.4`
+## O que há de novo na `bitchat0.5`
 
-- **Cardputer ADV, duas correções** achadas pela leitura do código, não em aparelho:
+- **Modo econômico da ponte:** depois de três minutos sem nenhum telefone Bitchat, o rádio passa a
+  se anunciar cerca de uma vez por segundo, em vez de várias, e a ponte trabalha com menos
+  frequência. O primeiro telefone que falar traz o ritmo normal de volta. O ganho de bateria não foi
+  medido, e o Bitchat pode levar mais tempo para encontrar o rádio.
+- A ponte pode ser usada por outro projeto que carregue este repositório como biblioteca (é o caso
+  do [Saitama com ponte](https://github.com/EduChacon/Saitama-mesh---BC-)).
+
+## Das versões anteriores
+
+- **Cardputer ADV, duas correções** (`bitchat0.4`) achadas pela leitura do código, não em aparelho:
   `Backspace` não apagava na `bitchat0.3` (a biblioteca do aparelho mudou em maio de 2026 e agora
   fica fixada na versão anterior); e mais de 64 contatos corrompiam a memória (defeito herdado do
   projeto original). **Quem gravou a `bitchat0.3` no Cardputer ADV deve trocar por esta.**
   [Notas](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/CARDPUTER.md).
-- **T-Deck e T-Deck Plus:** [notas](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/TDECK.md)
+- **T-Deck e T-Deck Plus** (`bitchat0.4`): [notas](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/TDECK.md)
   sobre o que o arquivo faz (o teclado do aparelho não é usado) e sobre os sistemas próprios para
   ele. O arquivo não mudou.
-
-## Das versões anteriores
-
 - **M5Stack Cardputer ADV com Cap LoRa-1262** (`bitchat0.3`): conversa no próprio aparelho, pelo
   teclado (contatos, canais, ajustes), com a ponte ligada a ela. A interface vem do projeto
   [MeshCore-Cardputer-ADV](https://github.com/Stachugit/MeshCore-Cardputer-ADV), de Stachu (MIT).

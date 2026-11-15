@@ -17,6 +17,7 @@ static constexpr uint32_t CONFLICT_MS = 90000;
 static constexpr uint32_t RADIO_DEADLINE_MS = 120000;
 static constexpr uint32_t BUDGET_MS = 12000;
 static constexpr uint32_t NATIVE_WINDOW_MS = 60000;
+static constexpr uint32_t ECONOMY_AFTER_MS = 180000;
 // What the attached app shows as the sender of the bridge's own answers.
 static constexpr char APP_SENDER[] = "bridge: ";
 // The well-known key of the MeshCore "Public" channel, where a bridge would be noise for everyone.
@@ -484,7 +485,7 @@ void BitchatBridge::answerApp()
     char text[LORA_TEXT_LIMIT + 1];
     if (command == Command::Reset) {
         restartLinks();
-        replyToApp("Bluetooth restarts in 3 s. Then open Bitchat near the radio and wait 1 min.");
+        replyToApp("Bluetooth restarts in 3 s. Then open Bitchat near the radio and wait 2 min.");
         return;
     }
     if (command == Command::Help) {
@@ -555,7 +556,7 @@ void BitchatBridge::answerApp()
     else if (!wasActive)
         snprintf(text, sizeof(text), "The bridge is not running: %s", status());
     else if (!phones)
-        snprintf(text, sizeof(text), "No Bitchat app has talked to this radio. Open Bitchat nearby and wait 1 min. If it "
+        snprintf(text, sizeof(text), "No Bitchat app has talked to this radio. Open Bitchat nearby and wait 2 min. If it "
                                      "stays at 0, send: !bridge reset");
     else if (!people)
         snprintf(text, sizeof(text), "Bitchat is talking but nobody was accepted: see old, sig and fmt above.");
@@ -1001,6 +1002,14 @@ void BitchatBridge::work(uint32_t now)
         tokens = active ? BUDGET_MS : 0;
         lastBudget = now;
         wasActive = active;
+        phoneAt = now;
+    }
+    if (active && blePhones())
+        phoneAt = now;
+    const bool quiet = active && !Throttle::isWithinTimespanMsAt(phoneAt, ECONOMY_AFTER_MS, now);
+    if (quiet != economy) {
+        economy = quiet;
+        advertisingChanged = true;
     }
     if (bluetoothReady && !bluetoothWas)
         bluetoothAt = now;
@@ -1027,14 +1036,14 @@ void BitchatBridge::work(uint32_t now)
         advertisingChanged = true;
     }
     if (advertisingChanged) {
-        bleConfigure(active, nativeWindow, false);
+        bleConfigure(active, nativeWindow, economy);
         if (bluetoothReady)
             platformBluetooth.refreshBridgeAdvertising();
         advertisingChanged = false;
     }
     if (!active)
         return;
-    interval = 20;
+    interval = economy ? 200 : 20;
     keepClock(now);
     if (!Throttle::isWithinTimespanMsAt(channelsAt, 1000, now))
         refreshChannel();

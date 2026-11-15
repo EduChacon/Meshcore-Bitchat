@@ -80,6 +80,7 @@ class NimBLEUUID
 };
 inline std::string fakeScanName;
 inline bool fakeScanShort = false;
+inline int fakeAdvertisingInterval = 0;
 class NimBLEAdvertisementData
 {
   public:
@@ -106,7 +107,7 @@ class NimBLEAdvertising
     void setAdvertisementData(const NimBLEAdvertisementData &) {}
     void setScanResponseData(const NimBLEAdvertisementData &) {}
     void setScanResponse(bool) {}
-    void setMinInterval(int) {}
+    void setMinInterval(int units) { fakeAdvertisingInterval = units; }
     void setMaxInterval(int) {}
 };
 class NimBLEDevice

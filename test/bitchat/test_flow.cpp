@@ -648,6 +648,29 @@ int main()
     run(1500);
     CHECK(std::string(bridge->status()) != "Bluetooth is off" && bridge->enabled());
 
+    // With no Bitchat phone for three minutes the radio announces itself about once a second; the first
+    // phone that talks brings the fast rhythm back.
+    run(61000);
+    CHECK(bleAdvertise() && fakeAdvertisingInterval == 244 && blePhones() == 3);
+    run(200000);
+    CHECK(fakeAdvertisingInterval == 244);   // phones are still talking
+    for (const auto *phone : {&ana, &bia, &caio})
+        bleDisconnect(phone->handle);
+    run(1000);
+    CHECK(blePhones() == 0 && fakeAdvertisingInterval == 244);
+    run(175000);
+    CHECK(fakeAdvertisingInterval == 244);
+    run(8000);
+    CHECK(fakeAdvertisingInterval == 1636 && bridge->enabled());
+    {
+        Phone dora("dora", 4, 21);
+        dora.connect();
+        run(300);
+        dora.write(dora.announce());
+        run(600);
+        CHECK(blePhones() == 1 && fakeAdvertisingInterval == 244);
+    }
+
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;
 }

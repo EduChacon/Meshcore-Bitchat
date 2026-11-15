@@ -138,6 +138,20 @@ nesse aplicativo e **não são transmitidos**.
 
 `!ponte` vale no lugar de `!bridge`. No Bitchat, `!bridge` no `#mesh` devolve só o estado.
 
+## Consumo e modo econômico
+
+Com a ponte ligada, o rádio gasta mais: anuncia-se por Bluetooth várias vezes por segundo, mantém
+ligação com cada telefone Bitchat próximo e transmite pelo LoRa o que leva do Bitchat. O consumo não
+foi medido.
+
+a) **Modo econômico, automático:** depois de três minutos sem nenhum telefone Bitchat falando com o
+rádio, ele passa a se anunciar cerca de uma vez por segundo e a ponte examina as filas com menos
+frequência. O primeiro telefone que falar traz o ritmo normal de volta. Nesse modo o Bitchat pode
+demorar mais para encontrar o rádio; por isso os avisos pedem para esperar dois minutos.
+
+b) **Ponte desligada:** `!bridge off` desliga tudo o que é da ponte, e a escolha fica gravada. É o
+recomendado quando a ponte não está em uso. `!bridge on` religa.
+
 ## Ligação com o Meshtastic
 
 Quando uma ponte deste projeto e uma ponte [Meshtastic–Bitchat](https://github.com/EduChacon/meshtastic-bitchat)
