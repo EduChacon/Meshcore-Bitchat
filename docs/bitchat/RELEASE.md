@@ -8,7 +8,8 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Heltec V3:** o autor instalou a versão anterior (`bitchat0.1`), seguiu o roteiro de primeiro
   uso e relatou que tudo funcionou. Não há medições de alcance, consumo ou duração.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
-  só compilados; nenhum foi ligado.
+  só compilados; nenhum foi ligado. Os arquivos desta página são gerados pela compilação automática do
+  GitHub; se o de algum aparelho da lista faltar, é porque a compilação dele falhou.
 - **Esta versão (`bitchat0.2`)** acrescenta à anterior a página da ponte na tela do rádio, a
   ligação com as pontes Meshtastic e os arquivos dos outros aparelhos. Ela passou nos testes em
   computador e compila; **não foi ligada em aparelho**, nem no Heltec V3.
