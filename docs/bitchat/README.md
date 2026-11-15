@@ -39,6 +39,7 @@ pagamentos não atravessam a ponte.
 | Outros ESP32, ESP32-S3 e ESP32-C3 da [lista](DEVICES.md) | Compilam; nenhum foi ligado                      |
 | ESP32-C6                                                 | Fora: a biblioteca Bluetooth usada não os atende |
 | M5Stack Cardputer ADV com Cap LoRa-1262                  | Compila; não foi ligado. [Notas](CARDPUTER.md)   |
+| LilyGo T-Deck e T-Deck Plus, com ou sem teclado          | Compilam; não foram ligados. [Notas](TDECK.md)   |
 | SenseCAP T1000-E (nRF52)                                 | Experimental; não foi ligado. [Notas](T1000E.md) |
 | Outros nRF52 (RAK4631 etc.)                              | Fora por ora (ver "O que falta")                 |
 
@@ -249,7 +250,9 @@ python tools/bitchat/run_tests.py --crypto-dir .pio/libdeps/Heltec_v3_companion_
 
 A definição do Cardputer ADV e a interface de teclado vêm do projeto
 [MeshCore-Cardputer-ADV](https://github.com/Stachugit/MeshCore-Cardputer-ADV), de Stachu (licença
-MIT), como descrito nas [notas](CARDPUTER.md).
+MIT), como descrito nas [notas](CARDPUTER.md). A mesma interface atende o T-Deck; os códigos do
+teclado e o controle de brilho desse aparelho foram conferidos nos exemplos publicados pela LilyGO
+([Xinyuan-LilyGO/T-Deck](https://github.com/Xinyuan-LilyGO/T-Deck)).
 
 O núcleo veio da ponte para Meshtastic do mesmo autor
 ([EduChacon/meshtastic-bitchat](https://github.com/EduChacon/meshtastic-bitchat), _commit_

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Compile and run the bridge's host tests: codec and text, Bluetooth adapter, end-to-end flow.
+"""Compile and run the bridge's host tests: codec and text, Bluetooth adapter, end-to-end flow, and
+the T-Deck screen enlargement.
 
 No hardware is used. The tests link the same rweather Crypto 0.4.0 sources as the firmware, taken
 from a PlatformIO library directory, e.g. .pio/libdeps/<env>/Crypto.
@@ -38,7 +39,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--crypto-dir", type=Path, required=True)
     parser.add_argument("--no-sanitize", action="store_true")
-    parser.add_argument("suites", nargs="*", default=["core", "adapter", "flow"])
+    parser.add_argument("suites", nargs="*", default=["core", "adapter", "flow", "screen"])
     args = parser.parse_args()
     crypto = args.crypto_dir.resolve()
     if json.loads((crypto / "library.json").read_text()).get("version") != "0.4.0":
@@ -71,6 +72,7 @@ def main():
                 FLOW,
                 crypto_sources,
             ),
+            "screen": (["-I" + str(ROOT / "variants/lilygo_tdeck_keyboard")], "test_screen.cpp", [], []),
         }
         for name in args.suites:
             includes, test, sources, extra = suites[name]

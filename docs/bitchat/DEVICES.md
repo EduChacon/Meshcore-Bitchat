@@ -5,7 +5,8 @@ final `_bitchat`. **Só o Heltec V3 foi ligado.** "Compila" quer dizer apenas qu
 gerado sem erro: nada garante que o rádio funcione com ele.
 
 Os 42 primeiros ambientes foram compilados pela compilação automática do GitHub em 2026-11-15, para a
-versão `v1.18.0-bitchat0.2`. O Cardputer ADV e o T1000-E entraram na `v1.18.0-bitchat0.3`.
+versão `v1.18.0-bitchat0.2`. O Cardputer ADV e o T1000-E entraram na `v1.18.0-bitchat0.3`, e o
+T-Deck com teclado, na `v1.18.0-bitchat0.4`.
 
 | Arquivo (sem a extensão)                                  | Chip     | Estado                                                    |
 | --------------------------------------------------------- | -------- | --------------------------------------------------------- |
@@ -29,7 +30,8 @@ versão `v1.18.0-bitchat0.2`. O Cardputer ADV e o T1000-E entraram na `v1.18.0-b
 | `LilyGo_T3S3_sx1262_companion_radio_ble_bitchat`          | ESP32-S3 | Compila; não foi ligado                                   |
 | `LilyGo_T3S3_sx1276_companion_radio_ble_bitchat`          | ESP32-S3 | Compila; não foi ligado                                   |
 | `LilyGo_TBeam_1W_companion_radio_ble_bitchat`             | ESP32-S3 | Compila; não foi ligado                                   |
-| `LilyGo_TDeck_companion_radio_ble_bitchat`                | ESP32-S3 | Compila; não foi ligado                                   |
+| `LilyGo_TDeck_companion_radio_ble_bitchat`                | ESP32-S3 | Compila; não foi ligado. [Notas](TDECK.md)                |
+| `LilyGo_TDeck_keyboard_companion_radio_ble_bitchat`       | ESP32-S3 | Com teclado; compila; não foi ligado. [Notas](TDECK.md)   |
 | `LilyGo_TETH_Elite_sx1262_companion_radio_ble_bitchat`    | ESP32-S3 | Compila; não foi ligado                                   |
 | `LilyGo_TLora_V2_1_1_6_companion_radio_ble_bitchat`       | ESP32    | Compila; não foi ligado                                   |
 | `M5Stack_Cardputer_ADV_companion_radio_ble_bitchat`       | ESP32-S3 | Compila; não foi ligado. [Notas](CARDPUTER.md)            |

@@ -34,12 +34,23 @@ As teclas são as do projeto original:
 | Enter                     | Seleciona, ou envia a mensagem          |
 | Backspace                 | Apaga; mantida, apaga tudo              |
 | Fn + Esc, ou Opt          | Volta                                   |
-| Fn + setas cima/baixo     | Rolam as mensagens durante a escrita    |
+| Fn + setas cima/baixo     | Rolam as mensagens, fora da escrita     |
 | Fn + Del                  | Remove o contato ou o canal selecionado |
 | Botão G0 (canto superior) | Envia um anúncio do rádio               |
 
 O menu de ajustes fica no ícone do canto superior esquerdo: nome, frequência e demais parâmetros
 de rádio, GPS, tema, tempo de tela e informações do aparelho.
+
+## Correções na `bitchat0.4`
+
+a) **`Backspace` não apagava.** A biblioteca do Cardputer mudou em maio de 2026 (versão 1.2.0): a
+tecla passou a ser informada em outro campo, que a interface não lê. A `bitchat0.3` foi compilada
+com essa biblioteca. Agora a versão 1.1.1 fica fixada. O defeito foi achado pela leitura do código,
+não em aparelho.
+
+b) **Mais de 64 contatos corrompiam a memória.** A lista de contatos usava uma tabela de 64 posições
+para até 200 contatos; o defeito vem do projeto original. A tabela agora tem o tamanho do limite de
+contatos.
 
 ## A ponte neste aparelho
 

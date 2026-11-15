@@ -333,7 +333,7 @@ void UITask::renderContactList() {
     int num_contacts = the_mesh.getNumContacts();
     
     // Filter contacts by search term
-    int filtered_indices[64];
+    int filtered_indices[MAX_CONTACTS];
     int filtered_count = 0;
     
     if (_search_filter_length > 0) {
@@ -2079,7 +2079,46 @@ void UITask::renderNotification() {
     _display->setCursor(hint_x, 120);
     _display->print(hint);
 }
+#ifdef TDECK_KEYBOARD_UI
+// The T-Deck has no Esc, Fn or Opt. Backspace with nothing to erase goes back, as does the
+// trackball's left in a conversation; the trackball scrolls a conversation even while typing.
+// True when the key needs no further handling.
+bool UITask::adaptKeys(Keyboard_Class::KeysState& status) {
+    bool chat = _menu_state == MenuScreen::CHAT;
+    if (status.del && !status.fn) {
+        bool editing = _editing_name || _editing_frequency || _editing_bandwidth ||
+                       _editing_spreading_factor || _editing_coding_rate || _editing_tx_power;
+        bool nothing = false;
+        if (chat) nothing = !_input_mode || _input_length == 0;
+        else if (_menu_state == MenuScreen::SETTINGS) nothing = !editing || _edit_buffer_length == 0;
+        if (nothing) {
+            status.del = false;
+            status.opt = true;
+        }
+    }
+    if (chat && status.fn && !status.del && status.word.size() == 1) {
+        char key = status.word[0];
+        status.word.clear();
+        status.fn = false;
+        if (key == ',') {
+            // a stray nudge must not throw away text being typed
+            if (_input_mode && _input_length > 0) return true;
+            status.opt = true;
+            return false;
+        }
+        if (key == ';' && _chat_msg_scroll_index < _chat_history_count - 1) _chat_msg_scroll_index++;
+        if (key == '.' && _chat_msg_scroll_index > 0) _chat_msg_scroll_index--;
+        _need_refresh = true;
+        return true;
+    }
+    return false;
+}
+#endif
+
 void UITask::handleKeyPress(Keyboard_Class::KeysState& status) {
+#ifdef TDECK_KEYBOARD_UI
+    if (adaptKeys(status)) return;
+#endif
     // In chat mode with input active
     if (_menu_state == MenuScreen::CHAT && _input_mode) {
         if (status.enter) {
@@ -2699,7 +2738,7 @@ void UITask::handleKeyPress(Keyboard_Class::KeysState& status) {
                 
                 // Build filtered list if search is active
                 if (_search_filter_length > 0) {
-                    int filtered_indices[64];
+                    int filtered_indices[MAX_CONTACTS];
                     int filtered_count = 0;
                     for (int i = 0; i < num_contacts; i++) {
                         ContactInfo contact;
@@ -2919,7 +2958,7 @@ void UITask::handleNavigation(Keyboard_Class::KeysState& status) {
             int num_contacts = the_mesh.getNumContacts();
             
             // Build filtered list for navigation
-            int filtered_indices[64];
+            int filtered_indices[MAX_CONTACTS];
             int filtered_count = 0;
             
             if (_search_filter_length > 0) {
