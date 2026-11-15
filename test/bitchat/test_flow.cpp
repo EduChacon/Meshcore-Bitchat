@@ -3,6 +3,7 @@
 #include <NimBLEDevice.h>
 #include "helpers/bitchat/BitchatBridge.h"
 #include "helpers/bitchat/BridgePlatform.h"
+#include "gcs_reference.h"
 #include <Curve25519.h>
 #include <algorithm>
 #include <cstdlib>
@@ -752,6 +753,101 @@ int main()
           mesh.app[3].text.find("lista os comandos") != std::string::npos);
     for (const auto &line : mesh.app)
         CHECK(line.text.size() <= 160);
+
+    // Public history: text from LoRa with no phone around is signed and kept, and the phone that arrives
+    // later asks for what it lacks, the way the app does with every neighbour.
+    // Restarted with nobody around, the bridge has no clock and cannot sign: such text is still lost.
+    CHECK(blePhones() == 0 && std::string(bridge->status()) == "Clock not set");
+    fromLoRa("Rita: sem hora");
+    run(300);
+    {
+        Phone gil("gil", 6, 23);
+        gil.connect();
+        run(300);
+        gil.write(gil.announce());
+        run(600);
+        CHECK(blePhones() == 1 && std::string(bridge->status()) == "Ready: Bitchat + LoRa");
+        bleDisconnect(gil.handle);
+        run(1000);
+    }
+    CHECK(blePhones() == 0 && std::string(bridge->status()) == "Ready: Bitchat + LoRa");
+    fakeSent.clear();
+    for (const char *text : {"Rita: primeira", "Rita: segunda", "Rita: terceira", "Rita: quarta"}) {
+        fromLoRa(text);
+        run(300);
+    }
+    mesh.app.clear();
+    CHECK(fromApp("!bridge"));
+    run(100);
+    CHECK(mesh.app.size() > 2 && mesh.app[0].text.find(". Kept 4") != std::string::npos);
+    {
+        Phone eva("eva", 5, 22);
+        eva.connect();
+        run(300);
+        eva.write(eva.announce());
+        run(600);
+        // Nothing is pushed to a phone that did not ask.
+        CHECK(blePhones() == 1 && chat(eva.handle, &bridgeId).empty());
+        const auto held = [&]() {
+            std::vector<SyncId> ids;
+            for (const auto &frame : received(eva.handle)) {
+                Packet packet;
+                CHECK(decode({frame.data(), frame.size()}, packet) == Result::Ok);
+                if (packet.type != 2 || !(packet.sender == bridgeId))
+                    continue;
+                // An answer to a request: for this phone only, and marked so the app accepts its age.
+                CHECK(packet.ttl == 0 && packet.replay() && packet.signedPacket());
+                SyncId id;
+                syncId(crypto, packet, id);
+                ids.push_back(id);
+            }
+            return ids;
+        };
+        // The phone holds nothing: it gets the three newest.
+        auto wire = syncRequest(crypto, {});
+        eva.write(eva.packet(0x21, {wire.data(), wire.size()}, 0));
+        run(600);
+        CHECK((chat(eva.handle, &bridgeId) ==
+               std::vector<std::string>{"[MC Rita] quarta", "[MC Rita] terceira", "[MC Rita] segunda"}));
+        const auto first = held();
+        CHECK(first.size() == 3);
+        // Asked again at once, nothing more; five seconds later, holding those three, it gets the last.
+        fakeSent.clear();
+        wire = syncRequest(crypto, first);
+        eva.write(eva.packet(0x21, {wire.data(), wire.size()}, 0));
+        run(600);
+        CHECK(chat(eva.handle, &bridgeId).empty());
+        run(5000);
+        eva.write(eva.packet(0x21, {wire.data(), wire.size()}, 0));
+        run(600);
+        CHECK((chat(eva.handle, &bridgeId) == std::vector<std::string>{"[MC Rita] primeira"}));
+        auto all = first;
+        for (const auto &id : held())
+            all.push_back(id);
+        // Holding everything, or asking for another kind of packet, it gets nothing.
+        fakeSent.clear();
+        run(5000);
+        wire = syncRequest(crypto, all);
+        eva.write(eva.packet(0x21, {wire.data(), wire.size()}, 0));
+        run(600);
+        CHECK(chat(eva.handle, &bridgeId).empty());
+        run(5000);
+        wire = syncRequest(crypto, {}, 7, 0, 1);
+        eva.write(eva.packet(0x21, {wire.data(), wire.size()}, 0));
+        run(600);
+        CHECK(chat(eva.handle, &bridgeId).empty());
+        // Live text is delivered as before, and kept as well; the answers of the bridge itself are not.
+        fromLoRa("Rita: ao vivo");
+        run(300);
+        CHECK((chat(eva.handle, &bridgeId) == std::vector<std::string>{"[MC Rita] ao vivo"}));
+        eva.write(eva.say("!bridge"));
+        run(600);
+        mesh.app.clear();
+        CHECK(fromApp("!bridge"));
+        run(100);
+        CHECK(mesh.app[0].text.find(". Kept 5") != std::string::npos);
+        CHECK(mesh.radio.empty() || texts(mesh.radio).empty());
+    }
 
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;

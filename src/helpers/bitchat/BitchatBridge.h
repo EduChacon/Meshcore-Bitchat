@@ -2,6 +2,7 @@
 #ifdef WITH_BITCHAT_BRIDGE
 #include "BridgeBle.h"
 #include "BridgeCrypto.h"
+#include "BridgeHistory.h"
 #include "BridgeState.h"
 #include "BridgeText.h"
 #include <Preferences.h>
@@ -129,6 +130,13 @@ class BitchatBridge
         std::unique_ptr<bitchat::PeerTable> peers;
         std::unique_ptr<bitchat::BleReassembly> fragments;
         std::unique_ptr<bitchat::DedupCache<256>> dedup;
+        // Text brought from LoRa, kept for the phones that arrive later.
+        std::unique_ptr<bitchat::History> history;
+        struct Asked {
+            uint16_t link = bitchat::NO_LINK;
+            uint32_t at = 0;
+        };
+        std::array<Asked, 4> asked{};
         bitchat::BoundedQueue<RadioItem, RadioItem::QUEUE> radioQueue;
         bitchat::RateGate radioGate, cryptoGate;
         bitchat::BleInput input;
@@ -161,9 +169,11 @@ class BitchatBridge
     void exportText(const bitchat::Packet &packet, bitchat::Peer &peer, const bitchat::Digest &id);
     void importText(bitchat::Bytes name, bitchat::Bytes body, const bitchat::Digest *id);
     bool textGuard() const;
-    void originate(uint8_t type, bitchat::Bytes payload);
+    void originate(uint8_t type, bitchat::Bytes payload, bool keep = false);
+    void answerSync(const bitchat::Packet &packet, uint16_t source);
+    size_t kept() const;
     void announce();
-    bool record(const bitchat::Digest &id);
+    bool record(const bitchat::Digest &id, bool persist = true);
     bool seen(const bitchat::Digest &id) const;
     void sendRadio();
     void reject(bitchat::Result result);

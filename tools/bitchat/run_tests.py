@@ -15,9 +15,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 TESTS = ROOT / "test/bitchat"
 BRIDGE = ROOT / "src/helpers/bitchat"
-CORE = ["BridgeCodec.cpp", "BridgeState.cpp", "BridgeText.cpp"]
+CORE = ["BridgeCodec.cpp", "BridgeHistory.cpp", "BridgeState.cpp", "BridgeText.cpp"]
 ADAPTER = ["BridgeBle.cpp", "BridgeCodec.cpp", "BridgeDiagnostics.cpp"]
-FLOW = ["BitchatBridge.cpp", "BridgeBle.cpp", "BridgeCodec.cpp", "BridgeDiagnostics.cpp", "BridgeState.cpp", "BridgeText.cpp"]
+FLOW = [
+    "BitchatBridge.cpp",
+    "BridgeBle.cpp",
+    "BridgeCodec.cpp",
+    "BridgeDiagnostics.cpp",
+    "BridgeHistory.cpp",
+    "BridgeState.cpp",
+    "BridgeText.cpp",
+]
 CRYPTO = ["Crypto", "Hash", "SHA256", "SHA512", "BigNumberUtil", "Curve25519", "Ed25519", "HKDF"]
 
 

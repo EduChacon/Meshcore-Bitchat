@@ -192,6 +192,29 @@ nesse aplicativo e **não são transmitidos**.
 devolve o estado, e `!bridge guide` (ou `!ponte guia`), que devolve o guia a todos os telefones
 próximos, no máximo uma vez a cada 30 segundos. O guia diz se o texto está indo ao LoRa ou não.
 
+## Histórico para quem chega depois
+
+O Bitchat guarda as mensagens públicas recentes e entrega a quem chega as que faltam; é o que o
+aplicativo mostra como "ouvido aqui antes". A ponte participa disso com o texto que traz do LoRa.
+
+a) O texto do canal é assinado e guardado mesmo sem nenhum telefone conectado. Quando um telefone
+chega, o próprio Bitchat pergunta o que falta e a ponte entrega, três mensagens por vez, da mais
+nova para a mais antiga; o telefone repete a pergunta a cada 15 segundos, e o restante segue.
+
+b) Ficam guardadas as últimas 24 mensagens (8 no T1000-E), por até seis horas, na memória do
+rádio. Desligar o rádio, ou `!bridge off`, apaga tudo.
+
+c) Só entra no histórico o que veio do LoRa ou do aplicativo MeshCore deste rádio. O que os
+telefones escrevem entre si não é guardado pela ponte; eles o trocam diretamente.
+
+d) Depois de religado sem ninguém por perto, o rádio fica sem hora e não consegue assinar: o
+texto que chegar até o primeiro telefone (ou o aplicativo MeshCore) aparecer se perde, como antes.
+
+e) `!bridge` mostra `Kept N`, o número de mensagens guardadas.
+
+O formato do pedido foi escrito a partir do código do aplicativo e conferido com valores
+calculados à parte, mas **não foi ensaiado com o aplicativo real**.
+
 ## Consumo e modo econômico
 
 Com a ponte ligada, o rádio gasta mais: anuncia-se por Bluetooth várias vezes por segundo, mantém
