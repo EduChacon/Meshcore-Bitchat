@@ -13,6 +13,9 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
   pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
   `bitchat0.11`. Passou nos testes em computador e compila.
+- **Testes em computador desta versão:** 941 verificações do núcleo e 991 do fluxo completo, com
+  telefones e rádio simulados; compilados no computador o Heltec V3 (com e sem ponte), o T1000-E,
+  o Heltec Wireless Tracker e o Cardputer ADV.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
