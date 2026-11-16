@@ -26,6 +26,8 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   trilha e grupo em movimento. `!bridge position off` desliga; vem desligado. A escolha fica
   gravada, também no T1000-E, cujo arquivo de opções é convertido sem perder as anteriores.
 - `!bridge help` passa a ter seis mensagens.
+- Ensaio no GitHub e compilação local (Heltec V3, T1000-E) aprovados antes da publicação; a
+  conversão do arquivo de opções do T1000-E foi conferida à parte, em computador.
 
 ## O que veio na `bitchat0.12`
 
