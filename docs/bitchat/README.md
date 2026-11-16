@@ -8,7 +8,8 @@ rádio, conversa com quem está na malha MeshCore, e o contrário, sem internet 
 instalação e de primeiro uso abaixo e relatou que tudo funcionou. O relato não traz medições:
 alcance, consumo, memória livre e duração não foram medidos. Tudo o que veio depois da
 `bitchat0.1` (ligação entre as redes, modo econômico, guia, pacotes por país, histórico, lista de
-nomes) só foi simulado e compilado. Os demais aparelhos da [lista](DEVICES.md) nunca foram
+nomes e, na `bitchat0.11`, prefixo, recado, rádios, bateria, socorro, teste de alcance e hora pelo
+GPS) só foi simulado e compilado. Os demais aparelhos da [lista](DEVICES.md) nunca foram
 ligados. Trate como versão experimental.
 
 O que está pronto, o que vem em seguida e o que ainda é estudo: [roteiro](ROADMAP.md).
@@ -200,17 +201,77 @@ nesse aplicativo e **não são transmitidos**.
 | `!ponte quem`         | A mesma lista, em português                                                    |
 | `!bridge guide`       | Explica a ponte em quatro mensagens curtas, em inglês                          |
 | `!ponte guia`         | O mesmo guia, em português                                                     |
+| `!bridge prefix on`   | Só o texto do `#mesh` iniciado por `!lora` vai ao LoRa (ver abaixo)             |
+| `!bridge prefix off`  | Todo o texto público do `#mesh` vai ao LoRa (padrão)                            |
+| `!ponte recado <texto>` | Deixa o recado da casa (ver abaixo); sem texto, mostra o recado atual        |
+| `!ponte recado apagar` | Apaga o recado (`!bridge note off` em inglês)                                 |
+| `!ponte bateria`      | Tensão e carga aproximada da bateria do rádio                                  |
+| `!ponte radios`       | Rádios ouvidos no LoRa nas últimas 24 horas, do mais recente ao mais antigo    |
+| `!ponte sos <texto>`  | Pedido de socorro ao LoRa, com a posição do rádio, se ele a tiver              |
+| `!ponte teste`        | Teste de alcance com as outras pontes (ver abaixo)                             |
 | `!bridge help`        | Lista os comandos                                                              |
 
-`!ponte` vale no lugar de `!bridge`. No Bitchat, escritos no `#mesh`, valem três: `!bridge`, que
-devolve o estado; `!bridge who` (ou `!ponte quem`), que devolve os nomes ouvidos no LoRa; e
-`!bridge guide` (ou `!ponte guia`), que devolve o guia, no máximo uma vez a cada 30 segundos. As
-respostas vão a todos os telefones próximos. O guia diz se o texto está indo ao LoRa ou não.
+`!ponte` vale no lugar de `!bridge`, e a resposta sai em português quando se usa `!ponte` ou a
+palavra em português (`recado`, `bateria`, `socorro`, `teste`). Em inglês: `note`, `battery`,
+`radios`, `sos`, `test`.
+
+No Bitchat, escritos no `#mesh`, valem todos, menos os que mudam a configuração: o estado
+(`!bridge`), os nomes (`!ponte quem`), o guia (`!ponte guia`, no máximo uma vez a cada 30
+segundos), o recado, a bateria, os rádios, o socorro e o teste. As respostas vão a todos os
+telefones próximos, uma a cada cinco segundos. Os comandos que mudam a configuração (`on`, `off`,
+`local`, `lora`, `link`, `economy`, `prefix`, `reset`) só valem no aplicativo MeshCore; no Bitchat,
+recebem o estado como resposta. O guia diz se o texto está indo ao LoRa ou não.
 
 O `/who` do Bitchat só mostra quem está na malha Bluetooth; quem fala pelo LoRa não aparece ali.
 `!bridge who` cobre essa falta: lista até doze nomes, do mais recente ao mais antigo, e, quando
 nem todos cabem em uma mensagem, informa quantos ficaram de fora (`+3`). A lista fica na memória
 do rádio e some ao desligar.
+
+## Funções da casa (a partir da `bitchat0.11`)
+
+Todas foram simuladas e compiladas; nenhuma foi ensaiada em aparelho.
+
+a) **Só com `!lora`.** Com `!bridge prefix on`, o texto do `#mesh` só vai ao LoRa quando começa por
+`!lora ` (a marca é retirada antes do envio). O resto fica entre os telefones da casa. O texto que
+outras pontes trazem segue a regra de `!bridge link`, não esta. A escolha fica gravada; `!bridge`
+mostra `(!lora)` ao lado do canal, e o guia passa a explicar a marca.
+
+b) **Recado da casa.** `!ponte recado Jantar às 20h` guarda um recado de até 55 bytes, com o nome
+de quem o deixou (o nome do rádio, se veio do aplicativo MeshCore; o apelido, se veio do Bitchat).
+Cada telefone Bitchat que chega e se anuncia diretamente ao rádio recebe o recado uma vez a cada
+12 horas, só ele, numa mensagem que os outros telefones não repassam. O recado fica gravado e
+sobrevive ao reinício; um recado novo vai de novo a todos. No Bitchat, o recado pode ser trocado
+no máximo uma vez por minuto. **Qualquer pessoa perto do rádio, com o Bitchat, pode trocar ou
+apagar o recado.**
+
+c) **Rádios ao alcance.** `!ponte radios` lista os contatos MeshCore ouvidos nas últimas 24 horas,
+pelo relógio do rádio, com o número de saltos quando a rota é conhecida (`direto`, `2 saltos`).
+O MeshCore não guarda o sinal de cada contato, de modo que a lista não traz SNR.
+
+d) **Bateria.** `!ponte bateria` responde com a tensão e uma carga aproximada, calculada por uma
+curva típica de bateria de lítio, que não vale para outras baterias. Quando a tensão cai abaixo
+de 3,45 V com algum telefone conectado, a ponte avisa no `#mesh` uma vez (`Bateria baixa /
+Battery low`); o aviso volta a valer depois que a tensão passar de 3,6 V. Rádio que não mede a
+bateria responde que não informa a carga e não avisa.
+
+e) **Pedido de socorro.** `!ponte sos caí na trilha` envia ao LoRa `apelido: SOS: caí na trilha
+(-23.55052, -46.63331)`, com a posição que o rádio tiver (definida no aplicativo ou dada pelo
+GPS). Sem texto, vai `pedido de socorro`. Vale com o prefixo ligado e está limitado a um a cada
+cinco minutos. **A posição vai para todos os que têm o canal.** Não substitui serviço de
+emergência: o LoRa não confirma a entrega, e não se sabe se alguém está ouvindo.
+
+f) **Teste de alcance.** `!ponte teste` envia `nome: #ponte-teste 1234`. Cada ponte MeshCore que
+ouvir responde uma vez com o sinal com que ouviu (`#ponte-teste 1234 ouvido -4.5 dB`), e quem
+pediu recebe, em até dois minutos, `Teste 1234: Casa Ana ouviu com -4,5 dB; a volta chegou com
+-6,0 dB.`, ou o aviso de que ninguém respondeu. As linhas do teste não vão aos telefones como
+texto comum, mas aparecem no aplicativo MeshCore de quem tem o canal. Um teste por vez.
+
+g) **Hora pelo GPS.** Em rádio com GPS desligado, se em 30 segundos nada tiver dado a hora (nem o
+aplicativo, nem um telefone), a ponte liga o GPS por até dez minutos; o próprio MeshCore acerta o
+relógio com o GPS. Quando a hora fica certa, ou ao fim dos dez minutos, o GPS volta a ficar
+desligado. Sem hora, tenta de novo a cada seis horas. O GPS **não** é ligado quando o rádio está
+configurado para incluir a posição nos anúncios, para que a posição do GPS não substitua a que o
+operador escolheu divulgar. A posição obtida fica guardada como a do rádio e é a que o socorro usa.
 
 ## Histórico para quem chega depois
 
@@ -312,8 +373,10 @@ original; a conexão feita nesse minuto continua depois dele.
 g) A página da ponte na tela existe só na interface mais comum dos rádios com tela (`ui-new`). Em
 aparelhos com outra interface, ou sem tela, o estado é lido por `!bridge`.
 
-h) O relógio do firmware não é alterado pela ponte. Sem o aplicativo MeshCore, as mensagens que
-vêm do Bitchat saem com a hora certa, mas o resto do MeshCore segue com a hora que tiver.
+h) A ponte não acerta o relógio do firmware por conta própria. Sem o aplicativo MeshCore, as
+mensagens que vêm do Bitchat saem com a hora certa, mas o resto do MeshCore segue com a hora que
+tiver, salvo em rádio com GPS, que o próprio MeshCore acerta quando a ponte liga o GPS (item g
+das funções da casa).
 
 ## O que muda em relação ao firmware original
 

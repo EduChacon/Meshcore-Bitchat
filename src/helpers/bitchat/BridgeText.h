@@ -54,16 +54,44 @@ enum class Command : uint8_t {
     Guide,
     GuidePt,
     Who,
-    WhoPt
+    WhoPt,
+    PrefixOn,
+    PrefixOff,
+    Note,
+    NoteOff,
+    Battery,
+    Radios,
+    Sos,
+    Test
 };
+// A command and what follows it. Portuguese when "!ponte" or a Portuguese word was used; for "note" and
+// "sos" the argument is the rest of the text, in its own letter case.
+struct BridgeRequest {
+    Command command = Command::None;
+    bool portuguese = false;
+    Bytes argument{};
+};
+constexpr size_t COMMAND_TEXT_LIMIT = 200;
+bool parseBridgeCommand(Bytes text, BridgeRequest &out);
 // "!bridge" or "!ponte" in any letter case asks for a self-test; " reset" after
 // it restarts the Bluetooth links.
 Command bridgeCommand(Bytes text);
+// Text for a note or an SOS: valid UTF-8, control characters dropped, cut on a character boundary.
+size_t cleanText(Bytes text, char *output, size_t capacity, size_t limit);
+// A rough charge for a lithium cell from its voltage; -1 when the reading is not a battery's.
+int batteryPercent(uint16_t millivolts);
+// Range test between bridges, carried as ordinary channel text: "#ponte-teste 1234", answered with
+// "#ponte-teste 1234 ouvido -4.5 dB". A tenth of a decibel per unit, or SNR_UNKNOWN.
+constexpr char TEST_MARK[] = "#ponte-teste ";
+constexpr int16_t SNR_UNKNOWN = -32768;
+bool parseRangeTest(Bytes body, uint16_t &id, bool &answer, int16_t &snrTenths);
+size_t formatTenths(int16_t tenths, char *out, size_t capacity, bool comma);
 // The short guide, one message per line, in English or Portuguese. The first line says whether text goes
 // to LoRa now; the last differs for the app attached to the radio. Every line fits a signed Bitchat
 // message after REPLY_PREFIX.
 constexpr size_t GUIDE_LINES = 4;
-const char *guideLine(bool portuguese, bool forApp, bool lora, size_t index);
+enum class GuideMode : uint8_t { AllText, OnlyPrefixed, NoLora };
+const char *guideLine(bool portuguese, bool forApp, GuideMode mode, size_t index);
 Result publicTextForLoRa(const Packet &packet, Bytes &body);
 // "MT " or "MC " opens the label of text that already went from one LoRa network to the other.
 bool networkTag(Bytes text);

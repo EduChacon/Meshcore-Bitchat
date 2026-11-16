@@ -107,7 +107,40 @@ struct FakeMesh : MeshHost {
     {
         app.push_back({index, timestamp, std::string(text, size)});
     }
+    // What a radio may know about itself; nothing until a test sets it.
+    uint16_t battery = 0;
+    std::vector<HeardRadio> heard;
+    bool located = false, gps = false;
+    int32_t latitude = 0, longitude = 0;
+    std::vector<bool> gpsCalls;
+    uint16_t batteryMilliVolts() override { return battery; }
+    size_t heardRadios(HeardRadio *out, size_t capacity) override
+    {
+        const size_t count = std::min(capacity, heard.size());
+        std::copy_n(heard.begin(), count, out);
+        return count;
+    }
+    bool position(int32_t &lat, int32_t &lon) override
+    {
+        lat = latitude;
+        lon = longitude;
+        return located;
+    }
+    bool clockFromGps(bool on) override
+    {
+        gpsCalls.push_back(on);
+        return gps;
+    }
 };
+static MeshHost::HeardRadio radio(const char *name, int8_t hops, uint32_t secondsAgo, int16_t snr = SNR_UNKNOWN)
+{
+    MeshHost::HeardRadio out{};
+    snprintf(out.name, sizeof(out.name), "%s", name);
+    out.hops = hops;
+    out.secondsAgo = secondsAgo;
+    out.snrTenths = snr;
+    return out;
+}
 static FakeMesh mesh;
 static BitchatBridge *bridge;
 static NimBLEServer server;
@@ -227,12 +260,16 @@ static std::vector<std::string> chat(uint16_t handle, const PeerId *from = nullp
     }
     return messages;
 }
-static void fromLoRa(const std::string &message, uint8_t channel = 1)
+static void fromLoRa(const std::string &message, uint8_t channel = 1, int16_t snr = SNR_UNKNOWN)
 {
     static uint64_t counter = 5000;
     uint8_t hash[8];
     write64(hash, ++counter);
-    bridge->onChannelText(channel, hash, message.c_str());
+    bridge->onChannelText(channel, hash, message.c_str(), snr);
+}
+static bool contains(const std::vector<std::string> &lines, const std::string &wanted)
+{
+    return std::find(lines.begin(), lines.end(), wanted) != lines.end();
 }
 static bool fromApp(const std::string &message, uint8_t channel = 1)
 {
@@ -421,7 +458,7 @@ int main()
     {
         const auto guide = chat(bia.handle, &bridgeId);
         CHECK(guide.size() == GUIDE_LINES && guide[0].rfind("[bridge] Guia 1/4:", 0) == 0 &&
-              guide[3].rfind("[bridge] 4/4: aqui, !bridge", 0) == 0);
+              guide[3].rfind("[bridge] 4/4: aqui também: !ponte quem", 0) == 0);
         for (const auto &line : guide)
             CHECK(line.size() <= BITCHAT_TEXT_LIMIT);
         CHECK(mesh.radio.empty());
@@ -734,12 +771,15 @@ int main()
     CHECK(fakeAdvertisingInterval == 244);
     run(200000);
     CHECK(fakeAdvertisingInterval == 244);
-    // Help fits in three messages and names the option and the guide.
+    // Help fits in five whole messages and names the options, the guide and the newer commands.
     mesh.app.clear();
     CHECK(fromApp("!bridge help"));
     run(100);
-    CHECK(mesh.app.size() == 3 && mesh.app[0].text.back() == '.' && mesh.app[1].text.back() == '.' &&
-          mesh.app[1].text.find("economy on") != std::string::npos && mesh.app[2].text.find("!ponte guia") != std::string::npos);
+    CHECK(mesh.app.size() == 5 && mesh.app[1].text.find("economy on") != std::string::npos &&
+          mesh.app[2].text.find("!ponte guia") != std::string::npos && mesh.app[3].text.find("sos <text>") != std::string::npos &&
+          mesh.app[4].text.find("prefix on") != std::string::npos && mesh.app[4].text.find("!ponte recado") != std::string::npos);
+    for (const auto &line : mesh.app)
+        CHECK(line.text.back() == '.' && line.text.size() <= LORA_TEXT_LIMIT);
     // The guide in the app attached to the radio ends with the commands, in either language.
     mesh.app.clear();
     CHECK(fromApp("!bridge guide"));
@@ -921,7 +961,274 @@ int main()
         CHECK(fromApp("!bridge who"));
         run(100);
         CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: Nobody was heard on LoRa in the last 6 h.");
+
+        // The newer commands, on a radio that knows its battery, its neighbours and its position.
+        mesh.battery = 3920;
+        mesh.heard = {radio("Casa Ana", 0, 300), radio("RPT Sul", 2, 4000), radio("Velho", 1, 90000)};
+        mesh.located = true;
+        mesh.latitude = -23550520;
+        mesh.longitude = -46633310;
+        eva.write(eva.announce());
+        run(600);
+        mesh.app.clear();
+        CHECK(fromApp("!ponte bateria"));
+        run(100);
+        CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: Bateria: 3,92 V, cerca de 69%.");
+        mesh.app.clear();
+        CHECK(fromApp("!bridge radios"));
+        run(100);
+        CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: Radios heard: Casa Ana (direct, 5 min), RPT Sul (2 hops, 1 h)");
+        fakeSent.clear();
+        eva.write(eva.say("!ponte radios"));
+        run(600);
+        CHECK((chat(eva.handle, &bridgeId) ==
+               std::vector<std::string>{"[bridge] R\xc3\xa1" "dios ouvidos: Casa Ana (direto, 5 min), RPT Sul (2 saltos, 1 h)"}));
+        // Many radios: whole entries, then how many were left out.
+        for (int i = 0; i < 12; ++i)
+            mesh.heard.push_back(radio(("Vizinho " + std::to_string(10 + i)).c_str(), -1, 60 + i, int16_t(-30 - i)));
+        run(5000);
+        fakeSent.clear();
+        eva.write(eva.say("!bridge battery"));
+        eva.write(eva.say("!bridge radios"));
+        run(600);
+        // one answer every five seconds: the second question waits for nobody
+        CHECK((chat(eva.handle, &bridgeId) == std::vector<std::string>{"[bridge] Battery: 3.92 V, about 69%."}));
+        run(5000);
+        fakeSent.clear();
+        eva.write(eva.say("!bridge radios"));
+        run(600);
+        {
+            const auto list = chat(eva.handle, &bridgeId);
+            CHECK(list.size() == 1 && list[0].size() <= BITCHAT_TEXT_LIMIT &&
+                  list[0].rfind("[bridge] Radios heard: Vizinho 10 (1 min, -3.0 dB), Vizinho 11 (1 min, -3.1 dB)", 0) == 0);
+            CHECK(list[0].find(" +") != std::string::npos);
+        }
+        mesh.heard.clear();
+        mesh.app.clear();
+        CHECK(fromApp("!ponte radios"));
+        run(100);
+        CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: Nenhum r\xc3\xa1" "dio foi ouvido no LoRa nas \xc3\xba" "ltimas 24 h.");
+
+        // The house note: left in the app, shown on request, given once to each phone that arrives.
+        mesh.radio.clear();
+        mesh.app.clear();
+        CHECK(fromApp("!bridge note"));
+        run(100);
+        CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: No note. To leave one: !bridge note <text>");
+        mesh.app.clear();
+        CHECK(fromApp("!ponte recado Jantar \xc3\xa0s 20h, chave com a Rita"));
+        run(100);
+        CHECK(mesh.app.size() == 1 && mesh.app[0].text.rfind("bridge: Recado guardado", 0) == 0 && mesh.radio.empty());
+        mesh.app.clear();
+        CHECK(fromApp("!bridge note"));
+        run(100);
+        CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: Note from R\xc3\xa1" "dio Sul: Jantar \xc3\xa0s 20h, chave com a Rita");
+        {
+            Phone gal("gal", 9, 26);
+            gal.connect();
+            run(300);
+            fakeSent.clear();
+            gal.write(gal.announce());
+            run(600);
+            const std::string note = "[bridge] Recado de R\xc3\xa1" "dio Sul: Jantar \xc3\xa0s 20h, chave com a Rita";
+            CHECK(contains(chat(gal.handle, &bridgeId), note));
+            // only to the phone that arrived, and not to be relayed by it
+            CHECK(!contains(chat(eva.handle, &bridgeId), note));
+            for (const auto &frame : received(gal.handle)) {
+                Packet packet;
+                CHECK(decode({frame.data(), frame.size()}, packet) == Result::Ok);
+                if (packet.type == 2 && packet.sender == bridgeId && text(packet.payload) == note)
+                    CHECK(packet.ttl == 1);
+            }
+            // Once: a later announcement of the same phone gets nothing.
+            run(30000);
+            fakeSent.clear();
+            gal.write(gal.announce());
+            run(600);
+            CHECK(!contains(chat(gal.handle, &bridgeId), note));
+            // A phone may leave its own note; the next change waits a minute.
+            run(5000);
+            fakeSent.clear();
+            gal.write(gal.say("!bridge note Back at 8, key under the mat"));
+            run(600);
+            CHECK((chat(gal.handle, &bridgeId) == std::vector<std::string>{"[bridge] Note kept: whoever arrives with Bitchat gets it."}));
+            mesh.app.clear();
+            CHECK(fromApp("!ponte recado"));
+            run(100);
+            CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: Recado de gal: Back at 8, key under the mat");
+            run(5000);
+            fakeSent.clear();
+            gal.write(gal.say("!bridge note off"));
+            run(600);
+            CHECK((chat(gal.handle, &bridgeId) ==
+                   std::vector<std::string>{"[bridge] The note changed a moment ago; try again in 1 min."}));
+            run(60000);
+            fakeSent.clear();
+            gal.write(gal.say("!bridge note off"));
+            run(600);
+            CHECK((chat(gal.handle, &bridgeId) == std::vector<std::string>{"[bridge] Note cleared."}));
+            mesh.app.clear();
+            CHECK(fromApp("!bridge note"));
+            run(100);
+            CHECK(mesh.app.size() == 1 && mesh.app[0].text.rfind("bridge: No note.", 0) == 0);
+            // Commands are not text: none of them went to LoRa.
+            CHECK(mesh.radio.empty());
+
+            // Prefix: only text marked with !lora goes to LoRa; the choice shows in the state and the guide.
+            mesh.app.clear();
+            CHECK(fromApp("!bridge prefix on"));
+            run(100);
+            CHECK(bridge->prefixed() && mesh.app.size() == 1 && mesh.app[0].text.rfind("bridge: Prefix on: only #mesh text", 0) == 0);
+            gal.write(gal.say("fica no Bitchat"));
+            run(2000);
+            CHECK(mesh.radio.empty());
+            gal.write(gal.say("!lora vai ao LoRa"));
+            run(2000);
+            CHECK(texts(mesh.radio) == std::vector<std::string>{"gal: vai ao LoRa"});
+            mesh.radio.clear();
+            mesh.app.clear();
+            CHECK(fromApp("!bridge"));
+            run(100);
+            CHECK(mesh.app[0].text.find("LoRa #bitchat (!lora) out") != std::string::npos);
+            run(30000);
+            fakeSent.clear();
+            gal.write(gal.say("!ponte guia"));
+            run(600);
+            {
+                const auto guide = chat(gal.handle, &bridgeId);
+                CHECK(guide.size() == GUIDE_LINES && guide[0].find("!lora") != std::string::npos);
+            }
+            mesh.app.clear();
+            CHECK(fromApp("!ponte prefix off"));
+            run(100);
+            CHECK(!bridge->prefixed() && mesh.app.size() == 1 && mesh.app[0].text.rfind("bridge: Prefixo desligado", 0) == 0);
+            gal.write(gal.say("tudo de novo"));
+            run(2000);
+            CHECK(texts(mesh.radio) == std::vector<std::string>{"gal: tudo de novo"});
+            mesh.radio.clear();
+
+            // A help request goes to LoRa with the radio's position, once every five minutes.
+            run(5000);
+            fakeSent.clear();
+            gal.write(gal.say("!ponte sos ca\xc3\xad na trilha"));
+            run(2000);
+            CHECK(texts(mesh.radio) == std::vector<std::string>{"gal: SOS: ca\xc3\xad na trilha (-23.55052, -46.63331)"});
+            CHECK((chat(gal.handle, &bridgeId) == std::vector<std::string>{"[bridge] SOS enviado ao LoRa, com a posi\xc3\xa7\xc3\xa3o do r\xc3\xa1" "dio."}));
+            mesh.radio.clear();
+            run(6000);
+            fakeSent.clear();
+            gal.write(gal.say("!bridge sos"));
+            run(2000);
+            CHECK(mesh.radio.empty());
+            CHECK((chat(gal.handle, &bridgeId) == std::vector<std::string>{"[bridge] SOS sent a moment ago; it can be repeated in 5 min."}));
+            run(300000);
+            mesh.located = false;
+            mesh.app.clear();
+            CHECK(fromApp("!bridge sos"));
+            run(2000);
+            CHECK(texts(mesh.radio) == std::vector<std::string>{"R\xc3\xa1" "dio Sul: SOS: help needed"});
+            CHECK(mesh.app.size() == 2 && mesh.app[1].text == "R\xc3\xa1" "dio Sul: SOS: help needed" &&
+                  mesh.app[0].text == "bridge: SOS sent to LoRa, without a position: the radio does not know it.");
+            mesh.radio.clear();
+
+            // Range test: this radio's probe, answered by another bridge with how it arrived.
+            mesh.app.clear();
+            CHECK(fromApp("!ponte teste"));
+            run(2000);
+            CHECK(mesh.radio.size() == 1 && mesh.radio[0].text.rfind("R\xc3\xa1" "dio Sul: #ponte-teste ", 0) == 0);
+            const std::string id = mesh.radio[0].text.substr(mesh.radio[0].text.size() - 4);
+            CHECK(id >= "1000" && id <= "9999");
+            CHECK(mesh.app.size() == 2 && mesh.app[0].text.rfind("bridge: Teste " + id + " enviado ao LoRa", 0) == 0);
+            mesh.radio.clear();
+            mesh.app.clear();
+            CHECK(fromApp("!ponte teste"));
+            run(100);
+            CHECK(mesh.radio.empty() && mesh.app.size() == 1 && mesh.app[0].text.rfind("bridge: J\xc3\xa1 h\xc3\xa1 um teste", 0) == 0);
+            mesh.app.clear();
+            fakeSent.clear();
+            fromLoRa("Casa Ana: #ponte-teste " + id + " ouvido -4.5 dB", 1, -60);
+            run(100);
+            CHECK(mesh.app.size() == 1 &&
+                  mesh.app[0].text == "bridge: Teste " + id + ": Casa Ana ouviu com -4,5 dB; a volta chegou com -6,0 dB.");
+            // an answer to some other probe, or this one after the wait, is not reported
+            fromLoRa("Casa Ana: #ponte-teste 0001 ouvido -4.5 dB", 1, -60);
+            run(121000);
+            CHECK(mesh.app.size() == 1);
+            CHECK(chat(gal.handle, &bridgeId).empty());
+            // Another bridge's probe is answered once, with the signal it came in; it is not text for Bitchat.
+            fakeSent.clear();
+            fromLoRa("Casa Ana: #ponte-teste 4321", 1, 55);
+            run(2000);
+            fromLoRa("Casa Ana: #ponte-teste 4321", 1, 55);
+            run(2000);
+            CHECK(texts(mesh.radio) == std::vector<std::string>{"R\xc3\xa1" "dio Sul: #ponte-teste 4321 ouvido 5.5 dB"});
+            CHECK(chat(gal.handle).empty());
+            mesh.radio.clear();
+            // Asked from Bitchat, with nobody answering.
+            run(5000);
+            fakeSent.clear();
+            gal.write(gal.say("!bridge test"));
+            run(2000);
+            CHECK(mesh.radio.size() == 1 && mesh.radio[0].text.find(": #ponte-teste ") != std::string::npos);
+            {
+                const std::string probe = mesh.radio[0].text.substr(mesh.radio[0].text.size() - 4);
+                CHECK(chat(gal.handle, &bridgeId).size() == 1);
+                run(121000);
+                const auto report = chat(gal.handle, &bridgeId);
+                CHECK(report.size() == 2 && report[1] == "[bridge] Test " + probe + ": no other bridge answered within 2 min.");
+            }
+            mesh.radio.clear();
+
+            // Low battery is told to the phones once, and again only after a charge.
+            fakeSent.clear();
+            mesh.battery = 3400;
+            run(61000);
+            const std::string low = "[bridge] Bateria baixa / Battery low: 3,40 V";
+            CHECK(chat(gal.handle, &bridgeId) == std::vector<std::string>{low});
+            run(61000);
+            CHECK(chat(gal.handle, &bridgeId) == std::vector<std::string>{low});
+            mesh.battery = 3550;
+            run(61000);
+            mesh.battery = 3400;
+            run(61000);
+            CHECK(chat(gal.handle, &bridgeId).size() == 1);
+            mesh.battery = 3800;
+            run(61000);
+            mesh.battery = 3400;
+            run(61000);
+            CHECK((chat(gal.handle, &bridgeId) == std::vector<std::string>{low, low}));
+            mesh.battery = 0;
+            mesh.app.clear();
+            CHECK(fromApp("!bridge battery"));
+            run(100);
+            CHECK(mesh.app.size() == 1 && mesh.app[0].text == "bridge: Battery: this radio does not report it.");
+        }
     }
+
+    // A radio with a GPS turns it on when nothing gave it the time, and back off after ten minutes without a
+    // fix or as soon as the clock is set.
+    mesh.gps = true;
+    mesh.gpsCalls.clear();
+    delete bridge;
+    bridge = new BitchatBridge;
+    bridge->begin(mesh);
+    run(1500);
+    CHECK(mesh.gpsCalls == std::vector<bool>{true});
+    run(590000);
+    CHECK(mesh.gpsCalls.size() == 1);
+    run(15000);
+    CHECK((mesh.gpsCalls == std::vector<bool>{true, false}));
+    delete bridge;
+    mesh.gpsCalls.clear();
+    bridge = new BitchatBridge;
+    bridge->begin(mesh);
+    run(1500);
+    CHECK(mesh.gpsCalls == std::vector<bool>{true});
+    mesh.setClock(mesh.clockSeconds() + 100);
+    run(3000);
+    CHECK((mesh.gpsCalls == std::vector<bool>{true, false}));
+    run(60000);
+    CHECK(mesh.gpsCalls.size() == 2);
 
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;

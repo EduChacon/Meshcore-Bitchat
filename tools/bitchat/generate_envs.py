@@ -23,7 +23,7 @@ build_unflags =
 build_flags =
   -std=gnu++17
   -D WITH_BITCHAT_BRIDGE=1
-  -D FIRMWARE_VERSION='"v1.18.0-bitchat0.10"'
+  -D FIRMWARE_VERSION='"v1.18.0-bitchat0.11"'
   -D ARDUINO_LOOP_STACK_SIZE=16384
   -D CONFIG_BT_NIMBLE_ENABLED
   -D CONFIG_BT_NIMBLE_MAX_BONDS=6
@@ -78,7 +78,7 @@ build_flags =
   -std=gnu++17
   -I src/helpers/bitchat/nrf52/shim
   -D WITH_BITCHAT_BRIDGE=1
-  -D FIRMWARE_VERSION='"v1.18.0-bitchat0.10"'
+  -D FIRMWARE_VERSION='"v1.18.0-bitchat0.11"'
   ; fewer messages kept for an absent app: that memory goes to the bridge and the Bluetooth stack
   -D OFFLINE_QUEUE_SIZE=96
   ; a shorter public history: this chip has less memory

@@ -561,7 +561,9 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   {
     uint8_t pkt_hash[MAX_HASH_SIZE];
     pkt->calculatePacketHash(pkt_hash);
-    bitchat_bridge.onChannelText(findChannelIdx(channel), pkt_hash, text);
+    const float snr = pkt->getSNR();
+    bitchat_bridge.onChannelText(findChannelIdx(channel), pkt_hash, text,
+                                 (int16_t)(snr * 10.0f + (snr < 0 ? -0.5f : 0.5f)));
   }
 #endif
   int i = 0;
@@ -2590,6 +2592,58 @@ void MyMesh::showChannelText(uint8_t index, uint32_t timestamp, const char *text
   if (_listener) {
     _listener->onQueueSizeChanged(offline_queue_len);
   }
+}
+
+uint16_t MyMesh::batteryMilliVolts() {
+  return board.getBattMilliVolts();
+}
+
+// The contacts heard most recently, by this radio's clock; the route length when one is known.
+size_t MyMesh::heardRadios(HeardRadio *out, size_t capacity) {
+  const uint32_t now = getRTCClock()->getCurrentTime();
+  size_t count = 0;
+  ContactInfo c;
+  ContactsIterator contacts = startContactsIterator();
+  while (capacity && contacts.hasNext(this, c)) {
+    if (c.lastmod == 0 || c.lastmod > now) continue;
+    const uint32_t ago = now - c.lastmod;
+    size_t slot = count;
+    if (count == capacity) {
+      // full: the one heard longest ago gives way
+      slot = 0;
+      for (size_t j = 1; j < count; j++) {
+        if (out[j].secondsAgo > out[slot].secondsAgo) slot = j;
+      }
+      if (out[slot].secondsAgo <= ago) continue;
+    } else {
+      count++;
+    }
+    StrHelper::strncpy(out[slot].name, c.name, sizeof(out[slot].name));
+    out[slot].hops = c.out_path_len == OUT_PATH_UNKNOWN ? -1 : (int8_t)(c.out_path_len & 63);
+    out[slot].secondsAgo = ago;
+    out[slot].snrTenths = bitchat::SNR_UNKNOWN;
+  }
+  return count;
+}
+
+// The position the radio uses for itself: set in the app, or from the GPS.
+bool MyMesh::position(int32_t &latitude, int32_t &longitude) {
+  if (sensors.node_lat == 0 && sensors.node_lon == 0) return false;
+  latitude = (int32_t)(sensors.node_lat * 1000000.0);
+  longitude = (int32_t)(sensors.node_lon * 1000000.0);
+  return true;
+}
+
+bool MyMesh::clockFromGps(bool on) {
+#if ENV_INCLUDE_GPS == 1
+  if (_prefs.gps_enabled) return on;   // the operator keeps it on: nothing to change
+  // A GPS position would replace the one adverts share; then the GPS stays as the operator left it.
+  if (on && _prefs.advert_loc_policy != ADVERT_LOC_NONE) return false;
+  return sensors.setSettingValue("gps", on ? "1" : "0") && on;
+#else
+  (void)on;
+  return false;
+#endif
 }
 
 #ifdef HEADLESS_UI

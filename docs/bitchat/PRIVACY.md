@@ -15,6 +15,11 @@ não medições.
 
 Quem escuta o rádio vê também quem fala e quando, mesmo quando não lê o conteúdo.
 
+Funções da `bitchat0.11` que expõem dados: o pedido de socorro (`!ponte sos`) leva a posição do
+rádio a todos os que têm o canal; o recado da casa é lido por qualquer telefone Bitchat que chega
+perto do rádio; o teste de alcance mostra a quem tem o canal o nome do rádio e o sinal com que
+ouviu.
+
 ## 2. Privacidade parcial que já existe
 
 **Canal LoRa com chave própria.** Crie no aplicativo MeshCore um canal privado (com chave

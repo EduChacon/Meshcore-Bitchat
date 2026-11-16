@@ -27,6 +27,13 @@ de presente não precisa conhecer o MeshCore nem o Meshtastic.
 | Histórico também do que os telefones escrevem                   | sim      | sim        | não                                        |
 | Rede própria entre casas (pacote em 918 MHz com repetição)      | sim      | nativo     | não                                        |
 | Canal LoRa com chave própria (privacidade parcial)              | sim      | sim        | não                                        |
+| Só com `!lora` (`!bridge prefix on`)                            | sim      | sim        | não                                        |
+| Recado da casa para quem chega (`!ponte recado`)                | sim      | sim        | não                                        |
+| Rádios ao alcance (`!ponte radios`)                             | sim      | sim        | não                                        |
+| Bateria (`!ponte bateria`) e aviso de bateria baixa             | sim      | sim        | não                                        |
+| Pedido de socorro com posição (`!ponte sos`)                    | sim      | sim        | não                                        |
+| Teste de alcance entre pontes (`!ponte teste`)                  | sim      | sim        | não                                        |
+| Hora pelo GPS, quando nada mais deu a hora                      | sim      | sim        | não                                        |
 
 Na coluna do Meshtastic, "nativo" quer dizer que todo rádio Meshtastic já repassa mensagens. No
 Saitama (T-Deck Plus e Cardputer ADV), o menu de ajustes tem as linhas **Bitchat** (modo) e

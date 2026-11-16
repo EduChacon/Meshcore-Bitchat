@@ -18,6 +18,14 @@ static constexpr uint32_t RADIO_DEADLINE_MS = 120000;
 static constexpr uint32_t BUDGET_MS = 12000;
 static constexpr uint32_t NATIVE_WINDOW_MS = 60000;
 static constexpr uint32_t ECONOMY_AFTER_MS = 180000;
+static constexpr uint32_t NOTE_EVERY_MS = 12UL * 3600 * 1000;
+static constexpr uint32_t SOS_EVERY_MS = 300000;
+static constexpr uint32_t TEST_WAIT_MS = 120000;
+static constexpr uint32_t GPS_AFTER_MS = 30000;
+static constexpr uint32_t GPS_FOR_MS = 600000;
+static constexpr uint32_t GPS_AGAIN_MS = 6UL * 3600 * 1000;
+static constexpr uint16_t BATTERY_LOW_MV = 3450;
+static constexpr uint16_t BATTERY_RECOVERED_MV = 3600;
 // What the attached app shows as the sender of the bridge's own answers.
 static constexpr char APP_SENDER[] = "bridge: ";
 // The well-known key of the MeshCore "Public" channel, where a bridge would be noise for everyone.
@@ -71,6 +79,17 @@ void BitchatBridge::begin(MeshHost &meshHost)
     stored = 0;
     if (storageReady && storage.isKey("saver") && storage.getBytesLength("saver") == 1 && storage.getBytes("saver", &stored, 1) == 1)
         saver = stored != 0;
+    stored = 0;
+    if (storageReady && storage.isKey("prefix") && storage.getBytesLength("prefix") == 1 && storage.getBytes("prefix", &stored, 1) == 1)
+        prefixOnly = stored != 0;
+    if (storageReady && storage.isKey("note") && storage.getBytesLength("note") == sizeof(note) &&
+        storage.getBytes("note", &note, sizeof(note)) == sizeof(note)) {
+        note.author[sizeof(note.author) - 1] = 0;
+        note.text[sizeof(note.text) - 1] = 0;
+        note.portuguese = note.portuguese != 0;
+    } else {
+        note = Note{};
+    }
     if (storageReady && storage.isKey("clock") && storage.getBytesLength("clock") == sizeof(clockFloor))
         storage.getBytes("clock", &clockFloor, sizeof(clockFloor));
 #ifdef BRIDGE_BUILD_EPOCH
@@ -319,6 +338,15 @@ bool BitchatBridge::setSaving(bool value)
     return true;
 }
 
+bool BitchatBridge::setPrefixed(bool value)
+{
+    const uint8_t stored = value;
+    if (!storageReady || storage.putBytes("prefix", &stored, 1) != 1)
+        return false;
+    prefixOnly = value;
+    return true;
+}
+
 bool BitchatBridge::nextMode()
 {
     if (!settings.enabled) {
@@ -507,11 +535,69 @@ void BitchatBridge::answerApp()
                    "Bluetooth while no Bitchat phone is near).");
         replyToApp("!bridge guide explains the bridge and !bridge who lists who was heard on LoRa, here or in Bitchat. In "
                    "Portuguese: !ponte guia, !ponte quem.");
+        replyToApp("Here or in Bitchat: !bridge note <text> (a note for each phone that arrives; note off clears it), "
+                   "battery, radios, sos <text>, test.");
+        replyToApp("Only here: !bridge prefix on, prefix off (only text starting with !lora goes to LoRa). In Portuguese: "
+                   "!ponte recado, bateria, radios, sos, teste.");
         return;
     }
     if (command == Command::Guide || command == Command::GuidePt) {
         for (size_t line = 0; line < GUIDE_LINES; ++line)
-            replyToApp(guideLine(command == Command::GuidePt, true, textReady, line));
+            replyToApp(guideLine(command == Command::GuidePt, true, guideMode(), line));
+        return;
+    }
+    const bool portuguese = appPortuguese;
+    const size_t room = sizeof(text) - strlen(APP_SENDER);
+    if (command == Command::PrefixOn || command == Command::PrefixOff) {
+        const bool value = command == Command::PrefixOn;
+        if (!setPrefixed(value))
+            replyToApp(portuguese ? "Não mudou: erro de memória" : "Not changed: Storage error");
+        else if (portuguese)
+            replyToApp(value ? "Prefixo ligado: só o texto do #mesh iniciado por !lora vai ao LoRa; o resto fica no Bitchat."
+                             : "Prefixo desligado: todo o texto público do #mesh vai ao LoRa.");
+        else
+            replyToApp(value ? "Prefix on: only #mesh text starting with !lora goes to LoRa; the rest stays in Bitchat."
+                             : "Prefix off: all public #mesh text goes to LoRa.");
+        return;
+    }
+    if (command == Command::Note || command == Command::NoteOff) {
+        BridgeRequest request;
+        request.command = command;
+        request.portuguese = portuguese;
+        request.argument = {reinterpret_cast<const uint8_t *>(appArgument), strlen(appArgument)};
+        if (command == Command::Note && !request.argument.size)
+            noteText(portuguese, text, room);
+        else if (!setNote(request, host->nodeName()))
+            snprintf(text, room, "%s", portuguese ? "Não mudou: erro de memória" : "Not changed: Storage error");
+        else if (command == Command::NoteOff)
+            snprintf(text, room, "%s", portuguese ? "Recado apagado." : "Note cleared.");
+        else
+            snprintf(text, room, "%s",
+                     portuguese ? "Recado guardado: cada telefone com Bitchat que chegar o recebe, uma vez a cada 12 h."
+                                : "Note kept: each Bitchat phone that arrives gets it, once every 12 h.");
+        replyToApp(text);
+        return;
+    }
+    if (command == Command::Battery || command == Command::Radios) {
+        if (command == Command::Battery)
+            batteryText(portuguese, text, room);
+        else
+            radiosText(portuguese, text, room);
+        replyToApp(text);
+        return;
+    }
+    if (command == Command::Sos) {
+        BridgeRequest request;
+        request.command = command;
+        request.portuguese = portuguese;
+        request.argument = {reinterpret_cast<const uint8_t *>(appArgument), strlen(appArgument)};
+        sos(request, host->nodeName(), text, room);
+        replyToApp(text);
+        return;
+    }
+    if (command == Command::Test) {
+        startRangeTest(portuguese, true, text, room);
+        replyToApp(text);
         return;
     }
     if (command == Command::Who || command == Command::WhoPt) {
@@ -572,9 +658,9 @@ void BitchatBridge::answerApp()
     displayCount(submittedRadio, tx);
     displayCount(importedRadio, rx);
     displayCount(drops(), missed);
-    snprintf(text, sizeof(text), "%s. Bluetooth %u, Bitchat %u, people %u. LoRa %.16s out %s in %s lost %s. Link %s. Economy %s. Kept %u",
-             status(), unsigned(bleConnections()), phones, people, name, tx, rx, missed, link ? "on" : "off",
-             !saver ? "off" : economy ? "active" : "on", unsigned(kept()));
+    snprintf(text, sizeof(text), "%s. Bluetooth %u, Bitchat %u, people %u. LoRa %.16s%s out %s in %s lost %s. Link %s. Economy %s. Kept %u",
+             status(), unsigned(bleConnections()), phones, people, name, prefixOnly ? " (!lora)" : "", tx, rx, missed,
+             link ? "on" : "off", !saver ? "off" : economy ? "active" : "on", unsigned(kept()));
     replyToApp(text);
     diagnostics(text, sizeof(text));
     replyToApp(text);
@@ -623,9 +709,438 @@ void BitchatBridge::guideBitchat(bool portuguese)
         announce();
     for (size_t line = 0; line < GUIDE_LINES; ++line) {
         char text[BITCHAT_TEXT_LIMIT + 1];
-        const int size = snprintf(text, sizeof(text), "%s%s", REPLY_PREFIX, guideLine(portuguese, false, textReady, line));
+        const int size = snprintf(text, sizeof(text), "%s%s", REPLY_PREFIX, guideLine(portuguese, false, guideMode(), line));
         originate(2, {reinterpret_cast<const uint8_t *>(text), std::min<size_t>(size, BITCHAT_TEXT_LIMIT)});
     }
+}
+
+// What snprintf wrote, limited to the buffer.
+static size_t fitted(int size, size_t capacity)
+{
+    return size < 0 || !capacity ? 0 : std::min<size_t>(size_t(size), capacity - 1);
+}
+
+GuideMode BitchatBridge::guideMode() const
+{
+    return !textReady ? GuideMode::NoLora : prefixOnly ? GuideMode::OnlyPrefixed : GuideMode::AllText;
+}
+
+void BitchatBridge::tellBitchat(const char *text, size_t size, bool keep)
+{
+    if (!runtime || !identityReady)
+        return;
+    char line[BITCHAT_TEXT_LIMIT + 1];
+    const size_t length = fitted(snprintf(line, sizeof(line), "%s%.*s", REPLY_PREFIX, int(size), text), sizeof(line));
+    if (!Throttle::isWithinTimespanMsAt(announcedAt, 5000, millis()))
+        announce();
+    originate(2, {reinterpret_cast<const uint8_t *>(line), length}, keep);
+}
+
+// Anyone nearby may ask, so answers are spaced out. The settings stay with the app attached to the radio:
+// for those, Bitchat gets the state.
+void BitchatBridge::answerAsked(const BridgeRequest &asked, const Peer &peer, uint32_t now)
+{
+    const bool portuguese = asked.portuguese;
+    char text[BITCHAT_TEXT_LIMIT + 1];
+    const size_t room = sizeof(text) - (sizeof(REPLY_PREFIX) - 1);
+    size_t size = 0;
+    if (asked.command == Command::Guide || asked.command == Command::GuidePt) {
+        if (!Throttle::isWithinTimespanMsAt(guidedAt, 30000, now)) {
+            guidedAt = now;
+            guideBitchat(asked.command == Command::GuidePt);
+        }
+        return;
+    }
+    // A help request is not held back by someone else's question; it has its own spacing.
+    const bool urgent = asked.command == Command::Sos && !(sosSent && Throttle::isWithinTimespanMsAt(sosAt, SOS_EVERY_MS, now));
+    if (!urgent && Throttle::isWithinTimespanMsAt(repliedAt, 5000, now))
+        return;
+    repliedAt = now;
+    char label[LABEL_LIMIT + 8];
+    switch (asked.command) {
+    case Command::Who:
+    case Command::WhoPt:
+        size = whoText(asked.command == Command::WhoPt, text, room);
+        break;
+    case Command::Battery:
+        size = batteryText(portuguese, text, room);
+        break;
+    case Command::Radios:
+        size = radiosText(portuguese, text, room);
+        break;
+    case Command::Test:
+        size = startRangeTest(portuguese, false, text, room);
+        break;
+    case Command::Sos:
+        peerLabel(peer, label, sizeof(label));
+        size = sos(asked, label, text, room);
+        break;
+    case Command::Note:
+    case Command::NoteOff:
+        if (asked.command == Command::Note && !asked.argument.size) {
+            size = noteText(portuguese, text, room);
+        } else if (noteChanged && Throttle::isWithinTimespanMsAt(noteAt, 60000, now)) {
+            size = fitted(snprintf(text, room, "%s",
+                                   portuguese ? "O recado mudou há pouco; tente de novo em 1 min."
+                                              : "The note changed a moment ago; try again in 1 min."),
+                          room);
+        } else {
+            peerLabel(peer, label, sizeof(label));
+            const bool saved = setNote(asked, label);
+            if (saved) {
+                noteChanged = true;
+                noteAt = now;
+            }
+            size = fitted(snprintf(text, room, "%s",
+                                   !saved                                 ? (portuguese ? "Recado não guardado: erro de memória."
+                                                                                        : "Note not kept: storage error.")
+                                   : asked.command == Command::NoteOff    ? (portuguese ? "Recado apagado." : "Note cleared.")
+                                   : portuguese ? "Recado guardado: quem chegar com o Bitchat o recebe."
+                                                : "Note kept: whoever arrives with Bitchat gets it."),
+                          room);
+        }
+        break;
+    default:
+        answerBitchat();
+        return;
+    }
+    tellBitchat(text, size);
+}
+
+size_t BitchatBridge::batteryText(bool portuguese, char *out, size_t capacity) const
+{
+    const uint16_t millivolts = host->batteryMilliVolts();
+    const int percent = batteryPercent(millivolts);
+    if (percent < 0)
+        return fitted(snprintf(out, capacity, "%s",
+                               portuguese ? "Bateria: este rádio não informa a carga." : "Battery: this radio does not report it."),
+                      capacity);
+    return fitted(snprintf(out, capacity, portuguese ? "Bateria: %u,%02u V, cerca de %d%%." : "Battery: %u.%02u V, about %d%%.",
+                           unsigned(millivolts / 1000), unsigned(millivolts % 1000 / 10), percent),
+                  capacity);
+}
+
+static size_t ageText(uint32_t seconds, bool portuguese, char *out, size_t capacity)
+{
+    if (seconds < 60)
+        return fitted(snprintf(out, capacity, "%s", portuguese ? "agora" : "now"), capacity);
+    if (seconds < 3600)
+        return fitted(snprintf(out, capacity, "%lu min", static_cast<unsigned long>(seconds / 60)), capacity);
+    return fitted(snprintf(out, capacity, "%lu h", static_cast<unsigned long>(seconds / 3600)), capacity);
+}
+
+// "Casa Ana (direct, 5 min), RPT Sul (2 hops, 1 h) +3": the radios heard in the last day, the latest first.
+size_t BitchatBridge::radiosText(bool portuguese, char *out, size_t capacity) const
+{
+    static constexpr size_t MOST = 16;
+    static constexpr uint32_t DAY = 86400;
+    MeshHost::HeardRadio radios[MOST];
+    const size_t found = std::min(host->heardRadios(radios, MOST), MOST);
+    std::array<bool, MOST> listed{};
+    size_t left = 0;
+    for (size_t i = 0; i < found; ++i)
+        left += radios[i].secondsAgo < DAY;
+    if (!left)
+        return fitted(snprintf(out, capacity, "%s",
+                               portuguese ? "Nenhum rádio foi ouvido no LoRa nas últimas 24 h."
+                                          : "No radio was heard on LoRa in the last 24 h."),
+                      capacity);
+    size_t size = fitted(snprintf(out, capacity, "%s", portuguese ? "Rádios ouvidos: " : "Radios heard: "), capacity);
+    const size_t head = size;
+    while (left) {
+        size_t latest = MOST;
+        for (size_t i = 0; i < found; ++i)
+            if (!listed[i] && radios[i].secondsAgo < DAY && (latest == MOST || radios[i].secondsAgo < radios[latest].secondsAgo))
+                latest = i;
+        const auto &radio = radios[latest];
+        char name[LABEL_LIMIT + 1], age[16], hops[16] = "", snr[16] = "", item[96];
+        if (!cleanLabel({reinterpret_cast<const uint8_t *>(radio.name), strnlen(radio.name, sizeof(radio.name))}, name,
+                        sizeof(name)))
+            snprintf(name, sizeof(name), "?");
+        ageText(radio.secondsAgo, portuguese, age, sizeof(age));
+        if (radio.hops == 0)
+            snprintf(hops, sizeof(hops), "%s, ", portuguese ? "direto" : "direct");
+        else if (radio.hops > 0)
+            snprintf(hops, sizeof(hops), "%d %s, ", radio.hops,
+                     radio.hops == 1 ? (portuguese ? "salto" : "hop") : (portuguese ? "saltos" : "hops"));
+        if (radio.snrTenths != SNR_UNKNOWN) {
+            char value[8];
+            formatTenths(radio.snrTenths, value, sizeof(value), portuguese);
+            snprintf(snr, sizeof(snr), ", %s dB", value);
+        }
+        const size_t length = fitted(snprintf(item, sizeof(item), "%s%s (%s%s%s)", size > head ? ", " : "", name, hops, age, snr),
+                                     sizeof(item));
+        // room for this one and, if others stay out, for how many they are
+        if (size + length + (left > 1 ? 4 : 0) >= capacity)
+            break;
+        memcpy(out + size, item, length);
+        size += length;
+        out[size] = 0;
+        listed[latest] = true;
+        --left;
+    }
+    if (left && size + 4 < capacity)
+        size += fitted(snprintf(out + size, capacity - size, " +%u", unsigned(left)), capacity - size);
+    return size;
+}
+
+size_t BitchatBridge::noteText(bool portuguese, char *out, size_t capacity) const
+{
+    if (!note.text[0])
+        return fitted(snprintf(out, capacity, "%s",
+                               portuguese ? "Não há recado. Para deixar um: !ponte recado <texto>"
+                                          : "No note. To leave one: !bridge note <text>"),
+                      capacity);
+    if (!note.author[0])
+        return fitted(snprintf(out, capacity, "%s%s", portuguese ? "Recado: " : "Note: ", note.text), capacity);
+    return fitted(snprintf(out, capacity, portuguese ? "Recado de %s: %s" : "Note from %s: %s", note.author, note.text), capacity);
+}
+
+bool BitchatBridge::setNote(const BridgeRequest &request, const char *author)
+{
+    Note next{};
+    if (request.command == Command::Note) {
+        if (!cleanText(request.argument, next.text, sizeof(next.text), sizeof(next.text) - 1))
+            return false;
+        cleanText({reinterpret_cast<const uint8_t *>(author), strlen(author)}, next.author, sizeof(next.author),
+                  sizeof(next.author) - 1);
+        next.portuguese = request.portuguese;
+    }
+    if (!storageReady || storage.putBytes("note", &next, sizeof(next)) != sizeof(next))
+        return false;
+    note = next;
+    // A new note goes to everyone again.
+    if (runtime)
+        runtime->delivered = {};
+    return true;
+}
+
+// The note goes to the arriving phone alone, after the bridge's announcement so the phone can check it,
+// and with a TTL that keeps other phones from relaying it.
+void BitchatBridge::deliverNote(const Packet &packet, uint16_t source)
+{
+    const uint32_t now = millis();
+    if (source == NO_LINK || !utc())
+        return;
+    auto *slot = &runtime->delivered[0];
+    for (auto &entry : runtime->delivered) {
+        if (entry.used && entry.peer == packet.sender) {
+            slot = &entry;
+            break;
+        }
+        if (slot->used && (!entry.used || int32_t(entry.at - slot->at) < 0))
+            slot = &entry;
+    }
+    if (slot->used && slot->peer == packet.sender && Throttle::isWithinTimespanMsAt(slot->at, NOTE_EVERY_MS, now))
+        return;
+    char text[BITCHAT_TEXT_LIMIT + 1];
+    const size_t prefix = fitted(snprintf(text, sizeof(text), "%s", REPLY_PREFIX), sizeof(text));
+    const size_t size = prefix + noteText(note.portuguese, text + prefix, sizeof(text) - prefix);
+    if (!Throttle::isWithinTimespanMsAt(announcedAt, 5000, now))
+        announce();
+    if (!sign(2, {reinterpret_cast<const uint8_t *>(text), size}, 1) || !bleSendTo(runtime->working.bytes(), source))
+        return;
+    ++originatedBle;
+    *slot = {packet.sender, now, true};
+}
+
+// "-23.55052": five decimals, about a metre.
+static size_t coordinate(int32_t millionths, char *out, size_t capacity)
+{
+    const uint32_t magnitude = millionths < 0 ? uint32_t(-int64_t(millionths)) : uint32_t(millionths);
+    return fitted(snprintf(out, capacity, "%s%lu.%05lu", millionths < 0 ? "-" : "", static_cast<unsigned long>(magnitude / 1000000),
+                           static_cast<unsigned long>(magnitude % 1000000 / 10)),
+                  capacity);
+}
+
+size_t BitchatBridge::sos(const BridgeRequest &request, const char *who, char *out, size_t capacity)
+{
+    const bool portuguese = request.portuguese;
+    const uint32_t now = millis();
+    if (!runtime || !wasActive || !textReady || textConflict)
+        return fitted(snprintf(out, capacity, "%s",
+                               portuguese ? "SOS não enviado: esta ponte não está ligada ao LoRa."
+                                          : "SOS not sent: this bridge is not on LoRa."),
+                      capacity);
+    if (sosSent && Throttle::isWithinTimespanMsAt(sosAt, SOS_EVERY_MS, now)) {
+        const unsigned left = unsigned((SOS_EVERY_MS - uint32_t(now - sosAt) + 59999) / 60000);
+        return fitted(snprintf(out, capacity,
+                               portuguese ? "SOS já enviado há pouco; pode ser repetido em %u min."
+                                          : "SOS sent a moment ago; it can be repeated in %u min.",
+                               left),
+                      capacity);
+    }
+    char said[81], where[40] = "", body[LORA_TEXT_LIMIT], label[LABEL_LIMIT + 1];
+    if (!cleanText(request.argument, said, sizeof(said), sizeof(said) - 1))
+        snprintf(said, sizeof(said), "%s", portuguese ? "pedido de socorro" : "help needed");
+    int32_t latitude = 0, longitude = 0;
+    const bool located = host->position(latitude, longitude) && (latitude || longitude);
+    if (located) {
+        char lat[16], lon[16];
+        coordinate(latitude, lat, sizeof(lat));
+        coordinate(longitude, lon, sizeof(lon));
+        snprintf(where, sizeof(where), " (%s, %s)", lat, lon);
+    }
+    const size_t bodySize = fitted(snprintf(body, sizeof(body), "SOS: %s%s", said, where), sizeof(body));
+    size_t labelSize = cleanLabel({reinterpret_cast<const uint8_t *>(who), strlen(who)}, label, sizeof(label));
+    if (!labelSize)
+        labelSize = fitted(snprintf(label, sizeof(label), "bridge"), sizeof(label));
+    if (!queueRadioText({reinterpret_cast<const uint8_t *>(label), labelSize}, {reinterpret_cast<const uint8_t *>(body), bodySize}))
+        return fitted(snprintf(out, capacity, "%s",
+                               portuguese ? "SOS não enviado: o LoRa está ocupado; tente de novo em instantes."
+                                          : "SOS not sent: LoRa is busy; try again shortly."),
+                      capacity);
+    sosSent = true;
+    sosAt = now;
+    return fitted(snprintf(out, capacity, "%s",
+                           located ? (portuguese ? "SOS enviado ao LoRa, com a posição do rádio."
+                                                 : "SOS sent to LoRa, with the radio's position.")
+                                   : (portuguese ? "SOS enviado ao LoRa, sem posição: o rádio não sabe onde está."
+                                                 : "SOS sent to LoRa, without a position: the radio does not know it.")),
+                  capacity);
+}
+
+size_t BitchatBridge::startRangeTest(bool portuguese, bool fromApp, char *out, size_t capacity)
+{
+    const uint32_t now = millis();
+    if (!runtime || !wasActive || !textReady || textConflict)
+        return fitted(snprintf(out, capacity, "%s",
+                               portuguese ? "Teste não enviado: esta ponte não está ligada ao LoRa."
+                                          : "Test not sent: this bridge is not on LoRa."),
+                      capacity);
+    if (rangeTest.pending)
+        return fitted(snprintf(out, capacity, "%s",
+                               portuguese ? "Já há um teste em curso; o resultado sai em até 2 min."
+                                          : "A test is already running; results come within 2 min."),
+                      capacity);
+    uint32_t random = 0;
+    esp_fill_random(&random, sizeof(random));
+    const uint16_t id = uint16_t(1000 + random % 9000);
+    char body[24], label[LABEL_LIMIT + 1];
+    const size_t bodySize = fitted(snprintf(body, sizeof(body), "%s%04u", TEST_MARK, unsigned(id)), sizeof(body));
+    const char *name = host->nodeName();
+    size_t labelSize = cleanLabel({reinterpret_cast<const uint8_t *>(name), strlen(name)}, label, sizeof(label));
+    if (!labelSize)
+        labelSize = fitted(snprintf(label, sizeof(label), "bridge"), sizeof(label));
+    if (!queueRadioText({reinterpret_cast<const uint8_t *>(label), labelSize}, {reinterpret_cast<const uint8_t *>(body), bodySize}))
+        return fitted(snprintf(out, capacity, "%s",
+                               portuguese ? "Teste não enviado: o LoRa está ocupado; tente de novo em instantes."
+                                          : "Test not sent: LoRa is busy; try again shortly."),
+                      capacity);
+    rangeTest.id = id;
+    rangeTest.at = now;
+    rangeTest.pending = true;
+    rangeTest.fromApp = fromApp;
+    rangeTest.portuguese = portuguese;
+    rangeTest.channel = appChannel;
+    rangeTest.answers = 0;
+    return fitted(snprintf(out, capacity,
+                           portuguese ? "Teste %04u enviado ao LoRa. As pontes que o ouvirem respondem; resultado em até 2 min."
+                                      : "Test %04u sent to LoRa. Bridges that hear it answer; results within 2 min.",
+                           unsigned(id)),
+                  capacity);
+}
+
+// A probe from another bridge is answered once with how it arrived; an answer to this radio's probe is
+// reported to whoever asked for it.
+void BitchatBridge::rangeTestHeard(Bytes name, uint16_t id, bool answer, int16_t theirSnr, int16_t snrTenths)
+{
+    const uint32_t now = millis();
+    char label[LABEL_LIMIT + 1];
+    size_t labelSize = cleanLabel(name, label, sizeof(label));
+    if (!labelSize)
+        labelSize = fitted(snprintf(label, sizeof(label), "mesh"), sizeof(label));
+    noteHeard(label, labelSize);
+    char heard[8], back[8];
+    if (!answer) {
+        if (rangeTest.pending && id == rangeTest.id)
+            return;
+        if (rangeTest.answered && (rangeTest.answeredId == id || Throttle::isWithinTimespanMsAt(rangeTest.answeredAt, 20000, now)) &&
+            Throttle::isWithinTimespanMsAt(rangeTest.answeredAt, TEST_WAIT_MS, now))
+            return;
+        char body[48], own[LABEL_LIMIT + 1];
+        formatTenths(snrTenths, heard, sizeof(heard), false);
+        const size_t bodySize =
+            fitted(snprintf(body, sizeof(body), "%s%04u ouvido %s dB", TEST_MARK, unsigned(id), heard), sizeof(body));
+        const char *ownName = host->nodeName();
+        size_t ownSize = cleanLabel({reinterpret_cast<const uint8_t *>(ownName), strlen(ownName)}, own, sizeof(own));
+        if (!ownSize)
+            ownSize = fitted(snprintf(own, sizeof(own), "bridge"), sizeof(own));
+        if (queueRadioText({reinterpret_cast<const uint8_t *>(own), ownSize}, {reinterpret_cast<const uint8_t *>(body), bodySize})) {
+            rangeTest.answered = true;
+            rangeTest.answeredId = id;
+            rangeTest.answeredAt = now;
+        }
+        return;
+    }
+    if (!rangeTest.pending || id != rangeTest.id)
+        return;
+    ++rangeTest.answers;
+    formatTenths(theirSnr, heard, sizeof(heard), rangeTest.portuguese);
+    formatTenths(snrTenths, back, sizeof(back), rangeTest.portuguese);
+    char text[BITCHAT_TEXT_LIMIT];
+    snprintf(text, sizeof(text),
+             rangeTest.portuguese ? "Teste %04u: %s ouviu com %s dB; a volta chegou com %s dB."
+                                  : "Test %04u: %s heard it at %s dB; the answer came at %s dB.",
+             unsigned(id), label, heard, back);
+    reportRangeTest(text);
+}
+
+void BitchatBridge::reportRangeTest(const char *text)
+{
+    if (rangeTest.fromApp) {
+        appChannel = rangeTest.channel;
+        replyToApp(text);
+    } else {
+        tellBitchat(text, strlen(text));
+    }
+}
+
+// Low battery is told to the phones nearby once, and again only after the radio was charged.
+void BitchatBridge::watchBattery(uint32_t now)
+{
+    if (Throttle::isWithinTimespanMsAt(batteryAt, 60000, now))
+        return;
+    batteryAt = now;
+    const uint16_t millivolts = host->batteryMilliVolts();
+    if (millivolts > BATTERY_RECOVERED_MV) {
+        batteryWarned = false;
+        return;
+    }
+    if (batteryWarned || millivolts < 2500 || millivolts >= BATTERY_LOW_MV || !bleListeners())
+        return;
+    char text[BITCHAT_TEXT_LIMIT];
+    const size_t size = fitted(snprintf(text, sizeof(text), "Bateria baixa / Battery low: %u,%02u V",
+                                        unsigned(millivolts / 1000), unsigned(millivolts % 1000 / 10)),
+                               sizeof(text));
+    tellBitchat(text, size);
+    batteryWarned = true;
+}
+
+// A radio with a GPS but no time from the app or a phone turns the GPS on for a while; once the clock is
+// trusted the GPS goes back to the operator's choice.
+void BitchatBridge::watchGps(uint32_t now)
+{
+    if (clockTrusted) {
+        if (gpsOn) {
+            host->clockFromGps(false);
+            gpsOn = false;
+        }
+        return;
+    }
+    if (gpsOn) {
+        if (!Throttle::isWithinTimespanMsAt(gpsAt, GPS_FOR_MS, now)) {
+            host->clockFromGps(false);
+            gpsOn = false;
+            gpsAt = now;
+        }
+        return;
+    }
+    if (!settings.enabled || (gpsTried ? Throttle::isWithinTimespanMsAt(gpsAt, GPS_AGAIN_MS, now) : now < GPS_AFTER_MS))
+        return;
+    gpsTried = true;
+    gpsAt = now;
+    gpsOn = host->clockFromGps(true);
 }
 
 void BitchatBridge::reject(Result result)
@@ -675,31 +1190,39 @@ bool BitchatBridge::record(const Digest &id, bool persist)
     return false;
 }
 
-void BitchatBridge::originate(uint8_t type, Bytes payload, bool keep)
+bool BitchatBridge::sign(uint8_t type, Bytes payload, uint8_t ttl)
 {
     if (!identityReady || !utc()) {
         reject(Result::NoClock);
-        return;
+        return false;
     }
     // Two messages in the same instant still need distinct timestamps; a corrected clock must not keep an old lead.
     uint64_t timestamp = utc();
     if (lastOriginTimestamp >= timestamp && lastOriginTimestamp - timestamp < 1000)
         timestamp = lastOriginTimestamp + 1;
     lastOriginTimestamp = timestamp;
-    if (encode(type, ownId, nullptr, timestamp, 7, payload, {}, runtime->working) != Result::Ok ||
+    if (encode(type, ownId, nullptr, timestamp, ttl, payload, {}, runtime->working) != Result::Ok ||
         signingBytes(runtime->working.bytes(), runtime->canonical) != Result::Ok)
-        return;
+        return false;
     std::array<uint8_t, 64> signature;
     Ed25519::sign(signature.data(), identity.data(), signingPublic.data(), runtime->canonical.data.data(),
                   runtime->canonical.size);
-    if (encode(type, ownId, nullptr, timestamp, 7, payload, {signature.data(), signature.size()}, runtime->working) != Result::Ok)
-        return;
+    if (encode(type, ownId, nullptr, timestamp, ttl, payload, {signature.data(), signature.size()}, runtime->working) !=
+        Result::Ok)
+        return false;
     Digest id;
     packetDigest(crypto, runtime->working.bytes(), id);
     if (runtime->dedup->insert(id, millis(), DEDUP_MS) != Result::Ok) {
         reject(Result::Full);
-        return;
+        return false;
     }
+    return true;
+}
+
+void BitchatBridge::originate(uint8_t type, Bytes payload, bool keep)
+{
+    if (!sign(type, payload, 7))
+        return;
     // Kept even with nobody listening: the phone that arrives later asks for what it lacks.
     if (keep && BITCHAT_HISTORY_ENTRIES && allocateBuffer(runtime->history))
         runtime->history->keep(crypto, runtime->working.bytes());
@@ -906,28 +1429,15 @@ bool BitchatBridge::handleFrame(Bytes frame, uint16_t source)
         if (bleBroadcast(runtime->working.bytes(), source))
             ++forwardedBle;
     }
+    // A phone that arrives, announcing itself directly to this radio, is given the house note.
+    if (packet.type == 1 && packet.ttl == 7 && note.text[0] && !peer->announcement.gateway)
+        deliverNote(packet, source);
     const bool publicMessage = packet.type == 2 && !packet.directed();
-    const Command asked = publicMessage && !packet.compressed() ? bridgeCommand(packet.payload) : Command::None;
-    if (asked != Command::None) {
-        // Anyone nearby may ask, so answers are spaced out; only the state, the guide and the names are answered.
-        if (asked == Command::Guide || asked == Command::GuidePt) {
-            if (!Throttle::isWithinTimespanMsAt(guidedAt, 30000, now)) {
-                guidedAt = now;
-                guideBitchat(asked == Command::GuidePt);
-            }
-        } else if (!Throttle::isWithinTimespanMsAt(repliedAt, 5000, now)) {
-            repliedAt = now;
-            if (asked == Command::Who || asked == Command::WhoPt) {
-                char text[BITCHAT_TEXT_LIMIT + 1];
-                const size_t prefix = snprintf(text, sizeof(text), "%s", REPLY_PREFIX);
-                const size_t size = prefix + whoText(asked == Command::WhoPt, text + prefix, sizeof(text) - prefix);
-                if (!Throttle::isWithinTimespanMsAt(announcedAt, 5000, now))
-                    announce();
-                originate(2, {reinterpret_cast<const uint8_t *>(text), std::min<size_t>(size, BITCHAT_TEXT_LIMIT)});
-            } else {
-                answerBitchat();
-            }
-        }
+    BridgeRequest asked;
+    if (publicMessage && !packet.compressed())
+        parseBridgeCommand(packet.payload, asked);
+    if (asked.command != Command::None) {
+        answerAsked(asked, *peer, now);
         return true;
     }
     // Like any phone that stays in the house, the bridge keeps what it heard for whoever arrives later. The
@@ -938,6 +1448,33 @@ bool BitchatBridge::handleFrame(Bytes frame, uint16_t source)
     if (textReady && publicMessage)
         exportText(packet, *peer, id);
     return true;
+}
+
+size_t BitchatBridge::peerLabel(const Peer &peer, char *out, size_t capacity) const
+{
+    size_t size = cleanLabel({reinterpret_cast<const uint8_t *>(peer.announcement.nickname.data()),
+                              strnlen(peer.announcement.nickname.data(), peer.announcement.nickname.size())},
+                             out, std::min(capacity, LABEL_LIMIT - 4));
+    // Same rule as the Bitchat app: equal nicknames are told apart by the start of the peer ID.
+    if (!size || runtime->peers->nicknameShared(peer))
+        size += snprintf(out + size, 6, "#%02x%02x", peer.id[0], peer.id[1]);
+    return size;
+}
+
+// The bridge's own text for LoRa (a help request, a range test), sent as "label: body" in one message.
+bool BitchatBridge::queueRadioText(Bytes label, Bytes body)
+{
+    TextPlan plan;
+    NativeText native;
+    if (!runtime || !textReady || textConflict || textGuard() || planNativeText(label.size, body, plan) != Result::Ok ||
+        plan.count != 1 || makeNativeText(label, body, plan, 0, native) != Result::Ok ||
+        runtime->radioQueue.size() >= RadioItem::QUEUE)
+        return false;
+    RadioItem item;
+    item.size = uint16_t(native.size);
+    item.queuedAt = millis();
+    std::copy_n(native.data.begin(), native.size, item.payload.begin());
+    return runtime->radioQueue.push(item);
 }
 
 void BitchatBridge::exportText(const Packet &packet, Peer &peer, const Digest &id)
@@ -955,20 +1492,17 @@ void BitchatBridge::exportText(const Packet &packet, Peer &peer, const Digest &i
     }
     if (result == Result::Ok && textConflict)
         result = Result::Policy;
+    // With the prefix on, only what the person marked goes to LoRa; text other bridges bring is not theirs to mark.
+    if (result == Result::Ok && prefixOnly && !peer.announcement.gateway && !startsWith(packet.payload, LORA_PREFIX))
+        result = Result::Policy;
     if (result == Result::Ok && seen(id))
         result = Result::Duplicate;
     if (result != Result::Ok) {
         reject(result);
         return;
     }
-    if (!peer.announcement.gateway) {
-        labelSize = cleanLabel({reinterpret_cast<const uint8_t *>(peer.announcement.nickname.data()),
-                                strnlen(peer.announcement.nickname.data(), peer.announcement.nickname.size())},
-                               label, LABEL_LIMIT - 4);
-        // Same rule as the Bitchat app: equal nicknames are told apart by the start of the peer ID.
-        if (!labelSize || runtime->peers->nicknameShared(peer))
-            labelSize += snprintf(label + labelSize, 6, "#%02x%02x", peer.id[0], peer.id[1]);
-    }
+    if (!peer.announcement.gateway)
+        labelSize = peerLabel(peer, label, sizeof(label));
     TextPlan plan;
     result = planNativeText(labelSize, body, plan);
     if (result == Result::Ok && (textGuard() || runtime->radioQueue.size() + plan.count > RadioItem::QUEUE ||
@@ -1022,21 +1556,29 @@ void BitchatBridge::importText(Bytes name, Bytes body, const Digest *id)
         ++importedRadio;
 }
 
-void BitchatBridge::channelText(uint8_t channel, const uint8_t *packetHash, const char *text)
+void BitchatBridge::channelText(uint8_t channel, const uint8_t *packetHash, const char *text, int16_t snrTenths)
 {
     if (!host || !text || !settings.enabled || !runtime || !wasActive || !storageReady || !identityReady || !utc())
         return;
     refreshChannel();
     if (!textReady || textConflict || textGuard() || channel != settings.channel)
         return;
-    // With no phone connected the text is still signed and kept, for whoever arrives in the next hours.
-    if (!blePhones() && !BITCHAT_HISTORY_ENTRIES)
-        return;
     const size_t size = strlen(text);
     // MeshCore channel text is "sender: text" by convention.
     const char *split = strstr(text, ": ");
     Bytes name{reinterpret_cast<const uint8_t *>(text), split ? size_t(split - text) : 0};
     Bytes body{reinterpret_cast<const uint8_t *>(split ? split + 2 : text), split ? size - name.size - 2 : size};
+    // A range test between bridges is answered or reported here; it is not text for Bitchat.
+    uint16_t testId = 0;
+    bool testAnswer = false;
+    int16_t theirSnr = SNR_UNKNOWN;
+    if (name.size && parseRangeTest(body, testId, testAnswer, theirSnr)) {
+        rangeTestHeard(name, testId, testAnswer, theirSnr, snrTenths);
+        return;
+    }
+    // With no phone connected the text is still signed and kept, for whoever arrives in the next hours.
+    if (!blePhones() && !BITCHAT_HISTORY_ENTRIES)
+        return;
     // Commands are for the app attached to a radio; one heard on the air is neither obeyed nor relayed.
     if (!body.size || bridgeCommand(body) != Command::None)
         return;
@@ -1059,11 +1601,16 @@ bool BitchatBridge::appText(uint8_t channel, const char *text, size_t size)
     if (!host || !text)
         return false;
     const Bytes body{reinterpret_cast<const uint8_t *>(text), strnlen(text, size)};
-    const Command command = bridgeCommand(body);
-    if (command != Command::None) {
+    BridgeRequest request;
+    if (parseBridgeCommand(body, request)) {
         // Answered on the next tick, in the channel where it was typed.
-        appCommand = command;
+        appCommand = request.command;
         appChannel = channel;
+        appPortuguese = request.portuguese;
+        const size_t length = std::min(request.argument.size, sizeof(appArgument) - 1);
+        if (length)
+            memcpy(appArgument, request.argument.data, length);
+        appArgument[length] = 0;
         interval = 0;
         return true;
     }
@@ -1127,18 +1674,19 @@ void BitchatBridge::loop()
         &call);
 }
 
-void BitchatBridge::onChannelText(uint8_t channel, const uint8_t *packetHash, const char *text)
+void BitchatBridge::onChannelText(uint8_t channel, const uint8_t *packetHash, const char *text, int16_t snrTenths)
 {
     struct Call {
         BitchatBridge *self;
         uint8_t channel;
         const uint8_t *hash;
         const char *text;
-    } call{this, channel, packetHash, text};
+        int16_t snr;
+    } call{this, channel, packetHash, text, snrTenths};
     onLargeStack(
         [](void *argument) {
             auto *c = static_cast<Call *>(argument);
-            c->self->channelText(c->channel, c->hash, c->text);
+            c->self->channelText(c->channel, c->hash, c->text, c->snr);
         },
         &call);
 }
@@ -1164,6 +1712,7 @@ bool BitchatBridge::onAppText(uint8_t channel, const char *text, size_t size)
 void BitchatBridge::work(uint32_t now)
 {
     watchClock(now);
+    watchGps(now);
     const bool bluetoothReady = platformBluetooth.isActive();
     if (bluetoothReady && !resourceError)
         applyDefaults();
@@ -1224,6 +1773,18 @@ void BitchatBridge::work(uint32_t now)
         return;
     interval = economy ? 200 : 20;
     keepClock(now);
+    watchBattery(now);
+    if (rangeTest.pending && !Throttle::isWithinTimespanMsAt(rangeTest.at, TEST_WAIT_MS, now)) {
+        rangeTest.pending = false;
+        if (!rangeTest.answers) {
+            char text[BITCHAT_TEXT_LIMIT];
+            snprintf(text, sizeof(text),
+                     rangeTest.portuguese ? "Teste %04u: nenhuma outra ponte respondeu em 2 min."
+                                          : "Test %04u: no other bridge answered within 2 min.",
+                     unsigned(rangeTest.id));
+            reportRangeTest(text);
+        }
+    }
     if (!Throttle::isWithinTimespanMsAt(channelsAt, 1000, now))
         refreshChannel();
     if (textConflict && !Throttle::isWithinTimespanMsAt(conflictAt, CONFLICT_MS, now)) {

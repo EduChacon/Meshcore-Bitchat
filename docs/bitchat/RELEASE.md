@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.10
+# MeshCore + Bitchat v1.18.0-bitchat0.11
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -11,23 +11,42 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   travessia pelo LoRa.
 - **O que veio depois da `bitchat0.1` não foi ligado em aparelho:** a página da ponte na tela, a
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
-  pacotes por país, o histórico, a lista de nomes e a rede própria. Passou nos testes em computador
-  e compila.
+  pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
+  `bitchat0.11`. Passou nos testes em computador e compila.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.10`
+## O que há de novo na `bitchat0.11`
 
-- **Histórico, segunda parte.** A ponte passa a guardar também o que os telefones escrevem no
+Funções da casa, todas por comando, no aplicativo MeshCore ou no `#mesh` do Bitchat
+([detalhes](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md#funções-da-casa-a-partir-da-bitchat011)):
+
+- **`!bridge prefix on`**: só o texto do `#mesh` iniciado por `!lora` vai ao LoRa; o resto fica na
+  casa. Só pelo aplicativo MeshCore; `!bridge prefix off` volta ao padrão.
+- **`!ponte recado <texto>`**: recado da casa, entregue uma vez a cada 12 horas a cada telefone
+  Bitchat que chega. Fica gravado. Qualquer pessoa perto do rádio pode trocá-lo.
+- **`!ponte radios`**: rádios ouvidos no LoRa nas últimas 24 horas, com os saltos.
+- **`!ponte bateria`** e aviso de bateria baixa no `#mesh`.
+- **`!ponte sos <texto>`**: pedido de socorro ao LoRa, com a posição do rádio, se houver; um a cada
+  cinco minutos. A posição vai para todos os que têm o canal.
+- **`!ponte teste`**: teste de alcance; as outras pontes respondem com o sinal com que ouviram.
+- **Hora pelo GPS**: em rádio com GPS, sem hora depois de 30 segundos, a ponte liga o GPS por até
+  dez minutos para o MeshCore acertar o relógio. Não liga se o rádio divulga a posição nos anúncios.
+- **Correção no T1000-E:** `!bridge economy on` respondia `Storage error`. As opções (`link`,
+  `economy`, `prefix`) e o recado passam a ficar gravados num arquivo à parte, que sobrevive ao
+  reinício; a identidade da ponte é mantida.
+- `!bridge help` passa a ter cinco mensagens.
+
+## Das versões anteriores
+
+- **Histórico, segunda parte** (`bitchat0.10`): a ponte passa a guardar também o que os telefones escrevem no
   `#mesh` perto do rádio, com a assinatura de quem escreveu, para quem chega depois. Quem chega só
   vê essas mensagens se já conheceu o autor antes (regra do próprio Bitchat).
-- **Pacote `Rede-propria-918-MHz`.** Para casas sem repetidor por perto: 918,000 MHz, com a
+- **Pacote `Rede-propria-918-MHz`** (`bitchat0.10`). Para casas sem repetidor por perto: 918,000 MHz, com a
   repetição já ligada; os rádios gravados com ele formam uma malha à parte, fora da rede da
   comunidade.
 - [Estudo de privacidade e pagamento](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/PRIVACY.md):
   o que já é possível (canal com chave própria) e o que depende de ensaio.
-
-## Das versões anteriores
 
 - **`!bridge who`** (`bitchat0.9`), ou `!ponte quem`: nomes ouvidos no canal LoRa nas últimas seis
   horas, no aplicativo MeshCore ou no `#mesh` do Bitchat.
