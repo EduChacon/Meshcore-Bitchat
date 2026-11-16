@@ -56,3 +56,25 @@ versão `v1.18.0-bitchat0.2`. O Cardputer ADV e o T1000-E entraram na `v1.18.0-b
 
 Ficam fora: os aparelhos ESP32-C6, que usam outra versão da biblioteca Bluetooth, e os demais nRF52
 (RAK4631 e outros), até o T1000-E ser ensaiado.
+
+## Heltec V4: qual dos dois arquivos
+
+O MeshCore tem duas variantes do Heltec WiFi LoRa 32 V4, conforme a memória do chip:
+
+| Arquivo          | Chip do módulo | Memória extra (PSRAM) | Ligação do LoRa e do LED    |
+| ---------------- | -------------- | --------------------- | --------------------------- |
+| `heltec_v4_…`    | ESP32-S3R2     | 2 MB                  | alimentação no pino 36      |
+| `heltec_v4_r8_…` | ESP32-S3R8     | 8 MB                  | alimentação no pino 40      |
+
+Os valores vêm das definições de placa do próprio MeshCore (`boards/heltec_v4.json`,
+`boards/heltec_v4_r8.json` e as pastas `variants/`). O arquivo errado pode não iniciar ou deixar o
+rádio sem transmitir. Para saber qual é o seu:
+
+a) leia a inscrição do chip, sob a tampa metálica ou no anúncio do vendedor (`S3R2` ou `S3R8`); ou
+
+b) com o [esptool](https://docs.espressif.com/projects/esptool/) e o rádio no cabo, rode
+`python -m esptool chip_id` e veja a linha `Embedded PSRAM`: 2 MB indica `heltec_v4`, 8 MB indica
+`heltec_v4_r8`.
+
+O programa do `heltec_v4` reconhece sozinho as revisões 4.2 e 4.3 (amplificadores diferentes). As
+variantes `_tft` são para o modelo com tela colorida. Nada disso foi conferido em aparelho.

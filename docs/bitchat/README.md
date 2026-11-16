@@ -4,10 +4,12 @@ Firmware _companion_ do MeshCore com uma ponte embutida para o aplicativo
 [Bitchat](https://github.com/permissionlesstech/bitchat). Um telefone com o Bitchat, perto do
 rádio, conversa com quem está na malha MeshCore, e o contrário, sem internet e sem servidor.
 
-**Estado em 2026-11-14.** No Heltec V3, o autor seguiu o roteiro de instalação e de primeiro uso
-abaixo e relatou que tudo funcionou. O relato não traz medições: alcance, consumo, memória livre e
-duração não foram medidos, e ele não detalha quais trajetos foram conferidos. Os demais aparelhos
-da [lista](DEVICES.md) só foram compilados; nenhum foi ligado. Trate como versão experimental.
+**Estado em 2026-11-16.** No Heltec V3, com a versão `bitchat0.1`, o autor seguiu o roteiro de
+instalação e de primeiro uso abaixo e relatou que tudo funcionou. O relato não traz medições:
+alcance, consumo, memória livre e duração não foram medidos. Tudo o que veio depois da
+`bitchat0.1` (ligação entre as redes, modo econômico, guia, pacotes por país, histórico, lista de
+nomes) só foi simulado e compilado. Os demais aparelhos da [lista](DEVICES.md) nunca foram
+ligados. Trate como versão experimental.
 
 O que está pronto, o que vem em seguida e o que ainda é estudo: [roteiro](ROADMAP.md).
 
