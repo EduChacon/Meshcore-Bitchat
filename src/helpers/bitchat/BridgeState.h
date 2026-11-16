@@ -6,6 +6,11 @@
 #include <array>
 #include <cstring>
 
+// People the bridge knows at once; a board short of memory can ask for fewer.
+#ifndef BITCHAT_PEER_ENTRIES
+#define BITCHAT_PEER_ENTRIES 24
+#endif
+
 namespace bitchat
 {
 
@@ -126,7 +131,7 @@ struct Peer {
 class PeerTable
 {
   public:
-    static constexpr size_t CAPACITY = 24;
+    static constexpr size_t CAPACITY = BITCHAT_PEER_ENTRIES;
     static constexpr uint32_t STALE_MS = 300000;
     Result announce(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer);
     Result authenticate(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer);

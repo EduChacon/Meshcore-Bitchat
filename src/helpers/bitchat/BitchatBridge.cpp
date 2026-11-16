@@ -309,8 +309,8 @@ bool BitchatBridge::ensureRuntime()
         return true;
     if (!platformBluetooth.isActive())
         return false;
-    memoryRequest("bridge-runtime", sizeof(Runtime) + sizeof(PeerTable) + sizeof(DedupCache<256>) + bleBufferSize(),
-                  std::max(sizeof(Runtime), sizeof(DedupCache<256>)));
+    memoryRequest("bridge-runtime", sizeof(Runtime) + sizeof(PeerTable) + sizeof(DedupCache<BITCHAT_DEDUP_ENTRIES>) + bleBufferSize(),
+                  std::max(sizeof(Runtime), sizeof(DedupCache<BITCHAT_DEDUP_ENTRIES>)));
     if (allocateBuffer(runtime) && allocateBuffer(runtime->peers) && allocateBuffer(runtime->dedup) && bleAllocateBuffers()) {
         bootDiagnostic("bridge-buffers-ready");
         return true;

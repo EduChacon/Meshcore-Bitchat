@@ -13,6 +13,10 @@
 #ifndef BITCHAT_JOURNAL_ENTRIES
 #define BITCHAT_JOURNAL_ENTRIES 64
 #endif
+// Recent packets remembered to drop the copies phones relay; fewer on a board short of memory.
+#ifndef BITCHAT_DEDUP_ENTRIES
+#define BITCHAT_DEDUP_ENTRIES 256
+#endif
 
 namespace bitchat
 {
@@ -202,7 +206,7 @@ class BitchatBridge
     struct Runtime {
         std::unique_ptr<bitchat::PeerTable> peers;
         std::unique_ptr<bitchat::BleReassembly> fragments;
-        std::unique_ptr<bitchat::DedupCache<256>> dedup;
+        std::unique_ptr<bitchat::DedupCache<BITCHAT_DEDUP_ENTRIES>> dedup;
         // Text brought from LoRa, kept for the phones that arrive later.
         std::unique_ptr<bitchat::History> history;
         struct Asked {
