@@ -40,6 +40,8 @@ normal pelo aplicativo do próprio rádio.
 - **Publicação:** só a partir da `main`; versões fixas das ferramentas de compilação.
 - **Não verificado:** se o serviço do aplicativo MeshCore entrega notificações só a conexões
   pareadas, com a pilha NimBLE. Fica para o [roteiro de ensaio](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/TESTING.md).
+- Ensaios no GitHub e compilação local (Heltec V3 com e sem ponte, T1000-E, Wireless Tracker)
+  aprovados antes da publicação.
 - No T1000-E, trocar o PIN padrão `123456` depois do primeiro uso
   ([notas](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/T1000E.md)).
 
