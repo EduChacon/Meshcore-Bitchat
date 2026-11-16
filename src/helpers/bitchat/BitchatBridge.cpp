@@ -762,6 +762,7 @@ void BitchatBridge::answerAsked(const BridgeRequest &asked, const Peer &peer, ui
     // A help request is not held back by someone else's question; it has its own spacing.
     // Only a request that can go out now; refusals wait like any other answer.
     const bool urgent = asked.command == Command::Sos && wasActive && textReady && !textConflict && !textGuard() &&
+                        runtime->radioQueue.size() < RadioItem::QUEUE &&
                         !(sosSent && Throttle::isWithinTimespanMsAt(sosAt, SOS_EVERY_MS, now));
     if (!urgent && Throttle::isWithinTimespanMsAt(repliedAt, 5000, now))
         return;
@@ -1603,7 +1604,7 @@ void BitchatBridge::channelText(uint8_t channel, const uint8_t *packetHash, cons
     // A note or a help request typed on another radio is that person's text, and goes on as such.
     BridgeRequest heardCommand;
     if (!body.size || (parseBridgeCommand(body, heardCommand) && heardCommand.command != Command::Sos &&
-                       heardCommand.command != Command::Note))
+                       heardCommand.command != Command::Note && heardCommand.command != Command::NoteOff))
         return;
     std::array<uint8_t, 42> material{};
     material[0] = 'M';
