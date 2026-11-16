@@ -1571,6 +1571,10 @@ void MyMesh::handleCmdFrame(size_t len) {
         if (_store->saveMainIdentity(identity)) {
           self_id = identity;
           writeOKFrame();
+#ifdef WITH_BITCHAT_BRIDGE
+          // a new node identity gets a new bridge identity too, so the two are not linked
+          bitchat_bridge.renewIdentity();
+#endif
           // re-load contacts, to invalidate ecdh shared_secrets
           resetContacts();
           _store->loadContacts(this);
@@ -2636,12 +2640,28 @@ bool MyMesh::position(int32_t &latitude, int32_t &longitude) {
   return true;
 }
 
+bool MyMesh::positionShared() {
+  return _prefs.advert_loc_policy != ADVERT_LOC_NONE;
+}
+
 bool MyMesh::clockFromGps(bool on) {
 #if ENV_INCLUDE_GPS == 1
+  // The position before the GPS was turned on for the time: the fix it gets is not kept as the radio's.
+  static double kept_lat = 0, kept_lon = 0;
   if (_prefs.gps_enabled) return on;   // the operator keeps it on: nothing to change
   // A GPS position would replace the one adverts share; then the GPS stays as the operator left it.
   if (on && _prefs.advert_loc_policy != ADVERT_LOC_NONE) return false;
-  return sensors.setSettingValue("gps", on ? "1" : "0") && on;
+  if (on) {
+    kept_lat = sensors.node_lat;
+    kept_lon = sensors.node_lon;
+    return sensors.setSettingValue("gps", "1");
+  }
+  sensors.setSettingValue("gps", "0");
+  sensors.node_lat = kept_lat;
+  sensors.node_lon = kept_lon;
+  // a save made meanwhile copied the GPS position into the preferences: put the old one back there too
+  if (_prefs.node_lat != kept_lat || _prefs.node_lon != kept_lon) savePrefs();
+  return false;
 #else
   (void)on;
   return false;

@@ -15,10 +15,21 @@ não medições.
 
 Quem escuta o rádio vê também quem fala e quando, mesmo quando não lê o conteúdo.
 
-Funções da `bitchat0.11` que expõem dados: o pedido de socorro (`!ponte sos`) leva a posição do
-rádio a todos os que têm o canal; o recado da casa é lido por qualquer telefone Bitchat que chega
-perto do rádio; o teste de alcance mostra a quem tem o canal o nome do rádio e o sinal com que
-ouviu.
+Funções da `bitchat0.11` e seguintes que expõem dados, e os limites postos a elas na
+`bitchat0.12`, depois de uma revisão de segurança:
+
+- **Socorro (`!ponte sos`):** a posição vai a todos os que têm o canal. Pedido pelo Bitchat, só vai
+  se o rádio já divulga a posição nos anúncios; digitado no aplicativo do rádio, vai sempre.
+- **Rádios (`!ponte radios`):** a lista mostra com quem o rádio teve atividade, inclusive
+  mensagens privadas. Por isso só responde no aplicativo do próprio rádio.
+- **Recado:** lido por qualquer telefone Bitchat que chega perto do rádio; só um telefone ligado
+  diretamente ao rádio pode trocá-lo.
+- **Teste de alcance:** mostra a quem tem o canal o nome do rádio e o sinal com que ouviu.
+- **Estado (`!bridge` no Bitchat):** número de telefones e de pessoas conhecidas, e contadores do
+  LoRa; dá uma ideia de quantas pessoas estão perto do rádio.
+- **Identidade:** o nome `LoRa bridge xxxx` e o anúncio da ponte trazem parte do número do rádio,
+  o que liga a ponte ao nó LoRa. Ao trocar a identidade do nó (importação de chave no MeshCore,
+  nova identidade no Saitama), a ponte também passa a ter uma identidade nova.
 
 ## 2. Privacidade parcial que já existe
 
@@ -27,7 +38,10 @@ gerada, não um `#nome`), compartilhe-o só com as casas do grupo e, nesse canal
 `!bridge lora`. A ponte passa a usar esse canal. Efeito:
 
 - quem está fora do grupo e escuta o LoRa não lê nada;
-- o `#mesh` continua público perto de cada casa: um vizinho com o Bitchat lê o que é escrito ali.
+- o `#mesh` continua público perto de cada casa: um vizinho com o Bitchat lê o que é escrito ali;
+- **e o caminho de volta também:** o que chega desse canal é entregue a qualquer telefone Bitchat
+  perto de cada casa, inclusive pelo histórico, que guarda as últimas mensagens por seis horas para
+  quem chegar depois. O canal privado protege o trecho do LoRa, não o que cada casa recebe.
 
 O mesmo vale para o Meshtastic (`!bridge lora` em um canal secundário com chave própria). É a
 recomendação para hoje.

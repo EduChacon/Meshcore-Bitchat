@@ -29,7 +29,7 @@ de presente não precisa conhecer o MeshCore nem o Meshtastic.
 | Canal LoRa com chave própria (privacidade parcial)              | sim      | sim        | não                                        |
 | Só com `!lora` (`!bridge prefix on`)                            | sim      | sim        | não                                        |
 | Recado da casa para quem chega (`!ponte recado`)                | sim      | sim        | não                                        |
-| Rádios ao alcance (`!ponte radios`)                             | sim      | sim        | não                                        |
+| Rádios ao alcance (`!ponte radios`, só no aplicativo do rádio)  | sim      | sim        | não                                        |
 | Bateria (`!ponte bateria`) e aviso de bateria baixa             | sim      | sim        | não                                        |
 | Pedido de socorro com posição (`!ponte sos`)                    | sim      | sim        | não                                        |
 | Teste de alcance entre pontes (`!ponte teste`)                  | sim      | sim        | não                                        |

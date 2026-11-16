@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.11
+# MeshCore + Bitchat v1.18.0-bitchat0.12
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -12,14 +12,38 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **O que veio depois da `bitchat0.1` não foi ligado em aparelho:** a página da ponte na tela, a
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
   pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
-  `bitchat0.11`. Passou nos testes em computador e compila.
-- **Testes em computador desta versão:** 942 verificações do núcleo e 1036 do fluxo completo, com
+  `bitchat0.11` e as correções da `bitchat0.12`. Passou nos testes em computador e compila.
+- **Testes em computador desta versão:** 942 verificações do núcleo e 1067 do fluxo completo, com
   telefones e rádio simulados; compilados no computador o Heltec V3 (com e sem ponte), o T1000-E,
   o Heltec Wireless Tracker e o Cardputer ADV.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.11`
+## O que há de novo na `bitchat0.12`
+
+Correções de segurança e de privacidade, a partir de uma revisão do código. Nada muda no uso
+normal pelo aplicativo do próprio rádio.
+
+- **Socorro pedido pelo Bitchat** só leva a posição se o rádio já a divulga nos anúncios; antes,
+  qualquer pessoa por perto podia fazer o rádio transmitir a posição exata. Digitado no
+  aplicativo do rádio, o socorro leva a posição como antes.
+- **`!ponte radios` só responde no aplicativo do próprio rádio.** A lista mostra com quem o rádio
+  teve atividade, inclusive mensagens privadas, e não deve ir a estranhos.
+- **O recado só é trocado por um telefone ligado diretamente ao rádio**, não por um que chega pela
+  malha de outros telefones.
+- **GPS ligado para a hora:** ao desligá-lo, a ponte devolve ao rádio a posição que ele tinha; a
+  posição do GPS não fica mais guardada.
+- **Identidade:** ao importar uma chave nova para o nó, a ponte também passa a ter identidade
+  nova, para que as duas não fiquem ligadas.
+- **T1000-E:** se o gerador de números aleatórios não entregar tudo a tempo, a ponte não cria uma
+  identidade fraca; tenta de novo.
+- **Publicação:** só a partir da `main`; versões fixas das ferramentas de compilação.
+- **Não verificado:** se o serviço do aplicativo MeshCore entrega notificações só a conexões
+  pareadas, com a pilha NimBLE. Fica para o [roteiro de ensaio](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/TESTING.md).
+- No T1000-E, trocar o PIN padrão `123456` depois do primeiro uso
+  ([notas](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/T1000E.md)).
+
+## O que veio na `bitchat0.11`
 
 Funções da casa, todas por comando, no aplicativo MeshCore ou no `#mesh` do Bitchat
 ([detalhes](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md#funções-da-casa-a-partir-da-bitchat011)):

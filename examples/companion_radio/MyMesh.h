@@ -243,6 +243,7 @@ public:
   uint16_t batteryMilliVolts() override;
   size_t heardRadios(HeardRadio *out, size_t capacity) override;
   bool position(int32_t &latitude, int32_t &longitude) override;
+  bool positionShared() override;
   bool clockFromGps(bool on) override;
 #ifdef HEADLESS_UI
   void showChannelTextOnDevice(uint8_t index, const char *text, size_t size);

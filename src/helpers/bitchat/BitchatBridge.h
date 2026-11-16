@@ -61,6 +61,9 @@ class MeshHost
         (void)longitude;
         return false;
     }
+    // Whether the operator lets the radio's position go out (as in adverts). A help request asked from
+    // Bitchat, by anyone nearby, carries the position only then; one typed in the attached app always does.
+    virtual bool positionShared() { return false; }
     // Turns the GPS on so it can set the clock, or back to the operator's choice. False when there is none.
     virtual bool clockFromGps(bool on)
     {
@@ -99,6 +102,8 @@ class BitchatBridge
     // Only #mesh text that starts with "!lora " goes to LoRa.
     bool prefixed() const { return prefixOnly; }
     bool setPrefixed(bool value);
+    // A new Bitchat identity, for when the node's own identity changes: the old one would link them.
+    void renewIdentity();
     const char *modeName() const;
     // Phones that are talking, people known, and texts sent to and taken from LoRa.
     void counters(unsigned &phones, unsigned &people, uint32_t &out, uint32_t &in) const;
@@ -130,7 +135,7 @@ class BitchatBridge
     };
     bitchat::MeshHost *host = nullptr;
     Preferences storage;
-    bool storageReady = false, identityReady = false, advertisingChanged = true;
+    bool storageReady = false, identityReady = false, advertisingChanged = true, identityRenew = false;
     bool defaultsPending = false, defaultChannelUnavailable = false;
     // Text another network's bridge brought to Bitchat is taken to this one. Kept in its own stored entry.
     bool link = true;
@@ -244,7 +249,7 @@ class BitchatBridge
     size_t radiosText(bool portuguese, char *out, size_t capacity) const;
     size_t noteText(bool portuguese, char *out, size_t capacity) const;
     bool setNote(const bitchat::BridgeRequest &request, const char *author);
-    size_t sos(const bitchat::BridgeRequest &request, const char *who, char *out, size_t capacity);
+    size_t sos(const bitchat::BridgeRequest &request, const char *who, bool fromApp, char *out, size_t capacity);
     size_t startRangeTest(bool portuguese, bool fromApp, char *out, size_t capacity);
     void rangeTestHeard(bitchat::Bytes name, uint16_t id, bool answer, int16_t theirSnr, int16_t snrTenths);
     void reportRangeTest(const char *text);
@@ -255,7 +260,8 @@ class BitchatBridge
     bool queueRadioText(bitchat::Bytes label, bitchat::Bytes body);
     // The name a phone goes by on LoRa: its nickname, told apart by the start of its ID when shared.
     size_t peerLabel(const bitchat::Peer &peer, char *out, size_t capacity) const;
-    void answerAsked(const bitchat::BridgeRequest &asked, const bitchat::Peer &peer, uint32_t now);
+    // `direct`: the phone is connected to this radio, not relayed by others.
+    void answerAsked(const bitchat::BridgeRequest &asked, const bitchat::Peer &peer, bool direct, uint32_t now);
     bool sign(uint8_t type, bitchat::Bytes payload, uint8_t ttl);
     bool ensureRuntime();
     void releaseRuntime();

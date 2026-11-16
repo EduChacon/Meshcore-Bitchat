@@ -720,7 +720,8 @@ void esp_fill_random(void *out, size_t size)
     auto *bytes = static_cast<uint8_t *>(out);
     // The SoftDevice pool refills slowly and is drained in small pieces.
     const uint32_t started = millis();
-    for (size_t done = 0; done < size && Throttle::isWithinTimespanMsAt(started, 3000, millis());) {
+    size_t done = 0;
+    while (done < size && Throttle::isWithinTimespanMsAt(started, 3000, millis())) {
         uint8_t available = 0;
         sd_rand_application_bytes_available_get(&available);
         const uint8_t take = uint8_t(std::min<size_t>(available, size - done));
@@ -729,6 +730,9 @@ void esp_fill_random(void *out, size_t size)
         else
             delay(2);
     }
+    // A partial fill would make a weak key: all zeros instead, which the bridge refuses as an identity.
+    if (done < size)
+        memset(bytes, 0, size);
 }
 
 size_t heap_caps_get_free_size(uint32_t)

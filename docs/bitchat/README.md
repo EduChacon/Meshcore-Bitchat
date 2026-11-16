@@ -13,6 +13,7 @@ GPS) só foi simulado e compilado. Os demais aparelhos da [lista](DEVICES.md) nu
 ligados. Trate como versão experimental.
 
 O que está pronto, o que vem em seguida e o que ainda é estudo: [roteiro](ROADMAP.md).
+O ensaio em aparelho combinado antes da versão 1.0: [roteiro de ensaio](TESTING.md).
 
 ## O que faz
 
@@ -240,14 +241,17 @@ b) **Recado da casa.** `!ponte recado Jantar às 20h` guarda um recado de até 5
 de quem o deixou (o nome do rádio, se veio do aplicativo MeshCore; o apelido, se veio do Bitchat).
 Cada telefone Bitchat que chega e se anuncia diretamente ao rádio recebe o recado uma vez a cada
 12 horas, só ele, numa mensagem que os outros telefones não repassam. O recado fica gravado e
-sobrevive ao reinício; um recado novo vai de novo a todos. No Bitchat, o recado pode ser trocado
-no máximo uma vez a cada dez minutos, porque cada troca é gravada na memória do rádio.
-**Qualquer pessoa perto do rádio, com o Bitchat, pode trocar ou
-apagar o recado.**
+sobrevive ao reinício; um recado novo vai de novo a todos. No Bitchat, o recado só é trocado por um
+telefone ligado diretamente ao rádio (não por um que chega pela malha de outros telefones), no
+máximo uma vez a cada dez minutos, porque cada troca é gravada na memória do rádio. **Qualquer
+pessoa perto do rádio, com o Bitchat, pode trocar ou apagar o recado.**
 
-c) **Rádios ao alcance.** `!ponte radios` lista os contatos MeshCore ouvidos nas últimas 24 horas,
-pelo relógio do rádio, com o número de saltos quando a rota é conhecida (`direto`, `2 saltos`).
-O MeshCore não guarda o sinal de cada contato, de modo que a lista não traz SNR.
+c) **Rádios ao alcance.** `!ponte radios` lista os contatos MeshCore com atividade nas últimas 24
+horas, pelo relógio do rádio, com o número de saltos quando a rota é conhecida (`direto`,
+`2 saltos`). O MeshCore não guarda o sinal de cada contato, de modo que a lista não traz SNR.
+**Só no aplicativo MeshCore do próprio rádio.** A atividade de um contato inclui mensagens
+privadas trocadas com ele, de modo que a lista diria a estranhos com quem o dono conversa e
+quando; no Bitchat, o comando responde que a lista fica no aplicativo.
 
 d) **Bateria.** `!ponte bateria` responde com a tensão e uma carga aproximada, calculada por uma
 curva típica de bateria de lítio, que não vale para outras baterias. Quando a tensão cai abaixo
@@ -255,11 +259,14 @@ de 3,45 V com algum telefone conectado, a ponte avisa no `#mesh` uma vez (`Bater
 Battery low`); o aviso volta a valer depois que a tensão passar de 3,6 V. Rádio que não mede a
 bateria responde que não informa a carga e não avisa.
 
-e) **Pedido de socorro.** `!ponte sos caí na trilha` envia ao LoRa `apelido: SOS: caí na trilha
-(-23.55052, -46.63331)`, com a posição que o rádio tiver (definida no aplicativo ou dada pelo
-GPS). Sem texto, vai `pedido de socorro`. Vale com o prefixo ligado e está limitado a um a cada
-cinco minutos. **A posição vai para todos os que têm o canal.** Não substitui serviço de
-emergência: o LoRa não confirma a entrega, e não se sabe se alguém está ouvindo.
+e) **Pedido de socorro.** `!ponte sos caí na trilha` envia ao LoRa `apelido: SOS: caí na trilha`.
+Digitado no aplicativo MeshCore do próprio rádio, leva a posição que o rádio tiver (definida no
+aplicativo ou dada pelo GPS), como `(-23.55052, -46.63331)`. Pedido pelo Bitchat, que qualquer
+pessoa por perto usa, só leva a posição se o rádio já a divulga nos anúncios (ajuste de
+localização do aplicativo MeshCore); senão, vai sem ela. Sem texto, vai `pedido de socorro`. Vale
+com o prefixo ligado e está limitado a um a cada cinco minutos. **A posição, quando vai, chega a
+todos os que têm o canal.** Não substitui serviço de emergência: o LoRa não confirma a entrega, e
+não se sabe se alguém está ouvindo.
 
 f) **Teste de alcance.** `!ponte teste` envia `nome: #ponte-teste 1234`. Cada ponte MeshCore que
 ouvir responde uma vez com o sinal com que ouviu (`#ponte-teste 1234 ouvido -4.5 dB`; `? dB`
@@ -275,7 +282,8 @@ aplicativo, nem um telefone), a ponte liga o GPS por até dez minutos; o própri
 relógio com o GPS. Quando a hora fica certa, ou ao fim dos dez minutos, o GPS volta a ficar
 desligado. Sem hora, tenta de novo a cada seis horas. O GPS **não** é ligado quando o rádio está
 configurado para incluir a posição nos anúncios, para que a posição do GPS não substitua a que o
-operador escolheu divulgar. A posição obtida fica guardada como a do rádio e é a que o socorro usa.
+operador escolheu divulgar. Ao desligar o GPS, a ponte devolve ao rádio a posição que ele tinha
+antes: a posição do GPS não fica guardada.
 
 ## Histórico para quem chega depois
 
@@ -398,7 +406,8 @@ encontra o rádio.
 
 c) **Serviço do Bitchat sem pareamento.** Qualquer telefone próximo pode conectar e trocar
 pacotes do Bitchat, que são públicos e assinados. O serviço do MeshCore continua exigindo
-pareamento, e as notificações dele só vão a conexões cifradas.
+pareamento, e as notificações dele devem ir só a conexões cifradas. **Isso não foi verificado em
+aparelho**; o [roteiro de ensaio](TESTING.md) inclui a conferência.
 
 d) **Memória.** A ponte reserva seus blocos ao ligar e os devolve ao desligar; se faltar memória,
 ela se desliga e informa `Low memory: bridge OFF`. O consumo real não foi medido.
