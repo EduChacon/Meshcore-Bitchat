@@ -189,6 +189,7 @@ static void identitiesAndText()
               request.portuguese);
         CHECK(parseBridgeCommand(utf8("!bridge note off the hook"), request) && request.command == Command::Note);
         CHECK(!parseBridgeCommand(utf8("!bridge notes"), request) && request.command == Command::None);
+        CHECK(parseBridgeCommand(utf8("!bridge note\t"), request) && request.command == Command::Note && !request.argument.size);
         CHECK(parseBridgeCommand(utf8("!ponte sos caí na trilha"), request) && request.command == Command::Sos &&
               request.portuguese && request.argument.size > 5);
         CHECK(parseBridgeCommand(utf8("!bridge socorro"), request) && request.command == Command::Sos && request.portuguese);
@@ -206,7 +207,7 @@ static void identitiesAndText()
         CHECK(!parseBridgeCommand(utf8(longNote.c_str()), request));
         // The text kept for a note or an SOS: no control characters, cut on a character boundary.
         char kept[16];
-        CHECK(cleanText(utf8("linha\nnova "), kept, sizeof(kept), 15) == 9 && std::string(kept) == "linhanova");
+        CHECK(cleanText(utf8("linha\nnova\t\tde novo "), kept, sizeof(kept), 15) == 15 && std::string(kept) == "linha nova de n");
         CHECK(cleanText(utf8("ab\xc3\xa7\xc3\xa3o"), kept, sizeof(kept), 4) == 4 && std::string(kept) == "ab\xc3\xa7");
         CHECK(cleanText(utf8("ab\xc3\xa7\xc3\xa3o"), kept, sizeof(kept), 3) == 2);
         CHECK(cleanText(utf8("bad \xc3"), kept, sizeof(kept), 15) == 0 && kept[0] == 0);

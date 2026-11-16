@@ -241,7 +241,8 @@ de quem o deixou (o nome do rádio, se veio do aplicativo MeshCore; o apelido, s
 Cada telefone Bitchat que chega e se anuncia diretamente ao rádio recebe o recado uma vez a cada
 12 horas, só ele, numa mensagem que os outros telefones não repassam. O recado fica gravado e
 sobrevive ao reinício; um recado novo vai de novo a todos. No Bitchat, o recado pode ser trocado
-no máximo uma vez por minuto. **Qualquer pessoa perto do rádio, com o Bitchat, pode trocar ou
+no máximo uma vez a cada dez minutos, porque cada troca é gravada na memória do rádio.
+**Qualquer pessoa perto do rádio, com o Bitchat, pode trocar ou
 apagar o recado.**
 
 c) **Rádios ao alcance.** `!ponte radios` lista os contatos MeshCore ouvidos nas últimas 24 horas,
@@ -261,10 +262,13 @@ cinco minutos. **A posição vai para todos os que têm o canal.** Não substitu
 emergência: o LoRa não confirma a entrega, e não se sabe se alguém está ouvindo.
 
 f) **Teste de alcance.** `!ponte teste` envia `nome: #ponte-teste 1234`. Cada ponte MeshCore que
-ouvir responde uma vez com o sinal com que ouviu (`#ponte-teste 1234 ouvido -4.5 dB`), e quem
+ouvir responde uma vez com o sinal com que ouviu (`#ponte-teste 1234 ouvido -4.5 dB`; `? dB`
+quando a mensagem chegou por um repetidor, porque o sinal medido é o do repetidor), e quem
 pediu recebe, em até dois minutos, `Teste 1234: Casa Ana ouviu com -4,5 dB; a volta chegou com
 -6,0 dB.`, ou o aviso de que ninguém respondeu. As linhas do teste não vão aos telefones como
 texto comum, mas aparecem no aplicativo MeshCore de quem tem o canal. Um teste por vez.
+Um `!ponte sos` ou `!ponte recado` digitado em **outro** rádio chega aos telefones como texto comum
+dessa pessoa; só o rádio da ponte obedece aos comandos digitados nele.
 
 g) **Hora pelo GPS.** Em rádio com GPS desligado, se em 30 segundos nada tiver dado a hora (nem o
 aplicativo, nem um telefone), a ponte liga o GPS por até dez minutos; o próprio MeshCore acerta o

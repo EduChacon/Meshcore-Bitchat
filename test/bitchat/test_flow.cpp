@@ -1061,8 +1061,10 @@ int main()
             gal.write(gal.say("!bridge note off"));
             run(600);
             CHECK((chat(gal.handle, &bridgeId) ==
-                   std::vector<std::string>{"[bridge] The note changed a moment ago; try again in 1 min."}));
-            run(60000);
+                   std::vector<std::string>{"[bridge] The note changed a moment ago; it can change again in 10 min."}));
+            run(600000);
+            gal.write(gal.announce());
+            run(600);
             fakeSent.clear();
             gal.write(gal.say("!bridge note off"));
             run(600);
@@ -1178,6 +1180,40 @@ int main()
                 CHECK(report.size() == 2 && report[1] == "[bridge] Test " + probe + ": no other bridge answered within 2 min.");
             }
             mesh.radio.clear();
+            // A long name is shortened so the whole result fits one Bitchat message.
+            run(5000);
+            fakeSent.clear();
+            gal.write(gal.say("!bridge test"));
+            run(2000);
+            {
+                const std::string probe = mesh.radio.at(0).text.substr(mesh.radio[0].text.size() - 4);
+                fromLoRa("Ponte Comunitaria do Bairro 12: #ponte-teste " + probe + " ouvido -12.5 dB", 1, -125);
+                run(600);
+                const auto report = chat(gal.handle, &bridgeId);
+                CHECK(report.size() == 2 && report[1].size() <= BITCHAT_TEXT_LIMIT &&
+                      report[1] == "[bridge] Test " + probe +
+                                       ": Ponte Comunitaria do heard it at -12.5 dB; the answer came at -12.5 dB.");
+                run(121000);
+            }
+            mesh.radio.clear();
+            // A help request typed on another radio is that person's text, and reaches Bitchat.
+            fakeSent.clear();
+            fromLoRa("Sul: !ponte sos preciso de ajuda");
+            run(600);
+            CHECK(chat(gal.handle, &bridgeId) == std::vector<std::string>{"[MC Sul] !ponte sos preciso de ajuda"});
+            CHECK(mesh.radio.empty());
+            // Where the request cannot go out, the refusal waits like any answer: a burst gets one reply.
+            CHECK(fromApp("!bridge local"));
+            run(300);
+            run(6000);
+            fakeSent.clear();
+            for (int i = 0; i < 5; ++i)
+                gal.write(gal.say("!bridge sos " + std::to_string(i)));
+            run(1000);
+            CHECK(chat(gal.handle, &bridgeId) == std::vector<std::string>{"[bridge] SOS not sent: this bridge is not on LoRa."});
+            CHECK(fromApp("!bridge lora"));
+            run(31000);
+            mesh.app.clear();
 
             // Low battery is told to the phones once, and again only after a charge.
             fakeSent.clear();

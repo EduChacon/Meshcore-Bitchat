@@ -561,9 +561,11 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   {
     uint8_t pkt_hash[MAX_HASH_SIZE];
     pkt->calculatePacketHash(pkt_hash);
+    // the signal is of the last hop: for a relayed packet it says nothing about the sender
     const float snr = pkt->getSNR();
-    bitchat_bridge.onChannelText(findChannelIdx(channel), pkt_hash, text,
-                                 (int16_t)(snr * 10.0f + (snr < 0 ? -0.5f : 0.5f)));
+    const int16_t snr_tenths = pkt->getPathHashCount() > 0 ? bitchat::SNR_UNKNOWN
+                                                            : (int16_t)(snr * 10.0f + (snr < 0 ? -0.5f : 0.5f));
+    bitchat_bridge.onChannelText(findChannelIdx(channel), pkt_hash, text, snr_tenths);
   }
 #endif
   int i = 0;
