@@ -200,6 +200,9 @@ static void identitiesAndText()
         CHECK(bridgeCommand(utf8("!bridge radios")) == Command::Radios && bridgeCommand(utf8("!ponte teste")) == Command::Test &&
               bridgeCommand(utf8("!bridge test")) == Command::Test && bridgeCommand(utf8("!bridge prefix on")) == Command::PrefixOn &&
               bridgeCommand(utf8("!Ponte Prefix Off")) == Command::PrefixOff && bridgeCommand(utf8("!bridge prefix")) == Command::None);
+        CHECK(bridgeCommand(utf8("!bridge position on")) == Command::PositionOn &&
+              bridgeCommand(utf8("!Ponte Posi\xc3\xa7\xc3\xa3o off")) == Command::PositionOff &&
+              bridgeCommand(utf8("!ponte posicao on")) == Command::PositionOn && bridgeCommand(utf8("!bridge position")) == Command::None);
         CHECK(parseBridgeCommand(utf8("!bridge guide"), request) && !request.portuguese &&
               parseBridgeCommand(utf8("!ponte guide"), request) && !request.portuguese &&
               parseBridgeCommand(utf8("!bridge guia"), request) && request.portuguese);

@@ -90,6 +90,9 @@ void BitchatBridge::begin(MeshHost &meshHost)
     stored = 0;
     if (storageReady && storage.isKey("prefix") && storage.getBytesLength("prefix") == 1 && storage.getBytes("prefix", &stored, 1) == 1)
         prefixOnly = stored != 0;
+    stored = 0;
+    if (storageReady && storage.isKey("sospos") && storage.getBytesLength("sospos") == 1 && storage.getBytes("sospos", &stored, 1) == 1)
+        sosPosition = stored != 0;
     if (storageReady && storage.isKey("note") && storage.getBytesLength("note") == sizeof(note) &&
         storage.getBytes("note", &note, sizeof(note)) == sizeof(note)) {
         note.author[sizeof(note.author) - 1] = 0;
@@ -372,6 +375,15 @@ bool BitchatBridge::setPrefixed(bool value)
     return true;
 }
 
+bool BitchatBridge::setSosPosition(bool value)
+{
+    const uint8_t stored = value;
+    if (!storageReady || storage.putBytes("sospos", &stored, 1) != 1)
+        return false;
+    sosPosition = value;
+    return true;
+}
+
 bool BitchatBridge::nextMode()
 {
     if (!settings.enabled) {
@@ -562,8 +574,9 @@ void BitchatBridge::answerApp()
                    "Portuguese: !ponte guia, !ponte quem.");
         replyToApp("Here or in Bitchat: !bridge note <text> (a note for each phone that arrives; note off clears it), "
                    "battery, sos <text>, test.");
-        replyToApp("Only here: !bridge radios (who was heard), prefix on, prefix off (only !lora text to LoRa). "
-                   "Portuguese: !ponte recado, bateria, radios, sos, teste.");
+        replyToApp("Only here: !bridge radios (who was heard), prefix on/off (only !lora text to LoRa), position on/off "
+                   "(SOS from Bitchat with position).");
+        replyToApp("In Portuguese: !ponte recado, bateria, radios, sos, teste, posicao on.");
         return;
     }
     if (command == Command::Guide || command == Command::GuidePt) {
@@ -583,6 +596,18 @@ void BitchatBridge::answerApp()
         else
             replyToApp(value ? "Prefix on: only #mesh text starting with !lora goes to LoRa; the rest stays in Bitchat."
                              : "Prefix off: all public #mesh text goes to LoRa.");
+        return;
+    }
+    if (command == Command::PositionOn || command == Command::PositionOff) {
+        const bool value = command == Command::PositionOn;
+        if (!setSosPosition(value))
+            replyToApp(portuguese ? "Não mudou: erro de memória" : "Not changed: Storage error");
+        else if (portuguese)
+            replyToApp(value ? "Posição ligada: um SOS pedido pelo Bitchat leva a posição do rádio a todos no canal."
+                             : "Posição desligada: um SOS pedido pelo Bitchat só leva a posição se o rádio a divulga.");
+        else
+            replyToApp(value ? "Position on: an SOS asked from Bitchat carries the radio's position to everyone on the channel."
+                             : "Position off: an SOS asked from Bitchat carries the position only if the radio shares it.");
         return;
     }
     if (command == Command::Note || command == Command::NoteOff) {
@@ -1014,7 +1039,7 @@ size_t BitchatBridge::sos(const BridgeRequest &request, const char *who, bool fr
         snprintf(said, sizeof(said), "%s", portuguese ? "pedido de socorro" : "help needed");
     int32_t latitude = 0, longitude = 0;
     // From Bitchat anyone nearby can ask, so the position goes only where the operator shares it anyway.
-    const bool allowed = fromApp || host->positionShared();
+    const bool allowed = fromApp || sosPosition || host->positionShared();
     const bool located = allowed && host->position(latitude, longitude) && (latitude || longitude);
     if (located) {
         char lat[16], lon[16];

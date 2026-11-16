@@ -174,7 +174,10 @@ bool parseBridgeCommand(Bytes text, BridgeRequest &out)
                    {"prefix on", Command::PrefixOn, false},  {"prefix off", Command::PrefixOff, false},
                    {"battery", Command::Battery, false},     {"bateria", Command::Battery, true},
                    {"radios", Command::Radios, false},       {"test", Command::Test, false},
-                   {"teste", Command::Test, true}};
+                   {"teste", Command::Test, true},           {"position on", Command::PositionOn, false},
+                   {"position off", Command::PositionOff, false}, {"posicao on", Command::PositionOn, true},
+                   {"posicao off", Command::PositionOff, true}, {"posi\xc3\xa7\xc3\xa3o on", Command::PositionOn, true},
+                   {"posi\xc3\xa7\xc3\xa3o off", Command::PositionOff, true}};
     for (const auto &choice : choices)
         if (!std::strcmp(word, choice.word)) {
             out.command = choice.command;

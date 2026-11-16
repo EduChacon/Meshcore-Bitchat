@@ -102,6 +102,9 @@ class BitchatBridge
     // Only #mesh text that starts with "!lora " goes to LoRa.
     bool prefixed() const { return prefixOnly; }
     bool setPrefixed(bool value);
+    // A help request asked from Bitchat carries the radio's position, as on a trail; off unless asked for.
+    bool sosPositioned() const { return sosPosition; }
+    bool setSosPosition(bool value);
     // A new Bitchat identity, for when the node's own identity changes: the old one would link them.
     void renewIdentity();
     const char *modeName() const;
@@ -151,6 +154,8 @@ class BitchatBridge
     uint32_t phoneAt = 0;
     // The operator's choice, off unless asked for: phone text goes to LoRa only when it starts with "!lora ".
     bool prefixOnly = false;
+    // The operator's choice, off unless asked for: an SOS from Bitchat carries the position. Own stored entry.
+    bool sosPosition = false;
     // The house note, given once every 12 hours to each phone that arrives. Kept in its own stored entry.
     struct Note {
         uint8_t portuguese = 0;

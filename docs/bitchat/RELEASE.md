@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.12
+# MeshCore + Bitchat v1.18.0-bitchat0.13
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -13,13 +13,21 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
   pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
   `bitchat0.11` e as correções da `bitchat0.12`. Passou nos testes em computador e compila.
-- **Testes em computador desta versão:** 942 verificações do núcleo e 1067 do fluxo completo, com
+- **Testes em computador desta versão:** 943 verificações do núcleo e 1075 do fluxo completo, com
   telefones e rádio simulados; compilados no computador o Heltec V3 (com e sem ponte), o T1000-E,
   o Heltec Wireless Tracker e o Cardputer ADV.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.12`
+## O que há de novo na `bitchat0.13`
+
+- **`!bridge position on`** (ou `!ponte posição on`), só no aplicativo do rádio: o socorro pedido
+  pelo Bitchat passa a levar a posição do rádio, sem que ele a divulgue nos anúncios. Pensado para
+  trilha e grupo em movimento. `!bridge position off` desliga; vem desligado. A escolha fica
+  gravada, também no T1000-E, cujo arquivo de opções é convertido sem perder as anteriores.
+- `!bridge help` passa a ter seis mensagens.
+
+## O que veio na `bitchat0.12`
 
 Correções de segurança e de privacidade, a partir de uma revisão do código. Nada muda no uso
 normal pelo aplicativo do próprio rádio.

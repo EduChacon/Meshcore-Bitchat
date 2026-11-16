@@ -19,7 +19,8 @@ Funções da `bitchat0.11` e seguintes que expõem dados, e os limites postos a 
 `bitchat0.12`, depois de uma revisão de segurança:
 
 - **Socorro (`!ponte sos`):** a posição vai a todos os que têm o canal. Pedido pelo Bitchat, só vai
-  se o rádio já divulga a posição nos anúncios; digitado no aplicativo do rádio, vai sempre.
+  se o rádio já divulga a posição nos anúncios ou se o dono ligou `!bridge position on` (trilha);
+  digitado no aplicativo do rádio, vai sempre.
 - **Rádios (`!ponte radios`):** a lista mostra com quem o rádio teve atividade, inclusive
   mensagens privadas. Por isso só responde no aplicativo do próprio rádio.
 - **Recado:** lido por qualquer telefone Bitchat que chega perto do rádio; só um telefone ligado

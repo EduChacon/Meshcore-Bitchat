@@ -552,8 +552,9 @@ uint32_t clockWrittenAt = 0;
 
 // Options in their own file, so the first file keeps the layout of earlier versions and the identity it holds.
 constexpr char OPTIONS_PATH[] = "/bitchat_options";
-constexpr uint32_t OPTIONS_MAGIC = 0x32504342;
-constexpr const char *OPTION_KEYS[] = {"link", "saver", "prefix", "note"};
+constexpr uint32_t OPTIONS_MAGIC = 0x33504342;
+// The note is last; the one-byte options come before it.
+constexpr const char *OPTION_KEYS[] = {"link", "saver", "prefix", "sospos", "note"};
 constexpr size_t OPTION_COUNT = sizeof(OPTION_KEYS) / sizeof(OPTION_KEYS[0]);
 struct Options {
     uint32_t magic = OPTIONS_MAGIC;
@@ -562,6 +563,15 @@ struct Options {
     uint8_t note[80] = {};
     uint8_t check = 0;
 } options;
+// The layout written by bitchat0.11 and 0.12, read once and carried over.
+constexpr uint32_t LEGACY_OPTIONS_MAGIC = 0x32504342;
+struct LegacyOptions {
+    uint32_t magic = LEGACY_OPTIONS_MAGIC;
+    uint8_t sizes[4] = {};
+    uint8_t small[3] = {};
+    uint8_t note[80] = {};
+    uint8_t check = 0;
+};
 
 template <typename Image> uint8_t checksum(const Image &image)
 {
@@ -634,6 +644,21 @@ bool Preferences::begin(const char *, bool)
     // A missing or damaged first file starts the bridge from its defaults, with a new identity.
     readImage(STORE_PATH, store, STORE_MAGIC);
     readImage(OPTIONS_PATH, options, OPTIONS_MAGIC);
+    if (options.magic == OPTIONS_MAGIC && !std::any_of(std::begin(options.sizes), std::end(options.sizes), [](uint8_t n) { return n; })) {
+        LegacyOptions legacy;
+        legacy.magic = 0;
+        readImage(OPTIONS_PATH, legacy, LEGACY_OPTIONS_MAGIC);
+        if (legacy.magic == LEGACY_OPTIONS_MAGIC) {
+            // link, saver and prefix keep their places; the note moves after the new option
+            for (size_t i = 0; i < 3; ++i) {
+                options.sizes[i] = legacy.sizes[i];
+                options.small[i] = legacy.small[i];
+            }
+            options.sizes[OPTION_COUNT - 1] = legacy.sizes[3];
+            memcpy(options.note, legacy.note, sizeof(options.note));
+            writeImage(OPTIONS_PATH, options);
+        }
+    }
     storeLoaded = true;
     return true;
 }

@@ -186,31 +186,32 @@ Bluetooth. Para que quem está fora do grupo não leia o LoRa, use um canal com 
 Digitados no aplicativo MeshCore, em qualquer canal do rádio que tem a ponte. São respondidos só
 nesse aplicativo e **não são transmitidos**.
 
-| Comando                 | Efeito                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------ |
-| `!bridge`               | Mostra o estado, os contadores e uma linha por conexão Bluetooth               |
-| `!bridge on`            | Liga a ponte                                                                   |
-| `!bridge off`           | Desliga a ponte; o rádio segue como MeshCore comum                             |
-| `!bridge local`         | Só Bluetooth: os telefones Bitchat se falam pelo rádio, nada vai ao LoRa       |
-| `!bridge lora`          | Passa a usar o canal em que o comando foi digitado (o canal `Public` não vale) |
-| `!bridge link on`       | Liga a passagem de texto vindo de pontes Meshtastic (padrão)                   |
-| `!bridge link off`      | Desliga essa passagem; o texto delas fica só no Bitchat                        |
-| `!bridge economy on`    | Liga o modo econômico (ver abaixo)                                             |
-| `!bridge economy off`   | Desliga o modo econômico (padrão)                                              |
-| `!bridge reset`         | Derruba as conexões Bluetooth para os telefones lerem os serviços de novo      |
-| `!bridge who`           | Lista os nomes ouvidos no canal LoRa nas últimas seis horas, em inglês         |
-| `!ponte quem`           | A mesma lista, em português                                                    |
-| `!bridge guide`         | Explica a ponte em quatro mensagens curtas, em inglês                          |
-| `!ponte guia`           | O mesmo guia, em português                                                     |
-| `!bridge prefix on`     | Só o texto do `#mesh` iniciado por `!lora` vai ao LoRa (ver abaixo)            |
-| `!bridge prefix off`    | Todo o texto público do `#mesh` vai ao LoRa (padrão)                           |
-| `!ponte recado <texto>` | Deixa o recado da casa (ver abaixo); sem texto, mostra o recado atual          |
-| `!ponte recado apagar`  | Apaga o recado (`!bridge note off` em inglês)                                  |
-| `!ponte bateria`        | Tensão e carga aproximada da bateria do rádio                                  |
-| `!ponte radios`         | Rádios ouvidos no LoRa nas últimas 24 horas, do mais recente ao mais antigo    |
-| `!ponte sos <texto>`    | Pedido de socorro ao LoRa, com a posição do rádio, se ele a tiver              |
-| `!ponte teste`          | Teste de alcance com as outras pontes (ver abaixo)                             |
-| `!bridge help`          | Lista os comandos                                                              |
+| Comando                 | Efeito                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| `!bridge`               | Mostra o estado, os contadores e uma linha por conexão Bluetooth                     |
+| `!bridge on`            | Liga a ponte                                                                         |
+| `!bridge off`           | Desliga a ponte; o rádio segue como MeshCore comum                                   |
+| `!bridge local`         | Só Bluetooth: os telefones Bitchat se falam pelo rádio, nada vai ao LoRa             |
+| `!bridge lora`          | Passa a usar o canal em que o comando foi digitado (o canal `Public` não vale)       |
+| `!bridge link on`       | Liga a passagem de texto vindo de pontes Meshtastic (padrão)                         |
+| `!bridge link off`      | Desliga essa passagem; o texto delas fica só no Bitchat                              |
+| `!bridge economy on`    | Liga o modo econômico (ver abaixo)                                                   |
+| `!bridge economy off`   | Desliga o modo econômico (padrão)                                                    |
+| `!bridge reset`         | Derruba as conexões Bluetooth para os telefones lerem os serviços de novo            |
+| `!bridge who`           | Lista os nomes ouvidos no canal LoRa nas últimas seis horas, em inglês               |
+| `!ponte quem`           | A mesma lista, em português                                                          |
+| `!bridge guide`         | Explica a ponte em quatro mensagens curtas, em inglês                                |
+| `!ponte guia`           | O mesmo guia, em português                                                           |
+| `!bridge prefix on`     | Só o texto do `#mesh` iniciado por `!lora` vai ao LoRa (ver abaixo)                  |
+| `!bridge prefix off`    | Todo o texto público do `#mesh` vai ao LoRa (padrão)                                 |
+| `!ponte recado <texto>` | Deixa o recado da casa (ver abaixo); sem texto, mostra o recado atual                |
+| `!ponte recado apagar`  | Apaga o recado (`!bridge note off` em inglês)                                        |
+| `!ponte bateria`        | Tensão e carga aproximada da bateria do rádio                                        |
+| `!ponte radios`         | Rádios ouvidos no LoRa nas últimas 24 horas, do mais recente ao mais antigo          |
+| `!ponte sos <texto>`    | Pedido de socorro ao LoRa, com a posição do rádio, se ele a tiver                    |
+| `!ponte teste`          | Teste de alcance com as outras pontes (ver abaixo)                                   |
+| `!bridge position on`   | Socorro pedido pelo Bitchat leva a posição do rádio (trilha); `off` desliga (padrão) |
+| `!bridge help`          | Lista os comandos                                                                    |
 
 `!ponte` vale no lugar de `!bridge`, e a resposta sai em português quando se usa `!ponte` ou a
 palavra em português (`recado`, `bateria`, `socorro`, `teste`). Em inglês: `note`, `battery`,
@@ -263,7 +264,9 @@ e) **Pedido de socorro.** `!ponte sos caí na trilha` envia ao LoRa `apelido: SO
 Digitado no aplicativo MeshCore do próprio rádio, leva a posição que o rádio tiver (definida no
 aplicativo ou dada pelo GPS), como `(-23.55052, -46.63331)`. Pedido pelo Bitchat, que qualquer
 pessoa por perto usa, só leva a posição se o rádio já a divulga nos anúncios (ajuste de
-localização do aplicativo MeshCore); senão, vai sem ela. Sem texto, vai `pedido de socorro`. Vale
+localização do aplicativo MeshCore) ou se o dono ligou `!bridge position on` (próprio para trilha:
+o socorro pelo Bitchat leva a posição sem que o rádio a divulgue nos anúncios; `!bridge position
+off` desliga, e é o padrão); senão, vai sem ela. Sem texto, vai `pedido de socorro`. Vale
 com o prefixo ligado e está limitado a um a cada cinco minutos. **A posição, quando vai, chega a
 todos os que têm o canal.** Não substitui serviço de emergência: o LoRa não confirma a entrega, e
 não se sabe se alguém está ouvindo.

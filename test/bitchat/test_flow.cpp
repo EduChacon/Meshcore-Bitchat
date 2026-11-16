@@ -777,9 +777,10 @@ int main()
     mesh.app.clear();
     CHECK(fromApp("!bridge help"));
     run(100);
-    CHECK(mesh.app.size() == 5 && mesh.app[1].text.find("economy on") != std::string::npos &&
+    CHECK(mesh.app.size() == 6 && mesh.app[1].text.find("economy on") != std::string::npos &&
           mesh.app[2].text.find("!ponte guia") != std::string::npos && mesh.app[3].text.find("sos <text>") != std::string::npos &&
-          mesh.app[4].text.find("prefix on") != std::string::npos && mesh.app[4].text.find("!ponte recado") != std::string::npos);
+          mesh.app[4].text.find("prefix on") != std::string::npos && mesh.app[4].text.find("position on") != std::string::npos &&
+          mesh.app[5].text.find("!ponte recado") != std::string::npos);
     for (const auto &line : mesh.app)
         CHECK(line.text.back() == '.' && line.text.size() <= LORA_TEXT_LIMIT);
     // The guide in the app attached to the radio ends with the commands, in either language.
@@ -1149,6 +1150,28 @@ int main()
             CHECK(texts(mesh.radio) == std::vector<std::string>{"gal: SOS: ca\xc3\xad na trilha (-23.55052, -46.63331)"});
             CHECK(contains(chat(gal.handle, &bridgeId), "[bridge] SOS enviado ao LoRa, com a posi\xc3\xa7\xc3\xa3o do r\xc3\xa1" "dio."));
             mesh.shared = false;
+            mesh.radio.clear();
+            // On a trail the operator lets an SOS from Bitchat carry the position, without sharing it in adverts.
+            mesh.app.clear();
+            CHECK(fromApp("!ponte posi\xc3\xa7\xc3\xa3o on"));
+            run(100);
+            CHECK(bridge->sosPositioned() && mesh.app.size() == 1 && mesh.app[0].text.rfind("bridge: Posi\xc3\xa7\xc3\xa3o ligada", 0) == 0);
+            // from Bitchat the setting is not changed, only the state is answered
+            run(5000);
+            gal.write(gal.say("!bridge position off"));
+            run(600);
+            CHECK(bridge->sosPositioned());
+            run(300000);
+            gal.write(gal.announce());
+            run(600);
+            gal.write(gal.say("!ponte sos na trilha"));
+            run(2000);
+            CHECK(texts(mesh.radio) == std::vector<std::string>{"gal: SOS: na trilha (-23.55052, -46.63331)"});
+            // the choice is stored, as the other options are
+            CHECK(Preferences::data.at("sospos") == std::vector<uint8_t>{1});
+            CHECK(fromApp("!bridge position off"));
+            run(100);
+            CHECK(!bridge->sosPositioned() && Preferences::data.at("sospos") == std::vector<uint8_t>{0});
             mesh.radio.clear();
             run(6000);
             fakeSent.clear();
