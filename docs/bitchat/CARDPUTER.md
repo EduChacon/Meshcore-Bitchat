@@ -52,6 +52,13 @@ versões de janeiro de 2026 (M5Unified 0.2.13, M5GFX 0.2.19), e a tela pede só 
 Na lista de contatos ou de canais, subir com a seta para cima até passar do primeiro item: o ícone
 de ajustes, no canto superior esquerdo, fica destacado. Enter abre. Opt, ou Fn + Esc, volta.
 
+## Rádio no Brasil
+
+Nos ajustes de rádio, a predefinição **Brasil** (a partir da `bitchat0.14`) ou a **Australia: SA, WA**
+dão a convenção MeshCore Brasil: 923,125 MHz, SF 8, 62,5 kHz, CR 4/8. A **Australia: QLD** tem a mesma
+frequência com CR 4/5 e não conversa com a rede brasileira. O Cap LoRa-1262 é feito para 868 MHz;
+em 923 MHz o alcance tende a ser menor.
+
 ## Correções na `bitchat0.4`
 
 a) **`Backspace` não apagava.** A biblioteca do Cardputer mudou em maio de 2026 (versão 1.2.0): a

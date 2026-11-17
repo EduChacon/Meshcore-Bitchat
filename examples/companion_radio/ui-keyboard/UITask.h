@@ -42,6 +42,8 @@ struct RadioPreset {
 
 // Radio presets list
 static const RadioPreset RADIO_PRESETS[] = {
+    // the MeshCore Brasil convention (the same values as Australia: SA, WA)
+    {"Brasil", 923.125f, 8, 62.5f, 8},
     {"New Zealand", 917.375f, 11, 250.0f, 5},
     {"New Zealand (Nrrw)", 917.375f, 7, 62.5f, 5},
     {"Portugal 868", 869.618f, 7, 62.5f, 6},
@@ -57,7 +59,7 @@ static const RadioPreset RADIO_PRESETS[] = {
     {"EU / UK (Med Rng)", 869.525f, 10, 250.0f, 5},
     {"Czech Rep (Narrow)", 869.432f, 7, 62.5f, 5}
 };
-#define NUM_RADIO_PRESETS 14
+#define NUM_RADIO_PRESETS int(sizeof(RADIO_PRESETS) / sizeof(RADIO_PRESETS[0]))
 
 // Message structure for chat history
 struct ChatMessage {

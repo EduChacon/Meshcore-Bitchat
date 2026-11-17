@@ -27,6 +27,9 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   versões de janeiro de 2026 (M5Unified 0.2.13, M5GFX 0.2.19), as mesmas da época do projeto
   MeshCore-Cardputer-ADV de onde vem a interface, e a tela pede só o giro que falta, qualquer que
   seja a versão. **Quem gravou a `bitchat0.11` a `0.13` no Cardputer ADV deve trocar por esta.**
+- **Cardputer ADV: predefinição "Brasil"** no topo da lista de rádio (923,125 MHz, SF 8, 62,5 kHz,
+  CR 4/8), a convenção MeshCore Brasil; é a mesma "Australia: SA, WA". Cuidado com a "Australia: QLD",
+  que tem CR 4/5.
 - As tabelas da ponte podem ser reduzidas por aparelho (`BITCHAT_DEDUP_ENTRIES`,
   `BITCHAT_PEER_ENTRIES`); nos aparelhos desta página, nada muda.
 
