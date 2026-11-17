@@ -2479,6 +2479,40 @@ bool MyMesh::advert() {
   }
 }
 
+#ifdef HEADLESS_UI
+bool MyMesh::uiAdvert(bool flood) {
+  mesh::Packet* pkt;
+  if (_prefs.advert_loc_policy == ADVERT_LOC_NONE) {
+    pkt = createSelfAdvert(_prefs.node_name);
+  } else {
+    pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon);
+  }
+  if (!pkt) return false;
+  if (flood) {   // as CMD_SEND_SELF_ADVERT with the flood option
+    TransportKey default_scope;
+    memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+    sendFloodScoped(default_scope, pkt, 0);
+  } else {
+    sendZeroHop(pkt);
+  }
+  return true;
+}
+
+bool MyMesh::uiDiscoverRepeaters(uint32_t &tag) {
+  // the request the repeaters answer (see simple_repeater): type, node-type filter, tag, since
+  uint8_t data[10];
+  data[0] = CTL_TYPE_NODE_DISCOVER_REQ;   // full keys, not only prefixes
+  data[1] = (1 << ADV_TYPE_REPEATER);
+  getRNG()->random(&data[2], 4);
+  memcpy(&tag, &data[2], 4);
+  memset(&data[6], 0, 4);
+  mesh::Packet* pkt = createControlData(data, sizeof(data));
+  if (!pkt) return false;
+  sendZeroHop(pkt);
+  return true;
+}
+#endif
+
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
   return _mgr->getOutboundTotal() > 0 || dirty_contacts_expiry != 0;

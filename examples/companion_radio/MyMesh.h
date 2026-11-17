@@ -227,6 +227,8 @@ public:
   void uiSaveContacts() { saveContacts(); }
   void uiSaveChannels() { saveChannels(); }
   void uiFactoryReset() { _store->formatFileSystem(); }
+  bool uiAdvert(bool flood);                 // this radio's advert: to the radios in range, or the whole mesh
+  bool uiDiscoverRepeaters(uint32_t &tag);   // asks the repeaters in range to answer with their key
 #endif
 
 #ifdef WITH_BITCHAT_BRIDGE

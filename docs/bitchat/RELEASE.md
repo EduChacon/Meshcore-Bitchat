@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.15
+# MeshCore + Bitchat v1.18.0-bitchat0.16
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -22,7 +22,26 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.15`
+## O que há de novo na `bitchat0.16`
+
+Só o Cardputer ADV muda; nos demais aparelhos, esta versão é igual à `bitchat0.14`.
+
+- **Contatos e conversas particulares.** A lista de contatos lia a tabela como no MeshCore 1.11 e,
+  no 1.18, mostrava as oito posições reservadas (vazias) no lugar dos contatos; não havia como abrir
+  uma conversa particular. Corrigido; a lista põe os favoritos primeiro e, depois, os ouvidos mais
+  recentemente, com o tipo e há quanto tempo cada um foi ouvido. Mensagem não lida fica marcada, e a
+  mensagem enviada mostra se o destinatário confirmou.
+- **Aba Mesh**: anúncio aos rádios ao alcance ou a toda a rede, busca de repetidores ao alcance (com
+  o sinal de cada um) e a lista dos rádios ouvidos.
+- **Canais**: entrar num canal "hashtag" pelo nome, com a mesma chave do aplicativo MeshCore; sair
+  de um canal pede confirmação.
+- **PIN do Bluetooth** sempre no cabeçalho, com a bateria e o estado da conexão com o aplicativo.
+- Bluetooth a +9 dBm no Cardputer ADV, para a conexão com o celular cair menos (não medido).
+- Mensagens de até 160 caracteres guardadas inteiras na tela (antes, cortadas em 127).
+- Compilado no computador o Cardputer ADV, com e sem ponte, e o Heltec V3 (sem mudança de memória).
+  **Não foi ligado em aparelho.**
+
+## O que veio na `bitchat0.15`
 
 Só o Cardputer ADV muda; nos demais aparelhos, esta versão é igual à `bitchat0.14`.
 

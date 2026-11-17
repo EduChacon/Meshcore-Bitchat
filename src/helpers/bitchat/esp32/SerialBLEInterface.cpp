@@ -44,6 +44,11 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   }
   bitchat::platformBluetooth.startupFailed = false;
   NimBLEDevice::setMTU(517);
+#ifdef BITCHAT_BLE_POWER_MAX
+  // boards with a small antenna (the Cardputer ADV) keep the phone link better at +9 dBm, the most
+  // the ESP32-S3 allows, than at the default
+  NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+#endif
 
   // Same pairing as the stock interface: bonded, with the PIN typed on the phone.
   NimBLEDevice::setSecurityAuth(true, true, true);

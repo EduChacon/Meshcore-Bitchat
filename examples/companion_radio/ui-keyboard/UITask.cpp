@@ -282,6 +282,12 @@ void UITask::loop() {
         }
     }
     
+    // The Mesh screen counts down the discovery and ages the radios heard: once a second
+    if ((_menu_state == MenuScreen::MESH || _join_mode) && (int32_t)(millis() - _next_refresh) >= 0) {
+        _next_refresh = millis() + (_join_mode ? 350 : 1000);
+        _need_refresh = true;
+    }
+
     // Refresh display only when needed
     if (_display && _display->isOn() && _need_refresh) {
         _need_refresh = false;
@@ -298,6 +304,10 @@ void UITask::loop() {
             case MenuScreen::CHANNELS:
                 renderChannelList();
                 break;
+
+            case MenuScreen::MESH:
+                renderMeshScreen();
+                break;
                 
             case MenuScreen::CHAT:
                 renderChatScreen();
@@ -308,10 +318,6 @@ void UITask::loop() {
                 break;
         }
         
-        // Don't show bottom bar in Settings (it has its own)
-        if (_menu_state != MenuScreen::SETTINGS) {
-            renderBottomBar();
-        }
         
         // Show notification popup if active
         if (_has_notification && millis() < _notification_expiry) {
@@ -336,283 +342,6 @@ void UITask::loop() {
     if (_has_notification && millis() >= _notification_expiry) {
         _has_notification = false;
         _need_refresh = true;
-    }
-}
-
-void UITask::renderContactList() {
-    // Clear screen background (reduces flicker vs clearing every frame)
-    _display->setColor(CardColor::DARK);
-    _display->fillRect(0, 0, 240, 135);
-    
-    // Header bar (0, 0, 240, 28)
-    _display->setColor(CardColor::LIGHT);
-    _display->drawRect(0, 0, 240, 28);
-    
-    // Settings icon box (left)
-    _display->drawRect(0, 0, 30, 28);
-    
-    // Draw hamburger menu icon (3 horizontal lines)
-    uint16_t main_color = COLORS[_main_color_idx].rgb565;
-    uint16_t secondary_color = COLORS[_secondary_color_idx].rgb565;
-    
-    if (_settings_selected) {
-        // Selected: fill background with main color
-        screen(_display).fillRect(0, 0, 30, 28, main_color);
-        // Draw 3 lines in secondary color
-        screen(_display).fillRect(6, 7, 18, 3, secondary_color);
-        screen(_display).fillRect(6, 13, 18, 3, secondary_color);
-        screen(_display).fillRect(6, 19, 18, 3, secondary_color);
-    } else {
-        // Normal: draw 3 lines in main color
-        screen(_display).fillRect(6, 7, 18, 3, main_color);
-        screen(_display).fillRect(6, 13, 18, 3, main_color);
-        screen(_display).fillRect(6, 19, 18, 3, main_color);
-    }
-    
-    // MeshCore title (center)
-    _display->setTextSize(2);
-    _display->setCursor(73, 7);
-    _display->print("MeshCore");
-    
-    // BLE PIN (right)
-    uint32_t ble_pin = the_mesh.getBLEPin();
-    if (ble_pin != 0 && ble_pin != 123456) {
-        _display->setTextSize(1);
-        char pin[16];
-        sprintf(pin, "%lu", ble_pin);
-        _display->setCursor(189, 11);
-        _display->print(pin);
-    }
-    
-    int num_contacts = the_mesh.getNumContacts();
-    
-    // Filter contacts by search term
-    int filtered_indices[MAX_CONTACTS];
-    int filtered_count = 0;
-    
-    if (_search_filter_length > 0) {
-        for (int i = 0; i < num_contacts; i++) {
-            ContactInfo contact;
-            if (the_mesh.getContactByIdx(i, contact)) {
-                // Case-insensitive search
-                char lower_name[32];
-                char lower_filter[32];
-                for (int j = 0; j < 32 && contact.name[j]; j++) {
-                    lower_name[j] = tolower(contact.name[j]);
-                    lower_name[j+1] = '\0';
-                }
-                for (int j = 0; j < 32 && _search_filter[j]; j++) {
-                    lower_filter[j] = tolower(_search_filter[j]);
-                    lower_filter[j+1] = '\0';
-                }
-                if (strstr(lower_name, lower_filter) != nullptr) {
-                    filtered_indices[filtered_count++] = i;
-                }
-            }
-        }
-        num_contacts = filtered_count;
-    } else {
-        // No filter - show all
-        for (int i = 0; i < num_contacts; i++) {
-            filtered_indices[i] = i;
-        }
-        filtered_count = num_contacts;
-    }
-    
-    if (num_contacts == 0) {
-        _display->setTextSize(2);
-        _display->setColor(CardColor::LIGHT);
-        const char* msg = "No contacts";
-        int msg_width = _display->getTextWidth(msg);
-        int msg_x = (240 - msg_width) / 2;
-        _display->setCursor(msg_x, 60);
-        _display->print(msg);
-    } else {
-        // Render 3 contact items (y: 27, 54, 81)
-        int y_positions[3] = {27, 54, 81};
-        
-        for (int i = 0; i < 3; i++) {
-            int contact_idx = _scroll_pos + i;
-            if (contact_idx >= num_contacts) break;
-            
-            int real_idx = filtered_indices[contact_idx];
-            ContactInfo contact;
-            if (the_mesh.getContactByIdx(real_idx, contact)) {
-                int y = y_positions[i];
-                
-                // Draw border
-                _display->setColor(CardColor::LIGHT);
-                _display->drawRect(0, y, 240, 28);
-                
-                // Fill white if selected (don't select if _selected_idx == -1, which means hamburger is selected)
-                if (contact_idx == _selected_idx && _selected_idx != -1) {
-                    _display->fillRect(0, y, 240, 28);
-                    _display->setColor(CardColor::DARK);  // Black text
-                    // Arrow indicator
-                    _display->setCursor(2, y + 7);
-                    _display->setTextSize(2);
-                    _display->print(">");
-                } else {
-                    _display->setColor(CardColor::LIGHT);  // White text
-                }
-                
-                _display->setTextSize(2);
-                _display->setCursor(16, y + 6);
-                
-                // Filter and truncate long names - max 18 chars to prevent wrapping
-                char filtered_name[32];
-                filterDisplayText(contact.name, filtered_name, sizeof(filtered_name));
-                char display_name[19];
-                strncpy(display_name, filtered_name, 18);
-                display_name[18] = '\0';
-                _display->print(display_name);
-            }
-        }
-    }
-}
-
-void UITask::renderChannelList() {
-    // Clear screen background (reduces flicker vs clearing every frame)
-    _display->setColor(CardColor::DARK);
-    _display->fillRect(0, 0, 240, 135);
-    
-    // Header bar (0, 0, 240, 28)
-    _display->setColor(CardColor::LIGHT);
-    _display->drawRect(0, 0, 240, 28);
-    
-    // Settings icon box (left)
-    _display->drawRect(0, 0, 30, 28);
-    
-    // Draw hamburger menu icon (3 horizontal lines)
-    uint16_t main_color = COLORS[_main_color_idx].rgb565;
-    uint16_t secondary_color = COLORS[_secondary_color_idx].rgb565;
-    
-    if (_settings_selected) {
-        // Selected: fill background with main color
-        screen(_display).fillRect(0, 0, 30, 28, main_color);
-        // Draw 3 lines in secondary color
-        screen(_display).fillRect(6, 7, 18, 3, secondary_color);
-        screen(_display).fillRect(6, 13, 18, 3, secondary_color);
-        screen(_display).fillRect(6, 19, 18, 3, secondary_color);
-    } else {
-        // Normal: draw 3 lines in main color
-        screen(_display).fillRect(6, 7, 18, 3, main_color);
-        screen(_display).fillRect(6, 13, 18, 3, main_color);
-        screen(_display).fillRect(6, 19, 18, 3, main_color);
-    }
-    _display->setTextSize(2);
-    _display->setCursor(73, 7);
-    _display->print("MeshCore");
-    
-    // BLE PIN (right)
-    uint32_t ble_pin = the_mesh.getBLEPin();
-    if (ble_pin != 0 && ble_pin != 123456) {
-        _display->setTextSize(1);
-        char pin[16];
-        sprintf(pin, "%lu", ble_pin);
-        _display->setCursor(189, 11);
-        _display->print(pin);
-    }
-    
-    // Count and collect channels
-    int num_channels = 0;
-    ChannelDetails channels[MAX_GROUP_CHANNELS];
-    int channel_mesh_idx[MAX_GROUP_CHANNELS]; // Track original mesh indices
-    
-    for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
-        if (the_mesh.getChannel(i, channels[num_channels]) && channels[num_channels].name[0] != '\0') {
-            channel_mesh_idx[num_channels] = i;
-            num_channels++;
-        }
-    }
-    
-    // Filter channels by search term
-    int filtered_indices[MAX_GROUP_CHANNELS];
-    int filtered_count = 0;
-    
-    if (_search_filter_length > 0) {
-        for (int i = 0; i < num_channels; i++) {
-            // Case-insensitive search
-            char lower_name[32];
-            char lower_filter[32];
-            for (int j = 0; j < 32 && channels[i].name[j]; j++) {
-                lower_name[j] = tolower(channels[i].name[j]);
-                lower_name[j+1] = '\0';
-            }
-            for (int j = 0; j < 32 && _search_filter[j]; j++) {
-                lower_filter[j] = tolower(_search_filter[j]);
-                lower_filter[j+1] = '\0';
-            }
-            if (strstr(lower_name, lower_filter) != nullptr) {
-                filtered_indices[filtered_count++] = i;
-            }
-        }
-        num_channels = filtered_count;
-    } else {
-        // No filter - show all
-        for (int i = 0; i < num_channels; i++) {
-            filtered_indices[i] = i;
-        }
-        filtered_count = num_channels;
-    }
-    
-    if (num_channels == 0) {
-        _display->setTextSize(2);
-        _display->setColor(CardColor::LIGHT);
-        const char* msg = "No channels";
-        int msg_width = _display->getTextWidth(msg);
-        int msg_x = (240 - msg_width) / 2;
-        _display->setCursor(msg_x, 60);
-        _display->print(msg);
-    } else {
-        // Render 3 channel items (y: 27, 54, 81)
-        int y_positions[3] = {27, 54, 81};
-        int visible_count = min(3, num_channels);
-        
-        for (int i = 0; i < visible_count; i++) {
-            int channel_idx = _scroll_pos + i;
-            if (channel_idx >= num_channels) break;
-            
-            int real_idx = filtered_indices[channel_idx];
-            ChannelDetails& channel = channels[real_idx];
-            int y = y_positions[i];
-            
-            // Draw border
-            _display->setColor(CardColor::LIGHT);
-            _display->drawRect(0, y, 240, 28);
-            
-            // Fill white if selected (don't select if _selected_idx == -1, which means hamburger is selected)
-            if (channel_idx == _selected_idx && _selected_idx != -1) {
-                _display->fillRect(0, y, 240, 28);
-                _display->setColor(CardColor::DARK);  // Black text
-                // Arrow indicator
-                _display->setCursor(2, y + 7);
-                _display->setTextSize(2);
-                //_display->print("#");
-            } else {
-                _display->setColor(CardColor::LIGHT);  // White text
-            }
-            
-            _display->setTextSize(2);
-            _display->setCursor(16, y + 6);
-            
-            // Filter and truncate long names - max 18 chars to prevent wrapping
-            char filtered_name[32];
-            filterDisplayText(channel.name, filtered_name, sizeof(filtered_name));
-            char display_name[19];
-            strncpy(display_name, filtered_name, 18);
-            display_name[18] = '\0';
-            _display->print(display_name);
-            
-            // Show unread indicator (dot) if channel has unread messages
-            // Use the original mesh index for this channel
-            int original_mesh_idx = channel_mesh_idx[real_idx];
-            if (_channel_has_unread[original_mesh_idx]) {
-                // Draw yellow dot indicator
-                _display->setColor(CardColor::YELLOW);
-                _display->fillRect(220, y + 11, 6, 6);
-            }
-        }
     }
 }
 
@@ -696,7 +425,7 @@ void UITask::renderChatScreen() {
                 ChatMessage& msg = _chat_history[hist_idx];
                 
                 // Calculate message height
-                char filtered_text[128];
+                char filtered_text[170];
                 filterDisplayText(msg.text, filtered_text, sizeof(filtered_text));
                 
                 // Extract sender name for channel messages
@@ -743,7 +472,7 @@ void UITask::renderChatScreen() {
                 ChatMessage& msg = _chat_history[messages_to_show[i]];
                 
                 // Filter emojis and non-ASCII characters for display
-                char filtered_text[128];
+                char filtered_text[170];
                 filterDisplayText(msg.text, filtered_text, sizeof(filtered_text));
             
                 // For INCOMING channel messages, extract sender name and message text
@@ -847,6 +576,24 @@ void UITask::renderChatScreen() {
                         _display->setCursor(text_x, text_y + (line * line_height));
                         _display->print(line_text);
                     }
+
+                    // Private message: delivered (tick), on its way (dot) or not sent (cross)
+                    if (!msg.is_channel && msg.delivery != 0) {
+                        lgfx::LovyanGFX& g = screen(_display);
+                        const int mx = bubble_x + bubble_width - 12;
+                        const int my = bubble_y + bubble_height - 6;
+                        if (msg.delivery == 2) {
+                            for (int t = 0; t < 2; t++) {
+                                g.drawLine(mx - 4, my - 3 + t, mx - 1, my + t, 0x0400);
+                                g.drawLine(mx - 1, my + t, mx + 5, my - 6 + t, 0x0400);
+                            }
+                        } else if (msg.delivery == 1) {
+                            g.fillRect(mx, my - 2, 3, 3, 0x8410);
+                        } else {
+                            g.drawLine(mx - 3, my - 6, mx + 3, my, 0xF800);
+                            g.drawLine(mx - 3, my, mx + 3, my - 6, 0xF800);
+                        }
+                    }
                 } else {
                     // === INCOMING - WHITE OUTLINE ROUNDED BUBBLE ===
                     _display->setColor(CardColor::LIGHT);
@@ -936,76 +683,6 @@ void UITask::renderChatScreen() {
         // Placeholder
         _display->setCursor(6, 112);
         _display->print("_");
-    }
-}
-
-void UITask::renderBottomBar() {
-    int bar_y = 108;
-    
-    // Only show tabs in list views (but not when searching)
-    if (_menu_state == MenuScreen::CHAT) {
-        // Show back hint
-        _display->setTextSize(1);
-        _display->setColor(CardColor::YELLOW);
-        _display->setCursor(4, bar_y + 4);
-        return;
-    }
-    
-    // When searching, show input bar instead of tabs
-    if (_search_filter_length > 0) {
-        _display->setColor(CardColor::LIGHT);
-        _display->drawRect(0, 107, 240, 28);
-        
-        _display->setTextSize(2);
-        _display->setCursor(4, 112);
-        
-        // Display search filter text
-        char filtered_text[32];
-        filterDisplayText(_search_filter, filtered_text, sizeof(filtered_text));
-        _display->print(filtered_text);
-        
-        // Cursor
-        int cursor_x = 4 + (_search_filter_length * 12);
-        if (cursor_x < 235) {
-            _display->fillRect(cursor_x, 112, 3, 14);
-        }
-        return;
-    }
-    
-    // Draw tab bar border (0, 108, 240, 27)
-    _display->setColor(CardColor::LIGHT);
-    _display->drawRect(0, bar_y, 240, 27);
-    
-    _display->setTextSize(2);
-    
-    // Contacts tab (left half: 0-120)
-    if (_menu_state == MenuScreen::CONTACTS) {
-        // Active - white fill, black text
-        _display->setColor(CardColor::LIGHT);
-        _display->fillRect(0, bar_y, 120, 27);
-        _display->setColor(CardColor::DARK);
-        _display->setCursor(13, bar_y + 7);
-        _display->print("Contacts");
-    } else {
-        // Inactive - white text only
-        _display->setColor(CardColor::LIGHT);
-        _display->setCursor(13, bar_y + 7);
-        _display->print("Contacts");
-    }
-    
-    // Channels tab (right half: 120-240)
-    if (_menu_state == MenuScreen::CHANNELS) {
-        // Active - white fill, black text
-        _display->setColor(CardColor::LIGHT);
-        _display->fillRect(120, bar_y, 120, 27);
-        _display->setColor(CardColor::DARK);
-        _display->setCursor(133, bar_y + 7);
-        _display->print("Channels");
-    } else {
-        // Inactive - white text only
-        _display->setColor(CardColor::LIGHT);
-        _display->setCursor(133, bar_y + 7);
-        _display->print("Channels");
     }
 }
 
@@ -2740,217 +2417,9 @@ void UITask::handleKeyPress(Keyboard_Class::KeysState& status) {
     }
     
     // In CONTACTS or CHANNELS menu - check for navigation first, then filter
-    if (_menu_state == MenuScreen::CONTACTS || _menu_state == MenuScreen::CHANNELS) {
-        // Check for FN+DEL combination first (delete contact/channel)
-        // FN modifier is in status.fn, DEL key (BACKSPACE) is in status.del
-        if (status.fn && status.del) {
-            // Only process deletion once per key press (not continuously on hold)
-            if (!_delete_processed) {
-                _delete_processed = true;
-                
-                if (_menu_state == MenuScreen::CONTACTS) {
-                // Get current selected contact (account for filtering)
-                int num_contacts = the_mesh.getNumContacts();
-                int contact_to_delete_idx = -1;
-                
-                // Build filtered list if search is active
-                if (_search_filter_length > 0) {
-                    int filtered_indices[MAX_CONTACTS];
-                    int filtered_count = 0;
-                    for (int i = 0; i < num_contacts; i++) {
-                        ContactInfo contact;
-                        if (the_mesh.getContactByIdx(i, contact)) {
-                            char lower_name[32];
-                            char lower_filter[32];
-                            for (int j = 0; j < 32 && contact.name[j]; j++) {
-                                lower_name[j] = tolower(contact.name[j]);
-                                lower_name[j+1] = '\0';
-                            }
-                            for (int j = 0; j < 32 && _search_filter[j]; j++) {
-                                lower_filter[j] = tolower(_search_filter[j]);
-                                lower_filter[j+1] = '\0';
-                            }
-                            if (strstr(lower_name, lower_filter) != nullptr) {
-                                filtered_indices[filtered_count++] = i;
-                            }
-                        }
-                    }
-                    if (filtered_count > 0 && _selected_idx < filtered_count) {
-                        contact_to_delete_idx = filtered_indices[_selected_idx];
-                    }
-                } else {
-                    // No filter - use direct index
-                    if (num_contacts > 0 && _selected_idx < num_contacts) {
-                        contact_to_delete_idx = _selected_idx;
-                    }
-                }
-                
-                // Delete contact immediately
-                if (contact_to_delete_idx >= 0) {
-                    ContactInfo contact_to_del;
-                    if (the_mesh.getContactByIdx(contact_to_delete_idx, contact_to_del)) {
-                        the_mesh.removeContact(contact_to_del);
-                        the_mesh.uiSaveContacts();
-                        
-                        // Show notification
-                        char notif_msg[64];
-                        snprintf(notif_msg, sizeof(notif_msg), "Deleted: %s", contact_to_del.name);
-                        strncpy(_notification_text, notif_msg, 127);
-                        _notification_text[127] = '\0';
-                        _notification_expiry = millis() + 1500;
-                        _has_notification = true;
-                        
-                        // Adjust selection
-                        num_contacts = the_mesh.getNumContacts();
-                        if (_selected_idx >= num_contacts && num_contacts > 0) {
-                            _selected_idx = num_contacts - 1;
-                        }
-                        if (_selected_idx < _scroll_pos) {
-                            _scroll_pos = _selected_idx;
-                        }
-                    }
-                }
-                } else if (_menu_state == MenuScreen::CHANNELS) {
-                    // Get current selected channel (account for filtering)
-                    int num_channels = 0;
-                    ChannelDetails channels[MAX_GROUP_CHANNELS];
-                    int channel_mesh_idx[MAX_GROUP_CHANNELS];
-                    
-                    // Build channel list
-                    for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
-                        if (the_mesh.getChannel(i, channels[num_channels]) && channels[num_channels].name[0] != '\0') {
-                            channel_mesh_idx[num_channels] = i;
-                            num_channels++;
-                        }
-                    }
-                    
-                    int channel_to_delete_idx = -1;
-                    
-                    // Build filtered list if search is active
-                    if (_search_filter_length > 0) {
-                        int filtered_indices[MAX_GROUP_CHANNELS];
-                        int filtered_count = 0;
-                        for (int i = 0; i < num_channels; i++) {
-                            char lower_name[32];
-                            char lower_filter[32];
-                            for (int j = 0; j < 32 && channels[i].name[j]; j++) {
-                                lower_name[j] = tolower(channels[i].name[j]);
-                                lower_name[j+1] = '\0';
-                            }
-                            for (int j = 0; j < 32 && _search_filter[j]; j++) {
-                                lower_filter[j] = tolower(_search_filter[j]);
-                                lower_filter[j+1] = '\0';
-                            }
-                            if (strstr(lower_name, lower_filter) != nullptr) {
-                                filtered_indices[filtered_count++] = i;
-                            }
-                        }
-                        if (filtered_count > 0 && _selected_idx < filtered_count) {
-                            channel_to_delete_idx = filtered_indices[_selected_idx];
-                        }
-                    } else {
-                        // No filter - use direct index
-                        if (num_channels > 0 && _selected_idx < num_channels) {
-                            channel_to_delete_idx = _selected_idx;
-                        }
-                    }
-                    
-                    // Delete channel immediately
-                    if (channel_to_delete_idx >= 0) {
-                        ChannelDetails channel_to_del = channels[channel_to_delete_idx];
-                        int mesh_idx = channel_mesh_idx[channel_to_delete_idx];
-                        
-                        // Clear the channel by setting empty name
-                        ChannelDetails empty_channel;
-                        empty_channel.name[0] = '\0';
-                        memset(&empty_channel.channel, 0, sizeof(empty_channel.channel));
-                        the_mesh.setChannel(mesh_idx, empty_channel);
-                        the_mesh.uiSaveChannels();
-                        
-                        // Show notification
-                        char notif_msg[64];
-                        snprintf(notif_msg, sizeof(notif_msg), "Deleted: %s", channel_to_del.name);
-                        strncpy(_notification_text, notif_msg, 127);
-                        _notification_text[127] = '\0';
-                        _notification_expiry = millis() + 1500;
-                        _has_notification = true;
-                        
-                        // Recount channels after deletion
-                        num_channels = 0;
-                        for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
-                            ChannelDetails temp_ch;
-                            if (the_mesh.getChannel(i, temp_ch) && temp_ch.name[0] != '\0') {
-                                num_channels++;
-                            }
-                        }
-                        
-                        // Adjust selection
-                        if (_selected_idx >= num_channels && num_channels > 0) {
-                            _selected_idx = num_channels - 1;
-                        }
-                        if (_selected_idx < _scroll_pos) {
-                            _scroll_pos = _selected_idx;
-                        }
-                    }
-                }
-            }
-            return;
-        } else {
-            // Reset flag when keys are released
-            _delete_processed = false;
-        }
-        
-        // Check if this is navigation input (FN + keys or direct navigation keys)
-        bool has_nav_keys = false;
-        if (status.fn) {
-            has_nav_keys = true; // FN pressed - this is navigation
-        } else {
-            // Check for direct navigation keys
-            for (auto key : status.word) {
-                if (key == ',' || key == '.' || key == '/' || key == ';') {
-                    has_nav_keys = true;
-                    break;
-                }
-            }
-        }
-        
-        // If navigation keys detected, skip to navigation handling
-        if (has_nav_keys) {
-            // Fall through to handleNavigation
-        } else if (status.del) {
-            // Backspace - start hold timer and delete one char
-            if (_backspace_hold_start == 0) {
-                _backspace_hold_start = millis();
-                _backspace_was_held = false;
-            }
-            if (_search_filter_length > 0) {
-                _search_filter_length--;
-                _search_filter[_search_filter_length] = '\0';
-                _scroll_pos = 0;
-                _selected_idx = 0;
-            }
-            return;
-        } else {
-            // Reset backspace hold timer when other keys pressed
-            _backspace_hold_start = 0;
-            _backspace_was_held = false;
-            
-            if (status.word.size() > 0) {
-                // Add typed characters to filter (limit 30 chars)
-                // Ignore navigation keys: , . / ;
-                for (auto key : status.word) {
-                    if (key != ',' && key != '.' && key != '/' && key != ';') {
-                        if (_search_filter_length < 30) {
-                            _search_filter[_search_filter_length++] = key;
-                            _search_filter[_search_filter_length] = '\0';
-                            _scroll_pos = 0;
-                            _selected_idx = 0;
-                        }
-                    }
-                }
-                return;
-            }
-        }
+    if (_menu_state == MenuScreen::CONTACTS || _menu_state == MenuScreen::CHANNELS || _menu_state == MenuScreen::MESH) {
+        handleListKey(status);
+        return;
     }
     
     // Navigation mode
@@ -2971,262 +2440,6 @@ void UITask::handleNavigation(Keyboard_Class::KeysState& status) {
     if (status.enter || status.space) select = true;
     
     switch (_menu_state) {
-        case MenuScreen::CONTACTS: {
-            int num_contacts = the_mesh.getNumContacts();
-            
-            // Build filtered list for navigation
-            int filtered_indices[MAX_CONTACTS];
-            int filtered_count = 0;
-            
-            if (_search_filter_length > 0) {
-                for (int i = 0; i < num_contacts; i++) {
-                    ContactInfo contact;
-                    if (the_mesh.getContactByIdx(i, contact)) {
-                        char lower_name[32];
-                        char lower_filter[32];
-                        for (int j = 0; j < 32 && contact.name[j]; j++) {
-                            lower_name[j] = tolower(contact.name[j]);
-                            lower_name[j+1] = '\0';
-                        }
-                        for (int j = 0; j < 32 && _search_filter[j]; j++) {
-                            lower_filter[j] = tolower(_search_filter[j]);
-                            lower_filter[j+1] = '\0';
-                        }
-                        if (strstr(lower_name, lower_filter) != nullptr) {
-                            filtered_indices[filtered_count++] = i;
-                        }
-                    }
-                }
-                num_contacts = filtered_count;
-            } else {
-                for (int i = 0; i < num_contacts; i++) {
-                    filtered_indices[i] = i;
-                }
-                filtered_count = num_contacts;
-            }
-            
-            if (left || right) {
-                // Switch to channels, deselect settings icon
-                _menu_state = MenuScreen::CHANNELS;
-                _scroll_pos = 0;
-                _selected_idx = 0;
-                _settings_selected = false;
-                _search_filter_length = 0;
-                _search_filter[0] = '\0';
-            } else if (up) {
-                if (_settings_selected) {
-                    // Already on settings icon, wrap to last contact
-                    if (num_contacts > 0) {
-                        _settings_selected = false;
-                        _selected_idx = num_contacts - 1;
-                        _scroll_pos = (_selected_idx > 2) ? _selected_idx - 2 : 0;
-                    }
-                    // If no contacts, stay on settings icon
-                } else if (_selected_idx == 0 && num_contacts > 0) {
-                    // At first contact, go to settings icon and deselect contact
-                    _settings_selected = true;
-                    _selected_idx = -1; // Deselect contact
-                } else if (num_contacts > 0) {
-                    // Navigate up in list
-                    _selected_idx = (_selected_idx > 0) ? _selected_idx - 1 : num_contacts - 1;
-                    if (_selected_idx < _scroll_pos) {
-                        _scroll_pos = _selected_idx;
-                    }
-                } else if (num_contacts == 0 && !_settings_selected) {
-                    // No contacts but not on settings - go to settings
-                    _settings_selected = true;
-                }
-            } else if (down) {
-                if (_settings_selected) {
-                    // From settings icon, go to first contact
-                    if (num_contacts > 0) {
-                        _settings_selected = false;
-                        _selected_idx = 0;
-                        _scroll_pos = 0;
-                    }
-                    // If no contacts, stay on settings icon
-                } else if (num_contacts > 0) {
-                    // If _selected_idx is -1 (hamburger selected), go to first contact
-                    if (_selected_idx == -1) {
-                        _selected_idx = 0;
-                        _scroll_pos = 0;
-                    } else {
-                        // Navigate down in list
-                        _selected_idx = (_selected_idx < num_contacts - 1) ? _selected_idx + 1 : 0;
-                        if (_selected_idx >= _scroll_pos + 3) {
-                            _scroll_pos = _selected_idx - 2;
-                        }
-                        // If wrapped to 0, deselect settings
-                        if (_selected_idx == 0 && _selected_idx < _scroll_pos) {
-                            _scroll_pos = 0;
-                        }
-                    }
-                } else if (num_contacts == 0 && !_settings_selected) {
-                    // No contacts but not on settings - go to settings
-                    _settings_selected = true;
-                }
-            } else if (select) {
-                if (_settings_selected) {
-                    // Open settings menu
-                    _menu_state = MenuScreen::SETTINGS;
-                    _settings_category = SettingsCategory::MAIN_MENU;
-                    _settings_menu_idx = 0;
-                    _settings_item_idx = 0; // Start on first category
-                    _settings_scroll_pos = 0; // Reset scroll
-                    _settings_selected = false;
-                } else if (num_contacts > 0 && _selected_idx >= 0) {
-                    // Open chat with selected contact (use filtered index)
-                    int real_idx = filtered_indices[_selected_idx];
-                    if (the_mesh.getContactByIdx(real_idx, _chat_contact)) {
-                        _menu_state = MenuScreen::CHAT;
-                        _chat_is_channel = false;
-                        _input_mode = false;
-                        _input_buffer[0] = '\0';
-                        _input_length = 0;
-                        _chat_scroll = 0;
-                        _chat_msg_scroll_index = 0; // Reset scroll to newest
-                        _search_filter_length = 0;
-                        _search_filter[0] = '\0';
-                        // Messages are already stored in global history, just filter them
-                    }
-                }
-            }
-            break;
-        }
-            
-        case MenuScreen::CHANNELS: {
-            // Count and collect channels
-            int num_channels = 0;
-            ChannelDetails channels[MAX_GROUP_CHANNELS];
-            int channel_mesh_idx[MAX_GROUP_CHANNELS];
-            
-            for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
-                if (the_mesh.getChannel(i, channels[num_channels]) && channels[num_channels].name[0] != '\0') {
-                    channel_mesh_idx[num_channels] = i;
-                    num_channels++;
-                }
-            }
-            
-            // Filter channels by search term
-            int filtered_indices[MAX_GROUP_CHANNELS];
-            int filtered_count = 0;
-            
-            if (_search_filter_length > 0) {
-                for (int i = 0; i < num_channels; i++) {
-                    char lower_name[32];
-                    char lower_filter[32];
-                    for (int j = 0; j < 32 && channels[i].name[j]; j++) {
-                        lower_name[j] = tolower(channels[i].name[j]);
-                        lower_name[j+1] = '\0';
-                    }
-                    for (int j = 0; j < 32 && _search_filter[j]; j++) {
-                        lower_filter[j] = tolower(_search_filter[j]);
-                        lower_filter[j+1] = '\0';
-                    }
-                    if (strstr(lower_name, lower_filter) != nullptr) {
-                        filtered_indices[filtered_count++] = i;
-                    }
-                }
-                num_channels = filtered_count;
-            } else {
-                for (int i = 0; i < num_channels; i++) {
-                    filtered_indices[i] = i;
-                }
-                filtered_count = num_channels;
-            }
-            
-            if (left || right) {
-                // Switch to contacts, deselect settings icon
-                _menu_state = MenuScreen::CONTACTS;
-                _scroll_pos = 0;
-                _selected_idx = 0;
-                _settings_selected = false;
-                _search_filter_length = 0;
-                _search_filter[0] = '\0';
-            } else if (up) {
-                if (_settings_selected) {
-                    // Already on settings icon, wrap to last channel
-                    if (num_channels > 0) {
-                        _settings_selected = false;
-                        _selected_idx = num_channels - 1;
-                        _scroll_pos = (_selected_idx > 2) ? _selected_idx - 2 : 0;
-                    }
-                    // If no channels, stay on settings icon
-                } else if (_selected_idx == 0 && num_channels > 0) {
-                    // At first channel, go to settings icon and deselect channel
-                    _settings_selected = true;
-                    _selected_idx = -1; // Deselect channel
-                } else if (num_channels > 0) {
-                    // Navigate up in list
-                    _selected_idx = (_selected_idx > 0) ? _selected_idx - 1 : num_channels - 1;
-                    if (_selected_idx < _scroll_pos) {
-                        _scroll_pos = _selected_idx;
-                    }
-                } else if (num_channels == 0 && !_settings_selected) {
-                    // No channels but not on settings - go to settings
-                    _settings_selected = true;
-                }
-            } else if (down) {
-                if (_settings_selected) {
-                    // From settings icon, go to first channel
-                    if (num_channels > 0) {
-                        _settings_selected = false;
-                        _selected_idx = 0;
-                        _scroll_pos = 0;
-                    }
-                    // If no channels, stay on settings icon
-                } else if (num_channels > 0) {
-                    // If _selected_idx is -1 (hamburger selected), go to first channel
-                    if (_selected_idx == -1) {
-                        _selected_idx = 0;
-                        _scroll_pos = 0;
-                    } else {
-                        // Navigate down in list
-                        _selected_idx = (_selected_idx < num_channels - 1) ? _selected_idx + 1 : 0;
-                        if (_selected_idx >= _scroll_pos + 3) {
-                            _scroll_pos = _selected_idx - 2;
-                        }
-                        if (_selected_idx == 0 && _selected_idx < _scroll_pos) {
-                            _scroll_pos = 0;
-                        }
-                    }
-                } else if (num_channels == 0 && !_settings_selected) {
-                    // No channels but not on settings - go to settings
-                    _settings_selected = true;
-                }
-            } else if (select) {
-                if (_settings_selected) {
-                    // Open settings menu
-                    _menu_state = MenuScreen::SETTINGS;
-                    _settings_category = SettingsCategory::MAIN_MENU;
-                    _settings_menu_idx = 0;
-                    _settings_item_idx = 0; // Start on first category
-                    _settings_scroll_pos = 0; // Reset scroll
-                    _settings_selected = false;
-                } else if (num_channels > 0 && _selected_idx >= 0) {
-                    // Open chat with selected channel (use filtered index)
-                    int real_idx = filtered_indices[_selected_idx];
-                    _chat_channel = channels[real_idx];
-                    _menu_state = MenuScreen::CHAT;
-                    _chat_is_channel = true;
-                    _input_mode = false;
-                    _input_buffer[0] = '\0';
-                    _input_length = 0;
-                    _chat_scroll = 0;
-                    _chat_msg_scroll_index = 0;
-                    _search_filter_length = 0;
-                    _search_filter[0] = '\0'; // Reset scroll to newest
-                    // Messages are already stored in global history, just filter them
-                    // Mark channel as read
-                    int original_mesh_idx = channel_mesh_idx[real_idx];
-                    _channel_has_unread[original_mesh_idx] = false;
-                    strncpy(_last_read_channel, _chat_channel.name, 31);
-                    _last_read_channel[31] = '\0';
-                }
-            }
-            break;
-        }
-            
         case MenuScreen::SETTINGS: {
             if (_settings_category == SettingsCategory::MAIN_MENU) {
                 // Main menu navigation with scrolling (5 categories, 3 visible)
@@ -3718,10 +2931,16 @@ void UITask::sendMessage() {
         the_mesh.sendGroupMessage(timestamp, _chat_channel.channel, 
                                   _node_prefs->node_name, _input_buffer, _input_length);
     } else {
-        // Send to contact
+        // Send to contact: the live entry, whose route the mesh keeps up to date
         uint32_t expected_ack = 0;
         uint32_t timeout = 0;
-        the_mesh.sendMessage(_chat_contact, timestamp, 0, _input_buffer, expected_ack, timeout);
+        ContactInfo* live = the_mesh.lookupContactByPubKey(_chat_contact.id.pub_key, PUB_KEY_SIZE);
+        int result = MSG_SEND_FAILED;
+        if (live) result = the_mesh.sendMessage(*live, timestamp, 0, _input_buffer, expected_ack, timeout);
+        ChatMessage& sent = _chat_history[_chat_history_count - 1];
+        sent.delivery = result == MSG_SEND_FAILED ? 3 : 1;
+        sent.ack_crc = expected_ack;
+        if (result == MSG_SEND_FAILED) showNotice(live ? "Not sent: radio busy" : "Not sent: contact deleted", 2000);
     }
     
     // NOTE: Don't sync outgoing messages to phone via BLE!
@@ -3742,8 +2961,11 @@ void UITask::addMessageToHistory(const char* from_name, const char* text, bool i
     ChatMessage& msg = _chat_history[_chat_history_count];
     strncpy(msg.from_name, from_name, 31);
     msg.from_name[31] = '\0';
-    strncpy(msg.text, text, 127);
-    msg.text[127] = '\0';
+    strncpy(msg.text, text, sizeof(msg.text) - 1);
+    msg.text[sizeof(msg.text) - 1] = '\0';
+    msg.unread = false;
+    msg.delivery = 0;
+    msg.ack_crc = 0;
     strncpy(msg.contact_or_channel, contact_or_channel, 31);
     msg.contact_or_channel[31] = '\0';
     msg.is_outgoing = is_outgoing;
@@ -4003,106 +3225,44 @@ void UITask::msgRead(int msgcount) {
     // Mark messages as read
 }
 
-// Listener methods of the current companion firmware, mapped onto this UI's own entry point.
+// Listener methods of the current companion firmware. A private message is filed under its sender, a
+// channel message under its channel (its text starts with "sender: ").
 void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp,
                            const char* text) {
-    newMsg(pkt && pkt->isRouteFlood() ? pkt->path_len : 0xFF, from.name, text, 0);
+    storeIncoming(false, from.name, from.name, text);
 }
 
 void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) {
-    newMsg(pkt && pkt->isRouteFlood() ? pkt->path_len : 0xFF, channel_details.name, text, 0);
+    storeIncoming(true, channel_details.name, channel_details.name, text);
 }
 
 void UITask::onQueueSizeChanged(int msgcount) {
     msgRead(msgcount);
 }
 
+// Kept for code that still reports a message by sender name only: filed as a private message.
 void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
-    // Check if it's a direct message (not a channel message)
-    // Direct messages: path_len <= 2 AND no '#' in name
-    // Channel messages: contain channel name or have '#' prefix
-    bool is_direct_message = true;
-    bool is_channel_msg = false;
-    
-    // Check if message is from a channel
-    ChannelDetails temp_ch;
-    for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
-        if (the_mesh.getChannel(i, temp_ch) && temp_ch.name[0] != '\0') {
-            if (strstr(from_name, temp_ch.name) != nullptr) {
-                is_direct_message = false;
-                is_channel_msg = true;
-                break;
-            }
-        }
+    storeIncoming(false, from_name, from_name, text);
+}
+
+void UITask::storeIncoming(bool is_channel, const char* conversation, const char* from, const char* text) {
+    const bool open = _menu_state == MenuScreen::CHAT && _chat_is_channel == is_channel &&
+                      strcmp(is_channel ? _chat_channel.name : _chat_contact.name, conversation) == 0;
+    addMessageToHistory(from, text, false, conversation, is_channel);
+    _chat_history[_chat_history_count - 1].unread = !open;
+
+    // a private message pops up unless that conversation is open; channel messages only mark the channel
+    if (!is_channel && !open) {
+        strncpy(_notification_from, from, sizeof(_notification_from) - 1);
+        _notification_from[sizeof(_notification_from) - 1] = '\0';
+        strncpy(_notification_text, text, sizeof(_notification_text) - 1);
+        _notification_text[sizeof(_notification_text) - 1] = '\0';
+        _notification_expiry = millis() + 3000;
+        _has_notification = true;
+        if (_screen_sleeping) _screen_sleeping = false;
+        if (_display && !_display->isOn()) _display->turnOn();
+        if (_screen_timeout_millis > 0) _auto_off = millis() + _screen_timeout_millis;
     }
-    
-    // Always save message to history (for all contacts and channels)
-    if (is_direct_message) {
-        // Save to contact's history
-        addMessageToHistory(from_name, text, false, from_name, false);
-    } else if (is_channel_msg) {
-        // For channel messages, extract channel name and save
-        char channel_name[32];
-        
-        // Try to find which channel this belongs to
-        ChannelDetails temp_ch;
-        bool found_channel = false;
-        for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
-            if (the_mesh.getChannel(i, temp_ch) && temp_ch.name[0] != '\0') {
-                if (strstr(from_name, temp_ch.name) != nullptr) {
-                    strncpy(channel_name, temp_ch.name, 31);
-                    channel_name[31] = '\0';
-                    found_channel = true;
-                    
-                    // Mark as unread if not currently viewing this channel
-                    if (!(_menu_state == MenuScreen::CHAT && _chat_is_channel && 
-                          strcmp(_chat_channel.name, temp_ch.name) == 0)) {
-                        _channel_has_unread[i] = true;
-                    }
-                    break;
-                }
-            }
-        }
-        
-        if (found_channel) {
-            addMessageToHistory(from_name, text, false, channel_name, true);
-        }
-    }
-    
-    // Only show notification for direct messages AND only if not currently chatting with that person
-    if (is_direct_message) {
-        // Check if we're currently in chat with this contact
-        bool is_currently_chatting = (_menu_state == MenuScreen::CHAT && 
-                                      !_chat_is_channel && 
-                                      strcmp(_chat_contact.name, from_name) == 0);
-        
-        if (!is_currently_chatting) {
-            strncpy(_notification_from, from_name, 31);
-            _notification_from[31] = '\0';
-            strncpy(_notification_text, text, 127);
-            _notification_text[127] = '\0';
-            _notification_expiry = millis() + 1500; // 1.5 seconds for battery optimization
-            _has_notification = true;
-            _need_refresh = true;
-            
-            // Wake up display if off or sleeping
-            if (_screen_sleeping) {
-                _screen_sleeping = false;
-                Serial.println("[Sleep] Waking from light sleep (new message)");
-            }
-            
-            if (_display && !_display->isOn()) {
-                _display->turnOn();
-                Serial.println("[Screen] Display turned on (new message)");
-            }
-            
-            // Reset screen timeout
-            if (_screen_timeout_millis > 0) {
-                _auto_off = millis() + _screen_timeout_millis;
-            }
-        }
-    }
-    
     _need_refresh = true;
 }
 

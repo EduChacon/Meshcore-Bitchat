@@ -16,6 +16,7 @@ class UIScreen;
 enum class MenuScreen {
     CONTACTS,
     CHANNELS,
+    MESH,       // the radios around: adverts, repeater discovery, nodes heard
     CHAT,
     SETTINGS
 };
@@ -63,13 +64,27 @@ static const RadioPreset RADIO_PRESETS[] = {
 
 // Message structure for chat history
 struct ChatMessage {
-    char text[128];
+    char text[164];              // a MeshCore text is at most 160 bytes
     char from_name[32];
     char contact_or_channel[32]; // Contact name or channel name this message belongs to
     bool is_outgoing;
     bool is_channel; // true if channel message, false if contact message
+    bool unread;     // received while the conversation was not open
+    uint8_t delivery; // outgoing private message: 0 none, 1 sent, 2 delivered, 3 failed
+    uint32_t ack_crc; // what the recipient's acknowledgement carries
     uint32_t timestamp;
 };
+
+// A radio heard around: from its advert, or from its answer to a repeater discovery.
+struct HeardNode {
+    uint8_t prefix[8];
+    char name[24];
+    uint8_t type;      // ADV_TYPE_*
+    uint8_t hops;      // 0xFF unknown
+    int8_t snr4;       // SNR x 4 of a discovery answer; INT8_MIN when unknown
+    uint32_t at;       // millis() when last heard
+};
+#define MAX_HEARD_NODES 24
 
 #define MAX_CHAT_MESSAGES 100 // Increased to store more messages
 
@@ -200,9 +215,42 @@ private:
     
     void renderContactList();
     void renderChannelList();
+    void renderMeshScreen();
+    // shared pieces of the three list screens (UITaskLists.cpp)
+    static const int LIST_ROWS = 4;
+    void renderListHeader(const char* title);
+    void renderListRow(int slot, bool selected, const char* name, const char* right, bool unread);
+    void renderListFooter(const char* hint);
+    void renderJoinBox();
+    int buildContactRows(int* out, int max);
+    int buildChannelRows(uint8_t* out, int max);
+    bool hasUnread(const char* name, bool is_channel) const;
+    void markConversationRead(const char* name, bool is_channel);
+    void moveSelection(int count, bool up);
+    void switchListScreen(bool next);
+    void openContactChat(const ContactInfo& contact);
+    void openChannelChat(uint8_t mesh_idx);
+    void handleListKey(Keyboard_Class::KeysState& status);
+    void runMeshAction(int row);
+    void joinChannel();
+    void deleteSelected();
+    void rememberHeard(const uint8_t* pub_key, const char* name, uint8_t type, uint8_t hops, int8_t snr4);
+    int sortedHeard(int* out);
+    void storeIncoming(bool is_channel, const char* conversation, const char* from, const char* text);
+    static void formatAge(uint32_t seconds, char* out, size_t size);
+
+    // list screens state
+    HeardNode _heard[MAX_HEARD_NODES];
+    int _heard_count = 0;
+    uint32_t _discover_tag = 0;
+    unsigned long _discover_until = 0;
+    int _discover_answers = 0;
+    bool _join_mode = false;
+    char _join_name[31];
+    int _join_length = 0;
+    unsigned long _delete_armed_until = 0;   // Fn+Del asks once, deletes on the second press
     void renderChatScreen();
     void renderSettingsMenu();
-    void renderBottomBar();
     void renderNotification();
     
     void handleKeyPress(Keyboard_Class::KeysState& status);
@@ -228,6 +276,9 @@ public:
     void onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) override;
     void onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) override;
     void onQueueSizeChanged(int msgcount) override;
+    void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
+    void onControlDataRecv(const mesh::Packet* pkt) override;
+    void onACKRecv(uint32_t ack_crc) override;
     void enterLightSleep();  // Power management: light sleep mode
     
     void showAlert(const char* msg);

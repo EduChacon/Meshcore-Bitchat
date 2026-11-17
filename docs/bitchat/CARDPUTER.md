@@ -5,7 +5,8 @@ conversa no próprio aparelho, pelo teclado, e a ponte Bitchat.
 
 **Estado em 2026-11-17:** o autor gravou a `bitchat0.13` e a `0.14` no aparelho. Com a `0.14`, a
 interface melhorou, mas o canal `#bitchat` não apareceu e o celular não conectou; as causas ainda não
-foram localizadas. As mudanças da `bitchat0.15` compilam, mas não foram ligadas em aparelho.
+foram localizadas. As mudanças da `bitchat0.15` e da `0.16` compilam, mas não foram ligadas em
+aparelho.
 
 ## Origem
 
@@ -25,22 +26,66 @@ d) a pilha Bluetooth é a NimBLE, compartilhada com a ponte, e não a do projeto
 
 ## Teclado
 
-As teclas são as do projeto original:
+As setas são as teclas `;` (cima), `.` (baixo), `,` (esquerda) e `/` (direita).
 
-| Tecla                     | Efeito                                  |
-| ------------------------- | --------------------------------------- |
-| Setas para cima e baixo   | Percorrem a lista                       |
-| Seta para a esquerda      | Vai para os contatos                    |
-| Seta para a direita       | Vai para os canais                      |
-| Enter                     | Seleciona, ou envia a mensagem          |
-| Backspace                 | Apaga; mantida, apaga tudo              |
-| Fn + Esc, ou Opt          | Volta                                   |
-| Fn + setas cima/baixo     | Rolam as mensagens, fora da escrita     |
-| Fn + Del                  | Remove o contato ou o canal selecionado |
-| Botão G0 (canto superior) | Envia um anúncio do rádio               |
+| Tecla                     | Efeito                                                    |
+| ------------------------- | --------------------------------------------------------- |
+| Setas para cima e baixo   | Percorrem a lista; mantidas, repetem                      |
+| Setas para os lados       | Trocam de aba: Contatos, Canais, Mesh                     |
+| Enter                     | Abre a conversa, executa a ação, ou envia a mensagem      |
+| Letras, nas listas        | Procuram pelo nome; Opt limpa a busca                     |
+| Backspace                 | Apaga; mantida, apaga tudo                                |
+| Fn + Esc, ou Opt          | Sai da conversa                                           |
+| Fn + setas cima/baixo     | Rolam as mensagens, fora da escrita                       |
+| Fn + Del, duas vezes      | Remove o contato ou sai do canal (a primeira só pergunta) |
+| Botão G0 (canto superior) | Envia um anúncio aos rádios ao alcance                    |
 
-O menu de ajustes fica no ícone do canto superior esquerdo: nome, frequência e demais parâmetros
-de rádio, GPS, tema, tempo de tela e informações do aparelho.
+O menu de ajustes fica no ícone do canto superior esquerdo, acima do primeiro item de cada lista:
+nome, frequência e demais parâmetros de rádio, GPS, tema, tempo de tela e informações do aparelho.
+
+## Telas (a partir da `bitchat0.16`)
+
+a) **Cabeçalho:** à direita, o **PIN** do Bluetooth (o que o celular pede no pareamento), a bateria e
+o estado do Bluetooth: `BT` ligado, `app` quando o aplicativo MeshCore está pareado e conectado,
+`BT off` desligado.
+
+b) **Contatos:** as conversas particulares. Os favoritos vêm primeiro e, depois, os ouvidos mais
+recentemente; à direita, o tipo (`rpt` repetidor, `room` sala, `sens` sensor) e há quanto tempo foi
+ouvido. Uma faixa amarela à esquerda marca mensagem não lida. Enter abre a conversa. Na conversa,
+cada mensagem enviada mostra um sinal: **tique verde** quando o destinatário confirmou, ponto cinza
+enquanto espera, **x vermelho** se não saiu.
+
+c) **Canais:** os canais, com a mesma marca de não lida. O último item, **+ Join channel**, entra num
+canal "hashtag" pelo nome: digite o nome (sem o `#`) e Enter. A chave é a mesma que o aplicativo
+MeshCore calcula para esse nome, de modo que os dois se encontram.
+
+d) **Mesh:** os rádios ao redor.
+
+- **Advert nearby:** anúncio aos rádios ao alcance, sem repetição.
+- **Advert to all:** anúncio a toda a rede, repetido pelos repetidores.
+- **Find repeaters:** pergunta aos repetidores ao alcance quem está aí; durante 15 segundos, cada
+  resposta entra na lista com o sinal (SNR) com que o repetidor ouviu o pedido. Só repetidores
+  respondem; os demais rádios aparecem quando se anunciam.
+- Abaixo, os **rádios ouvidos** nesta sessão, do mais recente ao mais antigo. Enter num contato abre
+  a conversa; nos demais, mostra o tipo, o sinal ou os saltos e há quanto tempo foi ouvido.
+
+## Mudanças na `bitchat0.16`
+
+a) **Os contatos não apareciam direito**: a lista lia a tabela de contatos como no MeshCore 1.11. No
+1.18, as oito primeiras posições são reservadas, e a lista mostrava essas oito vagas vazias e
+deixava de fora os oito últimos contatos. Com poucos contatos, só apareciam linhas sem nome, e não
+havia como abrir uma conversa particular. Defeito achado pela leitura do código, não em aparelho.
+
+b) Listas novas, com quatro itens por tela e os detalhes à direita, e a aba **Mesh**, descritas em
+"Telas" acima.
+
+c) Conversas particulares com o sinal de entrega; mensagens de até 160 caracteres guardadas
+inteiras (antes, cortadas em 127).
+
+d) Canais: entrar num canal "hashtag" pelo nome; sair de um canal pede confirmação.
+
+e) Bluetooth com potência de +9 dBm, a maior do ESP32-S3, para a conexão com o celular cair menos;
+o efeito no alcance não foi medido.
 
 ## Mudanças na `bitchat0.15`
 
