@@ -41,6 +41,17 @@ As teclas são as do projeto original:
 O menu de ajustes fica no ícone do canto superior esquerdo: nome, frequência e demais parâmetros
 de rádio, GPS, tema, tempo de tela e informações do aparelho.
 
+## Correção na `bitchat0.14`
+
+**A tela aparecia na vertical** com as versões `bitchat0.11` a `0.13`, compiladas com a biblioteca de
+tela M5GFX 0.3.0, que mudou o giro do painel. As bibliotecas da M5Stack ficam agora fixadas nas
+versões de janeiro de 2026 (M5Unified 0.2.13, M5GFX 0.2.19), e a tela pede só o giro que falta.
+
+## Abrir os ajustes
+
+Na lista de contatos ou de canais, subir com a seta para cima até passar do primeiro item: o ícone
+de ajustes, no canto superior esquerdo, fica destacado. Enter abre. Opt, ou Fn + Esc, volta.
+
 ## Correções na `bitchat0.4`
 
 a) **`Backspace` não apagava.** A biblioteca do Cardputer mudou em maio de 2026 (versão 1.2.0): a

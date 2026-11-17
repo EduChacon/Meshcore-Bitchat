@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.13
+# MeshCore + Bitchat v1.18.0-bitchat0.14
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -19,7 +19,18 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.13`
+## O que há de novo na `bitchat0.14`
+
+- **Cardputer ADV: a tela aparecia na vertical.** Relatado em aparelho. A biblioteca de tela da
+  M5Stack (M5GFX 0.3.0, de 5 de novembro de 2026) mudou o giro do painel do Cardputer ADV, e o giro
+  que a interface pedia passou a deixar a tela de pé. As bibliotecas da M5Stack ficam agora nas
+  versões de janeiro de 2026 (M5Unified 0.2.13, M5GFX 0.2.19), as mesmas da época do projeto
+  MeshCore-Cardputer-ADV de onde vem a interface, e a tela pede só o giro que falta, qualquer que
+  seja a versão. **Quem gravou a `bitchat0.11` a `0.13` no Cardputer ADV deve trocar por esta.**
+- As tabelas da ponte podem ser reduzidas por aparelho (`BITCHAT_DEDUP_ENTRIES`,
+  `BITCHAT_PEER_ENTRIES`); nos aparelhos desta página, nada muda.
+
+## O que veio na `bitchat0.13`
 
 - **`!bridge position on`** (ou `!ponte posição on`), só no aplicativo do rádio: o socorro pedido
   pelo Bitchat passa a levar a posição do rádio, sem que ele a divulgue nos anúncios. Pensado para
