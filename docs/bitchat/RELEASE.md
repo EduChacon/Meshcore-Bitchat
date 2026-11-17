@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.16
+# MeshCore + Bitchat v1.18.0-bitchat0.17
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -16,13 +16,27 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Testes em computador desta versão:** 943 verificações do núcleo e 1075 do fluxo completo, com
   telefones e rádio simulados; compilados no computador o Heltec V3 (com e sem ponte), o T1000-E,
   o Heltec Wireless Tracker e o Cardputer ADV.
+- **T1000-E:** o autor gravou a `bitchat0.14`. O aplicativo MeshCore conectou, e a ponte ficou
+  pronta para o LoRa, mas o Bitchat não a encontrava; a `bitchat0.17` corrige a causa achada.
 - **Cardputer ADV:** o autor gravou a `bitchat0.13` e a `0.14`. Com a `0.14`, relatou melhora,
   mas o canal `#bitchat` não apareceu e o celular não conectou, por causas ainda não
   localizadas; a `bitchat0.15` mostra em **Device Info** o que é preciso para localizá-las.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.16`
+## O que há de novo na `bitchat0.17`
+
+- **T1000-E: o Bitchat não encontrava a ponte.** Relatado em aparelho: com a ponte pronta
+  (`Ready: Bitchat + LoRa`), nenhum telefone Bitchat se conectava (`Bitchat 0`, `sub 0`), nem com o
+  Bitchat sozinho. Achado na revisão do código: a biblioteca Bluetooth do nRF52 (Bluefruit) guarda
+  apenas o endereço dos bytes do identificador do serviço e os lê de novo ao montar o anúncio; a
+  ponte os montava numa área temporária da memória, já reaproveitada quando o anúncio era feito. O
+  rádio anunciava bytes sem sentido no lugar do serviço do Bitchat, e o aplicativo nunca o
+  reconhecia. Os identificadores agora ficam em memória permanente. Só o T1000-E muda; os ESP32 usam
+  outra biblioteca e não tinham o defeito.
+- Compilado no computador o T1000-E. **A correção não foi ligada em aparelho.**
+
+## O que veio na `bitchat0.16`
 
 Só o Cardputer ADV muda; nos demais aparelhos, esta versão é igual à `bitchat0.14`.
 
