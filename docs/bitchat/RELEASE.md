@@ -16,6 +16,9 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Testes em computador desta versão:** 943 verificações do núcleo e 1075 do fluxo completo, com
   telefones e rádio simulados; compilados no computador o Heltec V3 (com e sem ponte), o T1000-E,
   o Heltec Wireless Tracker e o Cardputer ADV.
+- **Cardputer ADV:** o autor gravou a `bitchat0.13` e a `0.14`. Com a `0.14`, relatou melhora,
+  mas o canal `#bitchat` não apareceu e o celular não conectou, por causas ainda não
+  localizadas; a `bitchat0.15` mostra em **Device Info** o que é preciso para localizá-las.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
