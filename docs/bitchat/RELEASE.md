@@ -30,6 +30,7 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Cardputer ADV: predefinição "Brasil"** no topo da lista de rádio (923,125 MHz, SF 8, 62,5 kHz,
   CR 4/8), a convenção MeshCore Brasil; é a mesma "Australia: SA, WA". Cuidado com a "Australia: QLD",
   que tem CR 4/5.
+- Compilado no computador o Cardputer ADV com as bibliotecas fixadas (M5Unified 0.2.13, M5GFX 0.2.19).
 - As tabelas da ponte podem ser reduzidas por aparelho (`BITCHAT_DEDUP_ENTRIES`,
   `BITCHAT_PEER_ENTRIES`); nos aparelhos desta página, nada muda.
 
