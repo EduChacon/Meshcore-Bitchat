@@ -9,9 +9,9 @@
 // QRcode implementation for M5GFX
 class QRcode_M5GFX : public QRcodeDisplay {
 private:
-    M5GFX* _display;
+    lgfx::LovyanGFX* _display;
 public:
-    QRcode_M5GFX(M5GFX* display) : _display(display) {}
+    QRcode_M5GFX(lgfx::LovyanGFX* display) : _display(display) {}
     
     void init() override {
         QRcodeDisplay::init();
@@ -37,6 +37,11 @@ protected:
         _display->fillRect(x, y, multiply, multiply, gfx_color);
     }
 };
+
+// The drawing surface of the Cardputer display: its frame buffer, or the panel when there is none.
+static lgfx::LovyanGFX& screen(DisplayDriver* display) {
+    return static_cast<M5CardputerDisplay*>(display)->gfx();
+}
 
 #ifndef AUTO_OFF_MILLIS
   #define AUTO_OFF_MILLIS 300000  // 5 minutes
@@ -135,13 +140,43 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
     _need_refresh = true;
 }
 
+// Keys that repeat while held: one character, or the up and down arrows (; and .), without Enter,
+// Backspace (it has its own hold), Fn, Opt, Ctrl or Alt, so that no command or deletion runs twice by
+// accident. The left and right arrows (, and /) switch screens, so they never repeat.
+bool UITask::isRepeatable(const Keyboard_Class::KeysState& status) {
+    return status.word.size() == 1 && status.word[0] != ',' && status.word[0] != '/' && !status.enter &&
+           !status.del && !status.fn && !status.opt && !status.ctrl && !status.alt && !status.tab;
+}
+
+void UITask::showNotice(const char* text, uint32_t millis_shown) {
+    strncpy(_notification_text, text, sizeof(_notification_text) - 1);
+    _notification_text[sizeof(_notification_text) - 1] = '\0';
+    _notification_from[0] = '\0';
+    _notification_expiry = millis() + millis_shown;
+    _has_notification = true;
+    _need_refresh = true;
+    if (_display && !_display->isOn()) {
+        _display->turnOn();
+        _screen_sleeping = false;
+    }
+    if (_screen_timeout_millis > 0) _auto_off = millis() + _screen_timeout_millis;
+}
+
 void UITask::loop() {
     M5Cardputer.update();
+
+    // The frame buffer is taken once the radio, Bluetooth and the bridge have their memory
+    if (!_buffer_allowed && _display && millis() > 8000) {
+        _buffer_allowed = true;
+        static_cast<M5CardputerDisplay*>(_display)->allowBuffer();
+        _need_refresh = true;
+    }
     
     // Handle keyboard input
     if (M5Cardputer.Keyboard.isChange()) {
         if (M5Cardputer.Keyboard.isPressed()) {
             Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
+            bool handled = false;
             
             // If notification is active, any key dismisses it
             if (_has_notification) {
@@ -169,6 +204,7 @@ void UITask::loop() {
                 // Only handle keypress if we weren't sleeping/off
                 if (!_ignore_next_keypress) {
                     handleKeyPress(status);
+                    handled = true;
                 } else {
                     // This was the wake keypress, ignore it
                     _ignore_next_keypress = false;
@@ -176,6 +212,7 @@ void UITask::loop() {
                 }
             }
             _need_refresh = true;
+            _repeat_at = handled && isRepeatable(status) ? millis() + KEY_REPEAT_DELAY_MS : 0;
             
             // Reset auto-off timer (using configured timeout)
             if (_screen_timeout_millis > 0) {
@@ -183,6 +220,23 @@ void UITask::loop() {
             } else {
                 _auto_off = 0; // Never timeout
             }
+        } else {
+            _repeat_at = 0;
+        }
+    } else if (_repeat_at != 0 && (int32_t)(millis() - _repeat_at) >= 0) {
+        // A held key repeats, as on a computer keyboard: arrows to run through a list, letters while typing
+        if (M5Cardputer.Keyboard.isPressed() && _display && _display->isOn() && !_has_notification) {
+            Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
+            if (isRepeatable(status)) {
+                handleKeyPress(status);
+                _need_refresh = true;
+                _repeat_at = millis() + KEY_REPEAT_EVERY_MS;
+                if (_screen_timeout_millis > 0) _auto_off = millis() + _screen_timeout_millis;
+            } else {
+                _repeat_at = 0;
+            }
+        } else {
+            _repeat_at = 0;
         }
     }
     
@@ -303,16 +357,16 @@ void UITask::renderContactList() {
     
     if (_settings_selected) {
         // Selected: fill background with main color
-        M5Cardputer.Display.fillRect(0, 0, 30, 28, main_color);
+        screen(_display).fillRect(0, 0, 30, 28, main_color);
         // Draw 3 lines in secondary color
-        M5Cardputer.Display.fillRect(6, 7, 18, 3, secondary_color);
-        M5Cardputer.Display.fillRect(6, 13, 18, 3, secondary_color);
-        M5Cardputer.Display.fillRect(6, 19, 18, 3, secondary_color);
+        screen(_display).fillRect(6, 7, 18, 3, secondary_color);
+        screen(_display).fillRect(6, 13, 18, 3, secondary_color);
+        screen(_display).fillRect(6, 19, 18, 3, secondary_color);
     } else {
         // Normal: draw 3 lines in main color
-        M5Cardputer.Display.fillRect(6, 7, 18, 3, main_color);
-        M5Cardputer.Display.fillRect(6, 13, 18, 3, main_color);
-        M5Cardputer.Display.fillRect(6, 19, 18, 3, main_color);
+        screen(_display).fillRect(6, 7, 18, 3, main_color);
+        screen(_display).fillRect(6, 13, 18, 3, main_color);
+        screen(_display).fillRect(6, 19, 18, 3, main_color);
     }
     
     // MeshCore title (center)
@@ -435,16 +489,16 @@ void UITask::renderChannelList() {
     
     if (_settings_selected) {
         // Selected: fill background with main color
-        M5Cardputer.Display.fillRect(0, 0, 30, 28, main_color);
+        screen(_display).fillRect(0, 0, 30, 28, main_color);
         // Draw 3 lines in secondary color
-        M5Cardputer.Display.fillRect(6, 7, 18, 3, secondary_color);
-        M5Cardputer.Display.fillRect(6, 13, 18, 3, secondary_color);
-        M5Cardputer.Display.fillRect(6, 19, 18, 3, secondary_color);
+        screen(_display).fillRect(6, 7, 18, 3, secondary_color);
+        screen(_display).fillRect(6, 13, 18, 3, secondary_color);
+        screen(_display).fillRect(6, 19, 18, 3, secondary_color);
     } else {
         // Normal: draw 3 lines in main color
-        M5Cardputer.Display.fillRect(6, 7, 18, 3, main_color);
-        M5Cardputer.Display.fillRect(6, 13, 18, 3, main_color);
-        M5Cardputer.Display.fillRect(6, 19, 18, 3, main_color);
+        screen(_display).fillRect(6, 7, 18, 3, main_color);
+        screen(_display).fillRect(6, 13, 18, 3, main_color);
+        screen(_display).fillRect(6, 19, 18, 3, main_color);
     }
     _display->setTextSize(2);
     _display->setCursor(73, 7);
@@ -1248,7 +1302,7 @@ void UITask::renderSettingsMenu() {
             } else {
                 // Special gold color for "Spark the project" option (index 2)
                 if (option_idx == 2) {
-                    M5Cardputer.Display.setTextColor(0xFEA0);  // Gold color (RGB: 255, 215, 0)
+                    screen(_display).setTextColor(0xFEA0);  // Gold color (RGB: 255, 215, 0)
                 } else {
                     _display->setColor(CardColor::LIGHT);  // White text
                 }
@@ -1393,28 +1447,13 @@ void UITask::renderSettingsMenu() {
         }
         #endif
         
-        // Radio settings
+        // Radio settings, on one line
         if (_node_prefs) {
+            char radio_str[48];
+            snprintf(radio_str, sizeof(radio_str), "%.3f MHz SF%u BW%.1f %udBm", _node_prefs->freq,
+                     _node_prefs->sf, _node_prefs->bw, _node_prefs->tx_power_dbm);
             _display->setCursor(5, y);
-            _display->print("Freq: ");
-            char freq_str[16];
-            snprintf(freq_str, sizeof(freq_str), "%.3f", _node_prefs->freq);
-            _display->print(freq_str);
-            _display->print(" MHz");
-            y += line_height;
-            
-            _display->setCursor(5, y);
-            _display->print("SF: ");
-            char radio_str[32];
-            snprintf(radio_str, sizeof(radio_str), "%u  BW: %.1f kHz", _node_prefs->sf, _node_prefs->bw);
             _display->print(radio_str);
-            y += line_height;
-            
-            _display->setCursor(5, y);
-            _display->print("TX Power: ");
-            char power_str[16];
-            snprintf(power_str, sizeof(power_str), "%u dBm", _node_prefs->tx_power_dbm);
-            _display->print(power_str);
             y += line_height;
         }
         
@@ -1435,6 +1474,23 @@ void UITask::renderSettingsMenu() {
             y += line_height;
         }
 #endif
+
+        // Bluetooth and memory: what to look at when the phone does not connect
+        {
+            char state_str[48];
+            snprintf(state_str, sizeof(state_str), "BT: %s  PIN: %06lu  App: %s",
+                     isBluetoothEnabled() ? "on" : "off", (unsigned long)the_mesh.getBLEPin(),
+                     hasConnection() ? "paired" : "no");
+            _display->setCursor(5, y);
+            _display->print(state_str);
+            y += line_height;
+            const uint8_t bits = static_cast<M5CardputerDisplay*>(_display)->bufferBits();
+            snprintf(state_str, sizeof(state_str), "Free RAM: %u KB  Screen: %s",
+                     (unsigned)(ESP.getFreeHeap() / 1024), bits == 16 ? "16-bit" : bits == 8 ? "8-bit" : "direct");
+            _display->setCursor(5, y);
+            _display->print(state_str);
+            y += line_height;
+        }
 
         // Uptime, when there is room left on this screen
         if (y + line_height <= _display->height()) {
@@ -1952,7 +2008,7 @@ void UITask::renderSettingsMenu() {
         M5Cardputer.Display.setBrightness(23);
         
         // Clear screen to black
-        M5.Display.fillScreen(0x0000);
+        screen(_display).fillScreen(0x0000);
         
         char qr_data[256];
         
@@ -1975,7 +2031,7 @@ void UITask::renderSettingsMenu() {
         }
         
         // Create QR code using custom M5GFX implementation
-        QRcode_M5GFX qrcode(&M5.Display);
+        QRcode_M5GFX qrcode(&screen(_display));
         qrcode.init();
         
         // Create and render QR code

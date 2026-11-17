@@ -309,15 +309,10 @@ void loop() {
   sensors.loop();
 #ifdef DISPLAY_CLASS
 #ifdef HEADLESS_UI
-  // Keyboard UI: the G0 button sends an advert
+  // Keyboard UI: the G0 button sends an advert; the notice does not hold up the radio or Bluetooth
   if (user_btn.check() == BUTTON_EVENT_CLICK) {
     the_mesh.advert();
-    display.startFrame();
-    display.setTextSize(2);
-    display.drawTextCentered(display.width() / 2, (display.height() - 16) / 2, "Advert sent");
-    display.endFrame();
-    delay(1000);
-    ui_task.requestRefresh();
+    ui_task.showNotice("Advert sent", 1500);
   }
 #endif
   ui_task.loop();

@@ -3,8 +3,9 @@
 Firmware para o M5Stack Cardputer-Adv com o módulo **Cap LoRa-1262**: MeshCore com uma interface de
 conversa no próprio aparelho, pelo teclado, e a ponte Bitchat.
 
-**Estado em 2026-11-15: compila; nunca foi ligado em aparelho.** A interface vem de um projeto que
-é usado em aparelhos reais, mas na versão dele; a adaptação feita aqui não foi ensaiada.
+**Estado em 2026-11-17:** o autor gravou a `bitchat0.13` e a `0.14` no aparelho. Com a `0.14`, a
+interface melhorou, mas o canal `#bitchat` não apareceu e o celular não conectou; as causas ainda não
+foram localizadas. As mudanças da `bitchat0.15` compilam, mas não foram ligadas em aparelho.
 
 ## Origem
 
@@ -40,6 +41,32 @@ As teclas são as do projeto original:
 
 O menu de ajustes fica no ícone do canto superior esquerdo: nome, frequência e demais parâmetros
 de rádio, GPS, tema, tempo de tela e informações do aparelho.
+
+## Mudanças na `bitchat0.15`
+
+a) **A tela não pisca mais.** Cada quadro é montado na memória e enviado de uma vez. A memória do
+quadro só é tomada oito segundos depois de ligar e só se sobrar o bastante para o rádio, o Bluetooth
+e a ponte; senão, a tela é desenhada direto, como antes. A tela **Device Info** diz qual dos modos
+está em uso (`Screen: 16-bit`, `8-bit` ou `direct`).
+
+b) **Tecla mantida repete**: as setas para cima e para baixo percorrem a lista, e as letras se
+repetem na escrita. Enter, Backspace, Fn, Opt e as setas para os lados não repetem.
+
+c) **O botão G0 não trava o rádio** enquanto mostra "Advert sent".
+
+d) **Device Info** mostra também `BT` (Bluetooth ligado ou não), o `PIN`, `App` (`paired` quando o
+aplicativo MeshCore está conectado e pareado) e `Free RAM` (memória livre).
+
+## O celular não conecta
+
+a) **Depois de apagar a memória do rádio**, o telefone guarda o pareamento antigo, que o rádio já
+não conhece, e a conexão falha sem aviso. Nos ajustes de Bluetooth do telefone, mande **esquecer** o
+aparelho e pareie de novo pelo aplicativo MeshCore, com o PIN que aparece no canto superior direito
+das listas e em **Device Info**.
+
+b) Em **Device Info**, `BT: off` ou `Bitchat: Bluetooth error` indicam que o Bluetooth não subiu;
+`Bitchat: Low memory: bridge OFF` indica falta de memória. Nos dois casos, a ponte não cria o canal
+`#bitchat`. Uma foto dessa tela basta para localizar a causa.
 
 ## Correção na `bitchat0.14`
 
@@ -98,7 +125,8 @@ a cópia de segurança completa descrita no guia.
 
 ## O que não se sabe
 
-a) Se a tela, o teclado e o rádio iniciam: nada foi ligado.
+a) Por que o canal `#bitchat` não apareceu e o celular não conectou com a `bitchat0.14`, e se o
+rádio LoRa transmite e recebe neste aparelho.
 
 b) Se a chave de antena fica correta com a mudança do item (c) acima. O projeto original usa outra
 sequência; a adotada aqui é a da documentação da M5Stack e a do Meshtastic.

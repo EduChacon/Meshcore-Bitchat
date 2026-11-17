@@ -122,6 +122,11 @@ private:
     // Notification system
     char _notification_from[32];
     char _notification_text[128];
+    bool _buffer_allowed = false;
+    unsigned long _repeat_at = 0;          // when a held key repeats next; 0 when none is held
+    static const uint32_t KEY_REPEAT_DELAY_MS = 450;
+    static const uint32_t KEY_REPEAT_EVERY_MS = 90;
+    static bool isRepeatable(const Keyboard_Class::KeysState& status);
     unsigned long _notification_expiry;
     bool _has_notification;
     
@@ -228,6 +233,7 @@ public:
     void showAlert(const char* msg);
     void gotoScreen(MenuScreen screen);
     void requestRefresh() { _need_refresh = true; }  // Force screen refresh
+    void showNotice(const char* text, uint32_t millis_shown);  // a short message over the current screen
     
     uint16_t getBattMilliVolts();
     bool isButtonPressed();

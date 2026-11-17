@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.14
+# MeshCore + Bitchat v1.18.0-bitchat0.15
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -19,7 +19,26 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.14`
+## O que há de novo na `bitchat0.15`
+
+Só o Cardputer ADV muda; nos demais aparelhos, esta versão é igual à `bitchat0.14`.
+
+- **Tela sem piscar.** Relatado em aparelho que a interface não era fluida. A tela inteira era
+  apagada e redesenhada direto no painel a cada tecla, e o apagado aparecia. Agora cada quadro é
+  montado na memória e enviado de uma vez. Como o Cardputer ADV não tem PSRAM, a memória do quadro
+  (63 KB em cores de 16 bits, ou 32 KB em 8 bits) só é tomada oito segundos depois de ligar, quando a
+  ponte já começou, e só se sobrarem 64 KB livres; sem isso, a tela é desenhada como antes.
+- **Tecla mantida repete**, como num computador: as setas para cima e para baixo (`;` e `.`)
+  percorrem a lista, e as letras se repetem na escrita. Enter, Backspace, Fn, Opt e as setas para
+  os lados (que trocam de tela) não repetem.
+- **O botão G0 não trava mais o rádio por um segundo**: o aviso "Advert sent" aparece sem parar o
+  LoRa e o Bluetooth.
+- **Device Info mostra o Bluetooth e a memória**: se o Bluetooth está ligado, o PIN, se o aplicativo
+  MeshCore está pareado, a memória livre e o modo da tela. Frequência, SF, largura e potência ficam
+  numa linha só, para caber tudo.
+- Compilado no computador o Cardputer ADV, com e sem ponte. **Não foi ligado em aparelho.**
+
+## O que veio na `bitchat0.14`
 
 - **Cardputer ADV: a tela aparecia na vertical.** Relatado em aparelho. A biblioteca de tela da
   M5Stack (M5GFX 0.3.0, de 5 de novembro de 2026) mudou o giro do painel do Cardputer ADV, e o giro

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <M5Cardputer.h>
+#include <new>
 #include "DisplayDriver.h"
 
 // M5Cardputer uses standard color constants
@@ -32,6 +33,47 @@ private:
   static const uint16_t SCREEN_HEIGHT = 135;
   static const uint8_t CHAR_WIDTH = 6;
   static const uint8_t CHAR_HEIGHT = 8;
+
+  // Each frame is drawn in memory and sent to the panel in one go, so the screen no longer flashes
+  // black while it is redrawn. Without PSRAM the buffer is only taken when enough memory is left
+  // for the radio, Bluetooth and the Bitchat bridge (about 54 KB when it starts); otherwise the screen
+  // is drawn directly. The UI asks for the buffer a few seconds after boot, once the bridge has started.
+  static const uint32_t BUFFER_RESERVE = 64 * 1024;
+  M5Canvas* _canvas = nullptr;
+  bool _bufferAllowed = false;
+  bool _bufferTried = false;
+  uint8_t _bufferBits = 0;
+
+  void takeBuffer() {
+    _bufferTried = true;
+    static const uint8_t depths[] = { 16, 8 };
+    for (uint8_t bits : depths) {
+      const uint32_t bytes = uint32_t(SCREEN_WIDTH) * SCREEN_HEIGHT * bits / 8;
+      if (ESP.getFreeHeap() < bytes + BUFFER_RESERVE || ESP.getMaxAllocHeap() < bytes + 1024) continue;
+      M5Canvas* canvas = new (std::nothrow) M5Canvas(&M5.Display);
+      if (!canvas) return;
+      canvas->setPsram(false);
+      canvas->setColorDepth(bits);
+      if (canvas->createSprite(SCREEN_WIDTH, SCREEN_HEIGHT) && ESP.getFreeHeap() >= BUFFER_RESERVE) {
+        _canvas = canvas;
+        _bufferBits = bits;
+        return;
+      }
+      canvas->deleteSprite();
+      delete canvas;
+    }
+  }
+
+public:
+  // Where drawing goes: the frame buffer when there is one, else the panel.
+  lgfx::LovyanGFX& gfx() {
+    if (_canvas) return *_canvas;
+    return M5.Display;
+  }
+  // From now on, frames may be drawn in memory if there is room for the buffer.
+  void allowBuffer() { _bufferAllowed = true; }
+  // 16 or 8 when frames are buffered (bits per pixel), 0 when drawn directly.
+  uint8_t bufferBits() const { return _bufferBits; }
 
 public:
   M5CardputerDisplay() : DisplayDriver(SCREEN_WIDTH, SCREEN_HEIGHT) {}
@@ -67,6 +109,7 @@ public:
 
   void startFrame(ColorVal bkg = CardColor::DARK) override {
     if (!_isOn) return;
+    if (_bufferAllowed && !_bufferTried) takeBuffer();
     // Clear screen at start of each frame
     uint16_t bgColor;
     switch(bkg) {
@@ -79,19 +122,21 @@ public:
       case CardColor::ORANGE: bgColor = TFT_ORANGE; break;
       default:     bgColor = _dark_color; break;
     }
-    M5.Display.fillScreen(bgColor);
+    gfx().fillScreen(bgColor);
+    gfx().setCursor(0, 0);
     cursor_x = 0;
     cursor_y = 0;
   }
 
   void endFrame() override {
     if (!_isOn) return;
-    // No buffering, changes are immediate
+    if (_canvas) _canvas->pushSprite(0, 0);
   }
 
   void clear() override {
     if (!_isOn) return;
-    M5.Display.fillScreen(TFT_BLACK);
+    gfx().fillScreen(TFT_BLACK);
+    if (_canvas) _canvas->pushSprite(0, 0);
     cursor_x = 0;
     cursor_y = 0;
   }
@@ -99,12 +144,12 @@ public:
   void setCursor(int x, int y) override {
     cursor_x = x;
     cursor_y = y;
-    M5.Display.setCursor(x, y);
+    gfx().setCursor(x, y);
   }
 
   void setTextSize(int sz) override {
     text_size = sz;
-    M5.Display.setTextSize(sz);
+    gfx().setTextSize(sz);
   }
 
   void setColor(ColorVal c) override {
@@ -118,7 +163,7 @@ public:
       case CardColor::ORANGE: _color = TFT_ORANGE; break;
       default:     _color = _light_color; break;
     }
-    M5.Display.setTextColor(_color, _dark_color);
+    gfx().setTextColor(_color, _dark_color);
   }
   
   // Methods to customize theme colors
@@ -132,17 +177,17 @@ public:
 
   void print(const char* str) override {
     if (!_isOn) return;
-    M5.Display.print(str);
+    gfx().print(str);
   }
 
   void drawRect(int x, int y, int w, int h) override {
     if (!_isOn) return;
-    M5.Display.drawRect(x, y, w, h, _color);
+    gfx().drawRect(x, y, w, h, _color);
   }
 
   void fillRect(int x, int y, int w, int h) override {
     if (!_isOn) return;
-    M5.Display.fillRect(x, y, w, h, _color);
+    gfx().fillRect(x, y, w, h, _color);
   }
 
   void drawXbm(int x, int y, const uint8_t* bits, int w, int h) override {
@@ -153,7 +198,7 @@ public:
         int byte_idx = (yy * ((w + 7) / 8)) + (xx / 8);
         int bit_idx = xx % 8;
         if (bits[byte_idx] & (1 << bit_idx)) {
-          M5.Display.drawPixel(x + xx, y + yy, _color);
+          gfx().drawPixel(x + xx, y + yy, _color);
         }
       }
     }
