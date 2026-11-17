@@ -38,7 +38,10 @@ public:
 
   bool begin() {
     _isOn = true;
-    M5.Display.setRotation(1);  // Landscape orientation
+    // Landscape: one quarter turn from the panel's native portrait. The library may already count part of
+    // it in the panel's offset (M5GFX 0.3.0 does), so only the rest is asked for.
+    const uint8_t offset = M5.Display.getPanel() ? (M5.Display.getPanel()->config().offset_rotation & 3) : 0;
+    M5.Display.setRotation((1 - offset) & 3);
     M5.Display.fillScreen(TFT_BLACK);
     M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
     M5.Display.setTextSize(1);
