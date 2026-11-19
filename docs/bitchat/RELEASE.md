@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.17
+# MeshCore + Bitchat v1.18.0-bitchat0.18
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -24,7 +24,18 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.17`
+## O que há de novo na `bitchat0.18`
+
+- **Heltec V3 e V4 (e outros com desligamento por bateria fraca): o rádio se desligava sozinho.**
+  Relatado em aparelho: os Heltec V3 desligavam depois de algum tempo, com bateria ligada. O
+  MeshCore desliga o rádio quando a bateria lê menos de 3,4 V, e uma única leitura bastava. A tensão
+  cai por instantes quando o rádio transmite, a leitura do Heltec é grosseira, e a placa não sabe
+  quando está no USB. Agora o rádio só se desliga se a bateria ficar abaixo do limite em todas as
+  leituras por cerca de dois minutos, e a tela mostra a tensão lida. Uma bateria de fato vazia
+  continua desligando o rádio, para não ser danificada.
+- Compilados no computador o Heltec V3 e o V4 com ponte. **Não foi ligado em aparelho.**
+
+## O que veio na `bitchat0.17`
 
 - **T1000-E: o Bitchat não encontrava a ponte.** Relatado em aparelho: com a ponte pronta
   (`Ready: Bitchat + LoRa`), nenhum telefone Bitchat se conectava (`Bitchat 0`, `sub 0`), nem com o

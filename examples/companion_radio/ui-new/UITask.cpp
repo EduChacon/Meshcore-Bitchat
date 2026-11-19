@@ -1099,20 +1099,38 @@ void UITask::loop() {
 
 #ifdef AUTO_SHUTDOWN_MILLIVOLTS
   if (millis() > next_batt_chck) {
+    // One low reading is not enough: the voltage dips while the radio transmits, and boards such as
+    // the Heltec V3 read their battery coarsely and cannot tell when USB power is present. The bridge
+    // builds shut down only after the battery has read low on every check for about two minutes.
+  #ifndef AUTO_SHUTDOWN_CONFIRM_CHECKS
+    #ifdef WITH_BITCHAT_BRIDGE
+      #define AUTO_SHUTDOWN_CONFIRM_CHECKS 15
+    #else
+      #define AUTO_SHUTDOWN_CONFIRM_CHECKS 1
+    #endif
+  #endif
+    static uint8_t low_checks = 0;
     uint16_t milliVolts = getBattMilliVolts();
-    if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS) {
-      if(!board.isExternalPowered()) {
-        if (_display != NULL) {
-          _display->startFrame();
-          _display->setTextSize(2);
-          _display->setColor(UIColor::warning_txt);
-          _display->drawTextCentered(_display->width() / 2, 20, "Low Battery.");
-          _display->drawTextCentered(_display->width() / 2, 40, "Shutting Down!");
-          _display->endFrame();
-          if (_display->isEink() == false) { delay(3000); }
-        }
-        shutdown();
+    if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS && !board.isExternalPowered()) {
+      if (low_checks < 255) low_checks++;
+    } else {
+      low_checks = 0;
+    }
+    if (low_checks >= AUTO_SHUTDOWN_CONFIRM_CHECKS) {
+      if (_display != NULL) {
+        char volts[24];
+        snprintf(volts, sizeof(volts), "%u.%02u V", milliVolts / 1000, (milliVolts % 1000) / 10);
+        _display->startFrame();
+        _display->setTextSize(2);
+        _display->setColor(UIColor::warning_txt);
+        _display->drawTextCentered(_display->width() / 2, 4, "Low Battery.");
+        _display->drawTextCentered(_display->width() / 2, 24, "Shutting Down!");
+        _display->setTextSize(1);
+        _display->drawTextCentered(_display->width() / 2, 48, volts);
+        _display->endFrame();
+        if (_display->isEink() == false) { delay(3000); }
       }
+      shutdown();
     }
     next_batt_chck = millis() + 8000;
   }
