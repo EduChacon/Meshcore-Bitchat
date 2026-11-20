@@ -312,6 +312,7 @@ bool BitchatBridge::ensureRuntime()
     memoryRequest("bridge-runtime", sizeof(Runtime) + sizeof(PeerTable) + sizeof(DedupCache<BITCHAT_DEDUP_ENTRIES>) + bleBufferSize(),
                   std::max(sizeof(Runtime), sizeof(DedupCache<BITCHAT_DEDUP_ENTRIES>)));
     if (allocateBuffer(runtime) && allocateBuffer(runtime->peers) && allocateBuffer(runtime->dedup) && bleAllocateBuffers()) {
+        runtimeAttachment = bleAttachments();
         bootDiagnostic("bridge-buffers-ready");
         return true;
     }
@@ -1842,6 +1843,12 @@ void BitchatBridge::work(uint32_t now)
     watchClock(now);
     watchGps(now);
     const bool bluetoothReady = platformBluetooth.isActive();
+    if (runtime && bleAttachments() != runtimeAttachment) {
+        // The Bluetooth stack was restarted between two ticks (WadaMesh does it around an update over
+        // Wi-Fi): the old server and its links are gone, so the bridge starts over on the new one.
+        releaseRuntime();
+        advertisingChanged = true;
+    }
     if (bluetoothReady && !resourceError)
         applyDefaults();
     if (!Throttle::isWithinTimespanMsAt(defaultChannelAt, 10000, now)) {

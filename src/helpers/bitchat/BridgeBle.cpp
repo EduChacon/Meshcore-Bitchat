@@ -23,7 +23,7 @@ static concurrency::Lock lock;
 static NimBLEServer *server = nullptr;
 static NimBLECharacteristic *characteristic = nullptr;
 static std::atomic<bool> enabled{false}, nativeWindow{false}, economy{false}, announceNeeded{false};
-static std::atomic<uint32_t> dropped{0};
+static std::atomic<uint32_t> dropped{0}, attachments{0};
 static char advertisedName[12] = "MeshCore";
 static bool shortenedName = false;
 // Raw link events for the self-test: they tell a silent phone from a write that never reached the bridge.
@@ -492,6 +492,7 @@ void bleAttach(NimBLEServer *s)
 {
     concurrency::LockGuard guard(&lock);
     server = s;
+    ++attachments;
     auto *service = server->createService(SERVICE_UUID);
     characteristic = service->createCharacteristic(
         CHAR_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::NOTIFY, 512);
@@ -499,6 +500,11 @@ void bleAttach(NimBLEServer *s)
     service->start();
     if (!listening)
         listening = ble_gap_event_listener_register(&listener, onGapEvent, nullptr) == 0;
+}
+
+uint32_t bleAttachments()
+{
+    return attachments;
 }
 
 void bleDetach()

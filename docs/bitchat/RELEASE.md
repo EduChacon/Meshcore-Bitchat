@@ -35,6 +35,11 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   baixado numa versão fixa e recebe a ponte na compilação. Guia, instalação e licença (GPL-3.0):
   [WADAMESH.md](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/WADAMESH.md).
   **Só compilado; não foi ligado em aparelho.**
+- **Bluetooth reiniciado entre duas voltas do programa:** a ponte percebe o servidor novo e recomeça
+  nele, em vez de ficar calada com o estado antigo (o WadaMesh reinicia o Bluetooth numa atualização
+  pelo Wi-Fi que não se conclui). Coberto pelos testes no computador.
+- **Memória:** num aparelho com PSRAM, a ponte pode guardar nela todos os seus buffers
+  (`BRIDGE_ALLOC_CAPS`); o WadaMesh usa isso, e a RAM interna fica para o Bluetooth, o Wi-Fi e a tela.
 - O repositório foi organizado: notas antigas em
   [HISTORY.md](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/HISTORY.md),
   índice dos documentos no [guia](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md)

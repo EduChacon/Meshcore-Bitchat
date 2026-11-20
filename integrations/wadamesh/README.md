@@ -30,8 +30,11 @@ para o Bitchat), no editor de conversa e no envio do terminal, do controle pela 
 e) `src/helpers/esp32/MultiTransportCompanionInterface.cpp`: a ponte solta o servidor Bluetooth antes
 de o WadaMesh desligar a pilha, e o MTU de 517 da ponte é mantido.
 
-f) `platformio.ini`: o ambiente `_bitchat`, com C++17, pilha de 16 KB no ciclo principal e a memória
-da ponte na PSRAM.
+f) `src/main.cpp` também: 16 KB de pilha no ciclo principal com a ponte (o `SET_LOOP_TASK_STACK_SIZE`
+do WadaMesh decide a pilha; `ARDUINO_LOOP_STACK_SIZE` não teria efeito).
+
+g) `platformio.ini`: o ambiente `_bitchat`, com C++17, o caminho do MicroNMEA na pasta de bibliotecas
+deste ambiente e a memória da ponte na PSRAM (`BRIDGE_ALLOC_CAPS` e `BRIDGE_HEAP_CAPS`).
 
 ## Trocar a versão do WadaMesh
 

@@ -24,6 +24,10 @@ void PlatformBluetooth::refreshBridgeAdvertising() {
 void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code) {
   _pin_code = pin_code;
   instance = this;
+  // A second begin() comes after deinit() deleted the old server (WadaMesh restarts the stack): nothing
+  // may point at it if this start fails.
+  pServer = NULL;
+  pTxCharacteristic = pRxCharacteristic = NULL;
 
   if (strcmp(name, "@@MAC") == 0) {
     uint8_t addr[8];

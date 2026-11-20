@@ -40,6 +40,12 @@ e) **Versão fixa do WadaMesh.** Cada versão da ponte usa um WadaMesh específi
 `integrations/wadamesh/wadamesh.json`. Novidades do WadaMesh só chegam quando essa versão é
 trocada aqui.
 
+f) **Memória e pilha.** Os buffers da ponte ficam na PSRAM do T-Deck, para não tirar RAM interna do
+Bluetooth, do Wi-Fi e da tela; o ciclo principal tem 16 KB de pilha, como nas outras pontes.
+
+g) **Escopo de região.** O texto e os pagamentos que a ponte põe no LoRa saem com o escopo de região
+do próprio canal, como o que se digita na tela.
+
 ## Instalação
 
 Arquivos da versão: `LilyGo_TDeck_WadaMesh_bitchat-brasil-merged.bin` (instalação completa) e

@@ -3,14 +3,35 @@
 // MeshCore-Bitchat, adapted to WadaMesh's MyMesh: its history ring for the companion apps and its touch UI.
 #ifdef WITH_BITCHAT_BRIDGE
 #include "MyMesh.h"
+#include "helpers/esp32/TouchPrefsStore.h"
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/TxtDataHelpers.h>
 #include <target.h>
+
+// UITask.cpp: the last event decides whether a new message goes to a channel's thread or to a DM
+extern UIEventType g_last_event;
 
 #define BRIDGE_RESP_CODE_CHANNEL_MSG_RECV_V3 17
 #define BRIDGE_PUSH_CODE_MSG_WAITING 0x83
 
 static bool bridge_text_on_air = false;
+
+// The channel's own region scope, as WadaMesh's composer and its app command use (its #614).
+struct ChannelScope {
+    MyMesh &mesh;
+    bool pushed;
+    ChannelScope(MyMesh &m, uint8_t index) : mesh(m), pushed(false)
+    {
+        char region[TOUCH_REGION_SCOPE_MAXLEN] = {0};
+        touchPrefsGetChannelScope(index, region, sizeof(region));
+        pushed = mesh.pushChannelScope(region);
+    }
+    ~ChannelScope()
+    {
+        if (pushed)
+            mesh.popChannelScope();
+    }
+};
 
 uint32_t MyMesh::clockSeconds()
 {
@@ -49,6 +70,11 @@ uint8_t MyMesh::provideChannel(const char *name, const uint8_t secret[32])
     if (!setChannel(free_idx, ch))
         return bitchat::NO_CHANNEL;
     saveChannels();
+#ifdef DISPLAY_CLASS
+    // the new channel shows in the conversations at once, not at the next periodic poll
+    if (_ui)
+        _ui->onThreadsChanged();
+#endif
     return free_idx;
 }
 
@@ -87,7 +113,10 @@ bool MyMesh::sendChannelText(uint8_t index, uint32_t timestamp, const char *text
     auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, ch.channel, temp, 5 + size);
     if (pkt == NULL)
         return false;
-    sendFloodScoped(ch.channel, pkt);
+    {
+        ChannelScope scope(*this, index);
+        sendFloodScoped(ch.channel, pkt);
+    }
     // The apps and the screen see it as a message received on the channel, under its sender's name.
     bridge_text_on_air = true;
     showChannelText(index, timestamp, text, size);
@@ -133,10 +162,17 @@ void MyMesh::showChannelText(uint8_t index, uint32_t timestamp, const char *text
         line[n] = 0;
         ChannelDetails ch;
         const char *channel_name = getChannel(index, ch) && ch.name[0] ? ch.name : "Bitchat";
-        // as onChannelMessageRecv does: the event first, so the text lands in the channel's thread
-        if (!bridge_text_on_air)
+        // as onChannelMessageRecv does: the event first, so the text lands in the channel's thread. Text
+        // this radio has just sent for a Bitchat phone gets no alert, but still the channel's event.
+        if (bridge_text_on_air) {
+            const UIEventType previous = g_last_event;
+            g_last_event = UIEventType::channelMessage;
+            _ui->newMsgFromPubWithMeta(0xFF, false, nullptr, channel_name, line, history_count, 0, 0);
+            g_last_event = previous;
+        } else {
             _ui->notify(UIEventType::channelMessage);
-        _ui->newMsgFromPubWithMeta(0xFF, false, nullptr, channel_name, line, history_count, 0, 0);
+            _ui->newMsgFromPubWithMeta(0xFF, false, nullptr, channel_name, line, history_count, 0, 0);
+        }
     }
 #endif
 }
@@ -146,6 +182,7 @@ bool MyMesh::sendChannelData(uint8_t index, uint16_t dataType, const uint8_t *da
     ChannelDetails ch;
     if (size == 0 || size > MAX_GROUP_DATA_LENGTH || !getChannel(index, ch) || ch.name[0] == 0)
         return false;
+    ChannelScope scope(*this, index);
     return sendGroupData(ch.channel, NULL, OUT_PATH_UNKNOWN, dataType, data, (int)size);
 }
 

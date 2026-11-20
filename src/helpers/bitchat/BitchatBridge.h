@@ -320,6 +320,7 @@ class BitchatBridge
     };
     std::unique_ptr<Runtime> runtime;
     bool resourceError = false;
+    uint32_t runtimeAttachment = 0; // bleAttachments() when the runtime was allocated
     // 0 idle, 1 requested, 2 phones were told to read the services again and the links drop next.
     uint8_t restart = 0;
     bitchat::Command appCommand = bitchat::Command::None;

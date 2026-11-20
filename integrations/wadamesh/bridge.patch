@@ -1,8 +1,8 @@
 diff --git a/platformio.ini b/platformio.ini
-index 75e3d7e..390033e 100644
+index 75e3d7e..cb064ad 100644
 --- a/platformio.ini
 +++ b/platformio.ini
-@@ -711,6 +711,27 @@ lib_deps =
+@@ -711,6 +711,31 @@ lib_deps =
    densaugeo/base64 @ ~1.4.0
    knolleary/PubSubClient @ ^2.8.0
  
@@ -18,10 +18,14 @@ index 75e3d7e..390033e 100644
 +build_flags =
 +  ${env:LilyGo_TDeck_companion_radio_touch.build_flags}
 +  -std=gnu++17
++  ; the base env's MicroNMEA path names its own libdeps folder; this env has its own
++  -I"${platformio.libdeps_dir}/${this.__env__}/MicroNMEA/src"
 +  -D WITH_BITCHAT_BRIDGE=1
-+  -D ARDUINO_LOOP_STACK_SIZE=16384
 +  -D CONFIG_BT_NIMBLE_MAX_CCCDS=20
-+  -D BRIDGE_HEAP_CAPS=MALLOC_CAP_8BIT
++  -D CONFIG_BT_NIMBLE_MAX_BONDS=6
++  ; the bridge's buffers in PSRAM: the internal RAM stays for Bluetooth, Wi-Fi and the screen
++  -D BRIDGE_ALLOC_CAPS=MALLOC_CAP_SPIRAM
++  -D BRIDGE_HEAP_CAPS=MALLOC_CAP_SPIRAM
 +build_src_filter =
 +  ${env:LilyGo_TDeck_companion_radio_touch.build_src_filter}
 +  +<helpers/bitchat/*.cpp>
@@ -180,10 +184,23 @@ index 0e9f030..3b07deb 100644
      NimBLEDevice::deinit(true);
      _ble_begun = false;
 diff --git a/src/main.cpp b/src/main.cpp
-index f3d91ce..7395445 100644
+index f3d91ce..d647d85 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -1790,6 +1790,9 @@ void setup() {
+@@ -29,7 +29,11 @@ static SntpClockPush s_sntp_push;
+ #include "ui-touch/device_caps.h"            // CAP_BLE_KEYBOARD: keyboard mode keeps the phone link paused from boot
+ #endif
+ 
+-#if defined(HAS_THINKNODE_M9)
++#if defined(WITH_BITCHAT_BRIDGE)
++// MeshCore-Bitchat: the bridge's signatures and key exchanges run in this task, as in every bridge build.
++// It replaces the -O2 figure below, which it covers.
++SET_LOOP_TASK_STACK_SIZE(16 * 1024);
++#elif defined(HAS_THINKNODE_M9)
+ // ThinkNode M9: nested LVGL + shared-SPI SD/FATFS + Lua frames exceed the 8 KB default.
+ SET_LOOP_TASK_STACK_SIZE(12 * 1024);
+ #elif defined(WADA_LVGL_O2)
+@@ -1790,6 +1794,9 @@ void setup() {
    serial_interface.begin(Serial);
  #endif
    the_mesh.startInterface(serial_interface);
@@ -193,7 +210,7 @@ index f3d91ce..7395445 100644
  #else
    #error "need to define filesystem"
  #endif
-@@ -2271,6 +2274,9 @@ void loop() {
+@@ -2271,6 +2278,9 @@ void loop() {
  #else
    the_mesh.loop();
  #endif

@@ -1833,6 +1833,16 @@ int main()
     run(60000);
     CHECK(mesh.gpsCalls.size() == 2);
 
+    // The Bluetooth stack restarted between two ticks (WadaMesh does it around an update over Wi-Fi): the
+    // bridge starts over on the new server instead of staying silent with its old state.
+    CHECK(bridge->enabled() && bleAdvertise());
+    bleDetach();
+    static NimBLEServer restarted;
+    bleAttach(&restarted);
+    CHECK(!bleAdvertise());
+    run(1500);
+    CHECK(bridge->enabled() && bleAdvertise());
+
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;
 }

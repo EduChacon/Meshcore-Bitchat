@@ -14,6 +14,8 @@ struct BleInput {
 };
 void bleAttach(NimBLEServer *server);
 void bleDetach();
+// Counts bleAttach() calls: a new count means a new Bluetooth server, after the stack was restarted.
+uint32_t bleAttachments();
 size_t bleBufferSize();
 bool bleAllocateBuffers();
 void bleReleaseBuffers();

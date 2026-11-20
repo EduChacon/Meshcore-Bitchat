@@ -5,8 +5,23 @@
 #include <memory>
 #include <new>
 #ifdef WITH_BITCHAT_BRIDGE
+#ifdef BRIDGE_ALLOC_CAPS
+// A board with PSRAM can keep every buffer of the bridge there (WadaMesh on the T-Deck), so the internal RAM
+// stays for the Bluetooth stack, the Wi-Fi and the screen.
+#include <esp_heap_caps.h>
+#endif
 namespace bitchat
 {
+// What the buffers below come from. ESP-IDF's free(), which delete calls, takes back memory of any heap.
+inline void *bridgeAllocate(size_t size)
+{
+#ifdef BRIDGE_ALLOC_CAPS
+    return heap_caps_malloc(size, BRIDGE_ALLOC_CAPS);
+#else
+    return ::operator new(size, std::nothrow);
+#endif
+}
+
 void setupBootDiagnostics();
 void bootDiagnostic(const char *stage);
 bool memoryAvailable(size_t total, size_t largest);
@@ -19,7 +34,8 @@ template <typename T> bool allocateBuffer(std::unique_ptr<T> &buffer)
     constexpr size_t overhead = 256;
     if (!memoryAvailable(sizeof(T) + overhead, std::max(sizeof(T) + overhead, size_t(8192))))
         return false;
-    buffer.reset(new (std::nothrow) T);
+    void *memory = bridgeAllocate(sizeof(T));
+    buffer.reset(memory ? new (memory) T : nullptr);
     if (buffer && memoryAvailable(0, 8192))
         return true;
     buffer.reset();
@@ -38,7 +54,7 @@ inline bool allocateBytes(ByteBuffer &buffer, size_t size)
     buffer.reset();
     if (!size || !memoryAvailable(size + overhead, std::max(size + overhead, size_t(8192))))
         return false;
-    buffer.reset(static_cast<uint8_t *>(::operator new(size, std::nothrow)));
+    buffer.reset(static_cast<uint8_t *>(bridgeAllocate(size)));
     if (buffer && memoryAvailable(0, 8192))
         return true;
     buffer.reset();
