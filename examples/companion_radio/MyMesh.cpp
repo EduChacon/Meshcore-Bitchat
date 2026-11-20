@@ -2668,6 +2668,12 @@ bitchat::MeshHost::NodeCheck MyMesh::verifyNode(const uint8_t keyPrefix[8], cons
   return NodeCheck::Valid;
 }
 
+void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp, const uint8_t *app_data,
+                          size_t app_data_len) {
+  bitchat_bridge.onRadioTime(id.pub_key, timestamp);
+  BaseChatMesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len);
+}
+
 bool MyMesh::setSound(bool on) {
 #ifdef PIN_BUZZER
   _prefs.buzzer_quiet = on ? 0 : 1;

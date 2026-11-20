@@ -147,14 +147,67 @@ void BitchatBridge::adoptPeerClock(Bytes frame, const Packet &packet)
     if (trustedUtc() || packet.type != 1 || packet.ttl != 7 || packet.timestamp < clockFloor)
         return;
     const uint64_t current = utc();
-    if (current && packet.timestamp <= current + FRESHNESS_MS)
+    // A phone next to the radio beats what LoRa adverts gave, in either direction.
+    if (current && !peerClockFromRadio && packet.timestamp <= current + FRESHNESS_MS)
         return;
     Peer *peer = nullptr;
     if (runtime->peers->announce(crypto, frame, packet.timestamp, millis(), peer) != Result::Ok)
         return;
     peerClockUtc = packet.timestamp;
     peerClockAt = millis();
+    peerClockFromRadio = false;
     announcedAt = peerClockAt - 60000;
+}
+
+// Adverts are signed with the time their radio keeps. One radio may be wrong, so two different ones must agree
+// within a minute; the earlier of the two is taken, so a fast clock does not lock the bridge ahead. Only
+// forward, never before the last trusted time, and the firmware clock is left alone.
+void BitchatBridge::onRadioTime(const uint8_t keyPrefix[4], uint32_t seconds)
+{
+    static constexpr uint32_t KEEP_MS = 30UL * 60 * 1000;
+    static constexpr uint64_t AGREE_MS = 60000;
+    const uint64_t heard = uint64_t(seconds) * 1000;
+    // An advert may arrive before begin().
+    if (!host || trustedUtc() || heard < clockFloor)
+        return;
+    const uint32_t now = millis();
+    RadioTime *slot = nullptr;
+    for (auto &entry : radioTimes) {
+        if (entry.used && !Throttle::isWithinTimespanMsAt(entry.at, KEEP_MS, now))
+            entry.used = false;
+        if (entry.used && std::equal(entry.key.begin(), entry.key.end(), keyPrefix)) {
+            slot = &entry;
+            break;
+        }
+    }
+    if (!slot)
+        for (auto &entry : radioTimes)
+            if (!slot || !entry.used || (slot->used && int32_t(entry.at - slot->at) < 0)) {
+                slot = &entry;
+                if (!entry.used)
+                    break;
+            }
+    std::copy_n(keyPrefix, slot->key.size(), slot->key.begin());
+    slot->utc = heard;
+    slot->at = now;
+    slot->used = true;
+    uint64_t agreed = 0;
+    for (size_t i = 0; i < radioTimes.size(); ++i)
+        for (size_t j = i + 1; j < radioTimes.size(); ++j) {
+            const auto &a = radioTimes[i], &b = radioTimes[j];
+            if (!a.used || !b.used)
+                continue;
+            const uint64_t ta = a.utc + uint32_t(now - a.at), tb = b.utc + uint32_t(now - b.at);
+            if ((ta > tb ? ta - tb : tb - ta) <= AGREE_MS)
+                agreed = std::max(agreed, std::min(ta, tb));
+        }
+    const uint64_t current = utc();
+    if (!agreed || (current && (!peerClockFromRadio || agreed <= current)))
+        return;
+    peerClockUtc = agreed;
+    peerClockAt = now;
+    peerClockFromRadio = true;
+    announcedAt = now - 60000;
 }
 
 void BitchatBridge::keepClock(uint32_t now)
@@ -277,6 +330,12 @@ void BitchatBridge::renewIdentity()
     identity.fill(0);
     if (storageReady)
         storage.putBytes("identity", identity.data(), identity.size());
+    // The private chats were with the old identity.
+    if (runtime && runtime->privates)
+        for (auto &session : runtime->privates->slots) {
+            session.handshake.wipe();
+            session = {};
+        }
     identityRenew = true;
     identityReady = false;
 }
@@ -413,6 +472,12 @@ void BitchatBridge::counters(unsigned &phones, unsigned &people, uint32_t &out, 
 
 void BitchatBridge::releaseRuntime()
 {
+    // The keys of the private chats are not left behind in freed memory.
+    if (runtime && runtime->privates)
+        for (auto &session : runtime->privates->slots) {
+            session.handshake.wipe();
+            session = {};
+        }
     bleReleaseBuffers();
     runtime.reset();
     // A payment on its way goes with the runtime that carried it.
@@ -523,9 +588,10 @@ void BitchatBridge::diagnostics(char *out, size_t size) const
     snprintf(out, size, "UTC %02lu:%02lu:%02lu %s. rx %lu ok %lu tx %lu. old %lu sig %lu fmt %lu. ver %lu pol %lu full %lu",
              static_cast<unsigned long>(seconds / 3600 % 24), static_cast<unsigned long>(seconds / 60 % 60),
              static_cast<unsigned long>(seconds % 60),
-             trustedUtc()   ? "app"
-             : peerClockUtc ? "phone"
-                            : "none",
+             trustedUtc()            ? "app"
+             : peerClockFromRadio && peerClockUtc ? "lora"
+             : peerClockUtc          ? "phone"
+                                     : "none",
              static_cast<unsigned long>(receivedBle), static_cast<unsigned long>(acceptedBle),
              static_cast<unsigned long>(originatedBle), count(Result::Expired) + count(Result::NoClock),
              count(Result::Unauthenticated), count(Result::Malformed) + count(Result::Oversize) + count(Result::Incomplete),
@@ -770,6 +836,10 @@ void BitchatBridge::answerBitchat()
     displayCount(drops(), missed);
     const int size = snprintf(text, sizeof(text), "%s%s. Phones %u, people %u. LoRa out %s, in %s, lost %s", REPLY_PREFIX,
                               status(), unsigned(blePhones()), unsigned(runtime->peers->size()), tx, rx, missed);
+    if (privateReply) {
+        replyPrivately(text, std::min<size_t>(size, BITCHAT_TEXT_LIMIT));
+        return;
+    }
     if (!Throttle::isWithinTimespanMsAt(announcedAt, 5000, millis()))
         announce();
     originate(2, {reinterpret_cast<const uint8_t *>(text), std::min<size_t>(size, BITCHAT_TEXT_LIMIT)});
@@ -778,12 +848,15 @@ void BitchatBridge::answerBitchat()
 // The guide asked from Bitchat: a few signed messages, for people who never see the radio's own app.
 void BitchatBridge::guideBitchat(bool portuguese)
 {
-    if (!Throttle::isWithinTimespanMsAt(announcedAt, 5000, millis()))
+    if (!privateReply && !Throttle::isWithinTimespanMsAt(announcedAt, 5000, millis()))
         announce();
     for (size_t line = 0; line < GUIDE_LINES; ++line) {
         char text[BITCHAT_TEXT_LIMIT + 1];
         const int size = snprintf(text, sizeof(text), "%s%s", REPLY_PREFIX, guideLine(portuguese, false, guideMode(), line));
-        originate(2, {reinterpret_cast<const uint8_t *>(text), std::min<size_t>(size, BITCHAT_TEXT_LIMIT)});
+        if (privateReply)
+            replyPrivately(text, std::min<size_t>(size, BITCHAT_TEXT_LIMIT));
+        else
+            originate(2, {reinterpret_cast<const uint8_t *>(text), std::min<size_t>(size, BITCHAT_TEXT_LIMIT)});
     }
 }
 
@@ -802,6 +875,10 @@ void BitchatBridge::tellBitchat(const char *text, size_t size, bool keep)
 {
     if (!runtime || !identityReady)
         return;
+    if (privateReply) {
+        replyPrivately(text, size);
+        return;
+    }
     char line[BITCHAT_TEXT_LIMIT + 1];
     const size_t length = fitted(snprintf(line, sizeof(line), "%s%.*s", REPLY_PREFIX, int(size), text), sizeof(line));
     if (!Throttle::isWithinTimespanMsAt(announcedAt, 5000, millis()))
@@ -818,8 +895,10 @@ void BitchatBridge::answerAsked(const BridgeRequest &asked, const Peer &peer, bo
     const size_t room = sizeof(text) - (sizeof(REPLY_PREFIX) - 1);
     size_t size = 0;
     if (asked.command == Command::Guide || asked.command == Command::GuidePt) {
-        if (!Throttle::isWithinTimespanMsAt(guidedAt, 30000, now)) {
-            guidedAt = now;
+        // In a private chat the guide goes to the one who asked, every time.
+        if (privateReply || !Throttle::isWithinTimespanMsAt(guidedAt, 30000, now)) {
+            if (!privateReply)
+                guidedAt = now;
             guideBitchat(asked.command == Command::GuidePt);
         }
         return;
@@ -829,9 +908,11 @@ void BitchatBridge::answerAsked(const BridgeRequest &asked, const Peer &peer, bo
     const bool urgent = asked.command == Command::Sos && wasActive && textReady && !textConflict && !textGuard() &&
                         runtime->radioQueue.size() < RadioItem::QUEUE &&
                         !(sosSent && Throttle::isWithinTimespanMsAt(sosAt, SOS_EVERY_MS, now));
-    if (!urgent && Throttle::isWithinTimespanMsAt(repliedAt, 5000, now))
+    // A private chat has its own spacing (BridgePrivate.cpp).
+    if (!urgent && !privateReply && Throttle::isWithinTimespanMsAt(repliedAt, 5000, now))
         return;
-    repliedAt = now;
+    if (!privateReply)
+        repliedAt = now;
     char label[LABEL_LIMIT + 8];
     switch (asked.command) {
     case Command::Who:
@@ -1290,17 +1371,23 @@ bool BitchatBridge::record(const Digest &id, bool persist)
     return false;
 }
 
+// Two messages in the same instant still need distinct timestamps; a corrected clock must not keep an old lead.
+uint64_t BitchatBridge::nextTimestamp()
+{
+    uint64_t timestamp = utc();
+    if (lastOriginTimestamp >= timestamp && lastOriginTimestamp - timestamp < 1000)
+        timestamp = lastOriginTimestamp + 1;
+    lastOriginTimestamp = timestamp;
+    return timestamp;
+}
+
 bool BitchatBridge::sign(uint8_t type, Bytes payload, uint8_t ttl)
 {
     if (!identityReady || !utc()) {
         reject(Result::NoClock);
         return false;
     }
-    // Two messages in the same instant still need distinct timestamps; a corrected clock must not keep an old lead.
-    uint64_t timestamp = utc();
-    if (lastOriginTimestamp >= timestamp && lastOriginTimestamp - timestamp < 1000)
-        timestamp = lastOriginTimestamp + 1;
-    lastOriginTimestamp = timestamp;
+    const uint64_t timestamp = nextTimestamp();
     if (encode(type, ownId, nullptr, timestamp, ttl, payload, {}, runtime->working) != Result::Ok ||
         signingBytes(runtime->working.bytes(), runtime->canonical) != Result::Ok)
         return false;
@@ -1523,6 +1610,12 @@ bool BitchatBridge::handleFrame(Bytes frame, uint16_t source)
     if (!peer->traffic.admit(now, 30)) {
         reject(Result::Full);
         ++lost;
+        return true;
+    }
+    // Addressed to this bridge: a private chat. Not passed on; no phone does.
+    if (packet.directed() && packet.recipient == ownId) {
+        if (packet.type == 0x10 || packet.type == 0x11)
+            privateFrame(packet, *peer, source, now);
         return true;
     }
     if (relay(frame, runtime->working) == Result::Ok) {

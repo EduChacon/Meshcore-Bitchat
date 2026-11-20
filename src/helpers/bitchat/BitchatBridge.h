@@ -4,6 +4,7 @@
 #include "BridgeCashu.h"
 #include "BridgeCrypto.h"
 #include "BridgeHistory.h"
+#include "BridgeNoise.h"
 #include "BridgeState.h"
 #include "BridgeText.h"
 #include "BridgeTunnel.h"
@@ -20,9 +21,32 @@
 #define BITCHAT_DEDUP_ENTRIES 256
 #endif
 
+// Phones that can hold a private chat with the bridge at once; the one quiet longest gives way.
+#ifndef BITCHAT_PRIVATE_SESSIONS
+#define BITCHAT_PRIVATE_SESSIONS 3
+#endif
+
 namespace bitchat
 {
 inline constexpr char PUBLIC_CHANNEL_NAME[] = "#bitchat";
+
+// A private chat with one phone: its Noise session, and the handshake under way, if any. A new handshake
+// leaves the old session working until it completes, as the apps do.
+struct PrivateSession {
+    PeerId peer{};
+    bool used = false, ready = false, handshaking = false;
+    uint8_t failures = 0;
+    uint32_t usedAt = 0, handshakeAt = 0, initiatedAt = 0, commandAt = 0;
+    NoiseSender send;
+    NoiseReceiver receive;
+    NoiseHandshake handshake;
+    // The IDs of the last messages, hashed: the app sends a message again until it hears it was delivered.
+    std::array<uint32_t, 6> recent{};
+    uint8_t recentNext = 0;
+};
+struct PrivateSessions {
+    std::array<PrivateSession, BITCHAT_PRIVATE_SESSIONS> slots{};
+};
 inline constexpr uint8_t NO_CHANNEL = 255;
 
 // What the bridge needs from the companion firmware. Channel secrets are 32 bytes; a 128-bit key
@@ -139,6 +163,9 @@ class BitchatBridge
     // Channel text typed in the attached app. True when it was a bridge command, which is answered
     // locally and must not be transmitted.
     bool onAppText(uint8_t channel, const char *text, size_t size);
+    // A radio's advert heard on LoRa, signature already checked: the first bytes of its key and the time it
+    // signed. With no other source, two radios that agree within a minute give the bridge the time.
+    void onRadioTime(const uint8_t keyPrefix[4], uint32_t seconds);
     // Channel data heard on LoRa. True when it was the bridges' own (a part of a payment, a confirmation),
     // which is not for the attached app.
     bool onChannelData(uint8_t channel, uint16_t dataType, const uint8_t *data, size_t size);
@@ -264,6 +291,15 @@ class BitchatBridge
     uint64_t lastOriginTimestamp = 0, peerClockUtc = 0, clockFloor = 0;
     uint32_t peerClockAt = 0, clockSavedAt = 0, clockRtc = 0, clockAt = 0;
     bool clockSaved = false, clockSampled = false, clockTrusted = false;
+    // The time came from LoRa adverts: a phone's own time, when one announces itself, replaces it.
+    bool peerClockFromRadio = false;
+    struct RadioTime {
+        std::array<uint8_t, 4> key{};
+        uint64_t utc = 0;
+        uint32_t at = 0;
+        bool used = false;
+    };
+    std::array<RadioTime, 6> radioTimes{};
     uint32_t forwardedBle = 0, submittedRadio = 0, importedRadio = 0, lost = 0;
     uint32_t receivedBle = 0, acceptedBle = 0, originatedBle = 0;
     std::array<uint32_t, 12> rejected{};
@@ -315,6 +351,9 @@ class BitchatBridge
         // Confirmations and requests for missing parts, sent before anything else.
         bitchat::BoundedQueue<bitchat::TunnelDatagram, 3> tunnelControl;
         bitchat::RateGate radioGate, cryptoGate;
+        // Private chats with phones, made when the first one starts.
+        std::unique_ptr<bitchat::PrivateSessions> privates;
+        bitchat::RateBucket handshakes;
         bitchat::BleInput input;
         bitchat::Frame assembled, working, canonical;
     };
@@ -329,6 +368,9 @@ class BitchatBridge
     // The text after a command such as "note", copied for the next tick.
     char appArgument[bitchat::COMMAND_TEXT_LIMIT + 1]{};
     uint32_t restartAt = 0, repliedAt = 0, guidedAt = 0;
+    // While a private request is answered, the answers go to that chat instead of the public one.
+    bitchat::PrivateSession *privateReply = nullptr;
+    uint32_t privateIn = 0, privateOut = 0;
 
     void work(uint32_t now);
     void channelText(uint8_t channel, const uint8_t *packetHash, const char *text, int16_t snrTenths);
@@ -358,6 +400,8 @@ class BitchatBridge
     // `direct`: the phone is connected to this radio, not relayed by others.
     void answerAsked(const bitchat::BridgeRequest &asked, const bitchat::Peer &peer, bool direct, uint32_t now);
     bool sign(uint8_t type, bitchat::Bytes payload, uint8_t ttl);
+    // The time for a packet this bridge sends: never the same twice.
+    uint64_t nextTimestamp();
     bool ensureRuntime();
     void releaseRuntime();
     void applyDefaults();
@@ -403,6 +447,19 @@ class BitchatBridge
     void watchClock(uint32_t now);
     void adoptPeerClock(bitchat::Bytes frame, const bitchat::Packet &packet);
     void keepClock(uint32_t now);
+    // Private chats (BridgePrivate.cpp): a Noise packet addressed to this bridge.
+    void privateFrame(const bitchat::Packet &packet, const bitchat::Peer &peer, uint16_t source, uint32_t now);
+    bitchat::PrivateSession *privateSession(const bitchat::PeerId &peer, uint32_t now);
+    void privateHandshake(bitchat::PrivateSession &session, const bitchat::Packet &packet, uint32_t now);
+    void privateTransport(bitchat::PrivateSession &session, const bitchat::Packet &packet, const bitchat::Peer &peer,
+                          bool direct, uint32_t now);
+    void privateRequest(bitchat::PrivateSession &session, const bitchat::Peer &peer, bitchat::Bytes text, bool direct,
+                        uint32_t now);
+    bool initiatePrivate(bitchat::PrivateSession &session, uint32_t now);
+    bool sendPrivate(bitchat::PrivateSession &session, uint8_t kind, bitchat::Bytes body);
+    // Text to the chat being answered; a leading "[bridge] " is left out there.
+    bool replyPrivately(const char *text, size_t size);
+    bool sendNoise(uint8_t type, const bitchat::PeerId &to, bitchat::Bytes payload);
 };
 extern BitchatBridge bitchat_bridge;
 #endif

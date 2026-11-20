@@ -80,7 +80,7 @@ index 7951872..e6c21af 100644
        ChannelDetails channel;
        // getChannel() succeeds for ANY in-range index, including a slot that was
 diff --git a/src/MyMesh.h b/src/MyMesh.h
-index eaa9077..97b842b 100644
+index eaa9077..5d085c9 100644
 --- a/src/MyMesh.h
 +++ b/src/MyMesh.h
 @@ -116,6 +116,9 @@
@@ -93,7 +93,7 @@ index eaa9077..97b842b 100644
  
  /* -------------------------------------------------------------------------------------- */
  
-@@ -141,8 +144,34 @@ struct RecentlyHeardName {
+@@ -141,8 +144,37 @@ struct RecentlyHeardName {
    uint8_t type;
  };
  
@@ -125,6 +125,9 @@ index eaa9077..97b842b 100644
 +  bool position(int32_t &latitude, int32_t &longitude) override;
 +  bool positionShared() override;
 +  static bool sendingBridgeText();
++  // Adverts carry their radio's time: the bridge may take it when nothing else gave the time.
++  void onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp, const uint8_t *app_data,
++                    size_t app_data_len) override;
 +#endif
    MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui=NULL);
  

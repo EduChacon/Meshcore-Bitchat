@@ -195,7 +195,8 @@ ou a cópia de segurança no endereço `0x0`.
    MeshCore deste rádio e dos outros da malha que tenham o canal.
 
 Sem o aplicativo MeshCore por perto, a ponte funciona do mesmo modo: ela toma a hora do
-primeiro telefone Bitchat que se apresenta. A frequência do rádio, porém, precisa estar certa:
+primeiro telefone Bitchat que se apresenta ou, a partir da `bitchat0.24`, de dois rádios MeshCore
+ao alcance que concordem entre si (veja "Hora pelos anúncios do LoRa", abaixo). A frequência do rádio, porém, precisa estar certa:
 ou ajustada antes pelo aplicativo, uma vez, ou vinda de um [arquivo do país](#arquivos-por-país).
 
 ### Várias casas, cada uma com um rádio
@@ -321,6 +322,45 @@ desligado. Sem hora, tenta de novo a cada seis horas. O GPS **não** é ligado q
 configurado para incluir a posição nos anúncios, para que a posição do GPS não substitua a que o
 operador escolheu divulgar. Ao desligar o GPS, a ponte devolve ao rádio a posição que ele tinha
 antes: a posição do GPS não fica guardada.
+
+h) **Hora pelos anúncios do LoRa** (a partir da `bitchat0.24`). Cada rádio MeshCore manda
+anúncios ("adverts") assinados com a hora do próprio relógio. Sem outra fonte de hora (aplicativo,
+GPS ou telefone), a ponte adota a hora quando **dois rádios diferentes** concordam com diferença de
+até um minuto, e fica com a mais cedo das duas, para não se adiantar. Um rádio sozinho, ou rádios
+que discordam, não bastam. A hora assim obtida só avança, nunca volta para antes da última hora
+confiável guardada, e o relógio do rádio não é alterado. Quando um telefone com Bitchat se apresenta
+perto, a hora dele substitui a do LoRa. No diagnóstico do `!bridge` aparece como `lora`. Resolve o
+caso do Heltec V3 ligado sozinho, sem aplicativo e sem GPS, num lugar com outros rádios ao alcance.
+
+## Conversa privada com a ponte (a partir da `bitchat0.24`)
+
+No Bitchat, a ponte aparece na lista de pessoas como `LoRa bridge` seguido de quatro caracteres.
+Tocando nela, abre-se uma conversa privada, como com qualquer pessoa, e os pedidos feitos ali têm
+resposta só ali, sem aparecer no chat público.
+
+a) **Basta a palavra:** `bateria`, `quem`, `guia`, `teste`, `recado <texto>`, `sos <texto>`, ou
+`ponte` para o estado (em inglês, `battery`, `who`, `guide`, `test`, `note`, `sos`, `bridge`).
+Os comandos completos (`!ponte bateria`) também valem. Qualquer outra coisa recebe a lista de
+palavras.
+
+b) **As regras são as do chat público:** a lista de rádios continua só no aplicativo do próprio
+rádio, o recado só muda por quem está ligado diretamente ao rádio, e os ajustes (ligar, desligar,
+som, luz) continuam só pelo aplicativo MeshCore. O que um pedido manda ao LoRa (um socorro, um
+teste de alcance) vai ao LoRa como no chat público; o resultado do teste de alcance sai no chat
+público, como antes.
+
+c) **Criptografia:** a mesma das conversas privadas entre telefones (protocolo Noise, com a chave
+que a ponte anuncia). Cada mensagem recebida é confirmada como entregue. A ponte mantém até três
+conversas ao mesmo tempo; a que ficou mais tempo parada dá lugar a uma nova, e uma conversa parada
+por 30 minutos é encerrada. Depois de reiniciar o rádio, a primeira mensagem refaz a conversa
+sozinha.
+
+d) **Mensagens privadas entre pessoas continuam sem atravessar o LoRa.** Levar uma mensagem privada
+do Bitchat a um contato do MeshCore é uma etapa seguinte, ainda não feita.
+
+e) **Não foi ligado em aparelho.** O protocolo foi conferido byte a byte com uma implementação
+independente do Noise e com o código do Bitchat para iPhone e Android, mas a conversa com o
+aplicativo de verdade ainda não foi ensaiada.
 
 ## Histórico para quem chega depois
 
@@ -456,6 +496,7 @@ ela se desliga e informa `Low memory: bridge OFF`. O consumo real não foi medid
 | `src/helpers/bitchat/`                                        | Núcleo da ponte (codec, assinaturas, estado, Bluetooth, texto)  |
 | `src/helpers/bitchat/BitchatBridge.*`                         | Ligação com o MeshCore: canal, relógio, comandos, filas         |
 | `src/helpers/bitchat/Bridge{Cashu,Inflate,Tunnel,Payments}.*` | Pagamentos Cashu pelo LoRa                                      |
+| `src/helpers/bitchat/Bridge{Noise,Private}.*`                 | Conversa privada com a ponte (Noise XX, sessões, respostas)     |
 | `src/helpers/bitchat/esp32/`, `nrf52/`                        | Interface Bluetooth do _companion_ (NimBLE; Bluefruit no nRF52) |
 | `examples/companion_radio/`                                   | Pontos de contato com a ponte e ajustes de bipe e luz           |
 | `variants/bitchat/platformio.ini`                             | Ambientes de compilação (gerados)                               |

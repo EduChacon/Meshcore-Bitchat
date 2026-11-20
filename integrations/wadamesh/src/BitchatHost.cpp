@@ -261,4 +261,11 @@ bool MyMesh::positionShared()
 {
     return _prefs.advert_loc_policy != ADVERT_LOC_NONE;
 }
+
+void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp, const uint8_t *app_data,
+                          size_t app_data_len)
+{
+    bitchat_bridge.onRadioTime(id.pub_key, timestamp);
+    BaseChatMesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len);
+}
 #endif

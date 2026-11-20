@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.23
+# MeshCore + Bitchat v1.18.0-bitchat0.24
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -13,9 +13,10 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
   pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
   `bitchat0.11` e as correções da `bitchat0.12`. Passou nos testes em computador e compila.
-- **Testes em computador desta versão:** 943 verificações do núcleo, 8113 dos pagamentos Cashu e
-  1722 do fluxo completo, com telefones e rádio simulados; compilados no computador o Heltec V3, o
-  T-Deck (MeshCore e WadaMesh) e o Cardputer ADV.
+- **Testes em computador desta versão:** 943 verificações do núcleo, 223 da criptografia das
+  conversas privadas (conferida com uma implementação independente do Noise), 8113 dos pagamentos
+  Cashu e 2015 do fluxo completo, com telefones e rádio simulados; compilados no computador o
+  Heltec V3, o T1000-E, o T-Deck (MeshCore e WadaMesh) e o Cardputer ADV.
 - **T1000-E:** o autor gravou a `bitchat0.14`. O aplicativo MeshCore conectou, e a ponte ficou
   pronta para o LoRa, mas o Bitchat não a encontrava; a `bitchat0.17` corrige a causa achada.
 - **Cardputer ADV:** o autor gravou a `bitchat0.13` e a `0.14`. Com a `0.14`, relatou melhora,
@@ -24,7 +25,24 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.23`
+## O que há de novo na `bitchat0.24`
+
+- **Conversa privada com a ponte.** No Bitchat, a ponte aparece na lista de pessoas como
+  `LoRa bridge` e quatro caracteres; abre-se com ela uma conversa privada como com qualquer pessoa.
+  Ali basta a palavra (`bateria`, `quem`, `guia`, `teste`, `recado <texto>`, `sos <texto>`, ou
+  `ponte` para o estado), e a resposta sai só nessa conversa, sem aparecer no chat público. As
+  regras são as do chat público: a lista de rádios e os ajustes continuam só no aplicativo do rádio.
+  A criptografia é a mesma das conversas entre telefones (Noise, conferido byte a byte com uma
+  implementação independente e com o código do Bitchat para iPhone e Android). Mensagens privadas
+  entre pessoas continuam sem atravessar o LoRa.
+- **Hora pelos anúncios do LoRa.** Sem aplicativo, GPS ou telefone por perto, a ponte acerta a hora
+  quando dois rádios MeshCore diferentes ao alcance concordam com diferença de até um minuto. Resolve
+  o `Clock not set` do Heltec V3 ligado sozinho. A hora só avança, o relógio do rádio não é alterado,
+  e a hora de um telefone por perto continua valendo mais. Também no WadaMesh e no Saitama.
+- **Nada disso foi ligado em aparelho.** Guia:
+  [conversa privada](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md#conversa-privada-com-a-ponte-a-partir-da-bitchat024).
+
+## O que veio na `bitchat0.23`
 
 - **T-Deck e T-Deck Plus com WadaMesh e a ponte.** O [WadaMesh](https://github.com/ALLFATHER-BV/wadamesh)
   é um firmware MeshCore com tela de toque (mapa, conversas, contatos e canais). Cada versão passa a
@@ -45,25 +63,9 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   índice dos documentos no [guia](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md)
   e descrição das ferramentas em `tools/bitchat/README.md`.
 
-## O que veio na `bitchat0.22`
-
-- **Bateria: o rádio desligava "com 30%".** Relatado em aparelho, num Heltec V3: o aplicativo
-  mostrava uns 30% quando o rádio desligava, e a tela mostrou 3,38 V. O rádio desliga abaixo de
-  3,40 V; o aplicativo calcula a porcentagem como uma reta de 3,0 V a 4,2 V, e nela 3,40 V dá 33%.
-  Pela curva de uma bateria de lítio, 3,40 V é cerca de 2% a 3%. Duas mudanças:
-  - nas versões com ponte, o rádio passa a desligar abaixo de **3,30 V** (com os mesmos 2 minutos de
-    confirmação), o que rende uns 2% a 3% a mais de bateria. Perto desse limite o rádio pode
-    reiniciar num pico de transmissão;
-  - a tela do rádio (Heltec, T-Deck, Cardputer) mostra a porcentagem pela curva do lítio, a mesma do
-    `!ponte bateria`, e chega a 0% quando o rádio desliga.
-- A porcentagem do **aplicativo MeshCore** continua sendo a reta: é ele que a calcula. Para a carga
-  real, use a tela do rádio ou `!ponte bateria`.
-- Compilados no computador o Heltec V3 (com e sem ponte), o Heltec V4, o T-Deck e o Cardputer ADV.
-  **Não foi ligado em aparelho.**
-
 ## Versões anteriores
 
-O que mudou da `bitchat0.1` à `bitchat0.21`:
+O que mudou da `bitchat0.1` à `bitchat0.22`:
 [HISTORY.md](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/HISTORY.md).
 
 ## O que faz

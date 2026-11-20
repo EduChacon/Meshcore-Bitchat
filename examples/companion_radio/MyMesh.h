@@ -236,6 +236,9 @@ public:
   static bool sendingBridgeText();
 
 #ifdef WITH_BITCHAT_BRIDGE
+  // Adverts carry their radio's time: the bridge may take it when nothing else gave the time.
+  void onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp, const uint8_t *app_data,
+                    size_t app_data_len) override;
   // bitchat::MeshHost methods
   uint32_t clockSeconds() override;
   uint32_t nodeNumber() override;

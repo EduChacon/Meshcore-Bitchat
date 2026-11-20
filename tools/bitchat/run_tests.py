@@ -18,6 +18,7 @@ TESTS = ROOT / "test/bitchat"
 BRIDGE = ROOT / "src/helpers/bitchat"
 CORE = ["BridgeCodec.cpp", "BridgeHistory.cpp", "BridgeState.cpp", "BridgeText.cpp"]
 ADAPTER = ["BridgeBle.cpp", "BridgeCodec.cpp", "BridgeDiagnostics.cpp"]
+NOISE = ["BridgeCodec.cpp", "BridgeNoise.cpp"]
 CASHU = ["BridgeCashu.cpp", "BridgeCodec.cpp", "BridgeInflate.cpp", "BridgeTunnel.cpp"]
 FLOW = [
     "BitchatBridge.cpp",
@@ -27,12 +28,28 @@ FLOW = [
     "BridgeDiagnostics.cpp",
     "BridgeHistory.cpp",
     "BridgeInflate.cpp",
+    "BridgeNoise.cpp",
     "BridgePayments.cpp",
+    "BridgePrivate.cpp",
     "BridgeState.cpp",
     "BridgeText.cpp",
     "BridgeTunnel.cpp",
 ]
-CRYPTO = ["Crypto", "Hash", "SHA256", "SHA512", "BigNumberUtil", "Curve25519", "Ed25519", "HKDF"]
+CRYPTO = [
+    "Crypto",
+    "Hash",
+    "SHA256",
+    "SHA512",
+    "BigNumberUtil",
+    "Curve25519",
+    "Ed25519",
+    "HKDF",
+    "Cipher",
+    "AuthenticatedCipher",
+    "ChaCha",
+    "ChaChaPoly",
+    "Poly1305",
+]
 
 
 def vectors_header(build):
@@ -48,11 +65,48 @@ def vectors_header(build):
     (build / "vectors.h").write_text("\n".join(lines) + "\n")
 
 
+def noise_header(build):
+    """The reference transcripts of tools/bitchat/noise_vectors.py, as a C++ table."""
+    cases = json.loads((TESTS / "noise_vectors.json").read_text())["cases"]
+    lines = [
+        "#pragma once",
+        "#include <cstddef>",
+        "struct NoiseStep { const char *from; const char *plain; const char *wire; };",
+        "struct NoiseVector { const char *name; const char *initiatorStatic; const char *initiatorEphemeral;",
+        "    const char *responderStatic; const char *responderEphemeral; const char *initiatorPublic;",
+        "    const char *responderPublic; const char *message1; const char *message2; const char *message3;",
+        "    const NoiseStep *transport; size_t transportCount; };",
+    ]
+    for index, case in enumerate(cases):
+        steps = ",".join(
+            "{" + ",".join(json.dumps(step[k]) for k in ("from", "plain", "wire")) + "}" for step in case["transport"]
+        )
+        lines.append(f"static const NoiseStep NOISE_STEPS_{index}[] = {{{steps}}};")
+    lines.append("static const NoiseVector NOISE_VECTORS[] = {")
+    keys = (
+        "name",
+        "initiator_static",
+        "initiator_ephemeral",
+        "responder_static",
+        "responder_ephemeral",
+        "initiator_public",
+        "responder_public",
+        "message1",
+        "message2",
+        "message3",
+    )
+    for index, case in enumerate(cases):
+        fields = ",".join(json.dumps(case[k]) for k in keys)
+        lines.append(f"{{{fields},NOISE_STEPS_{index},{len(case['transport'])}}},")
+    lines.append("};")
+    (build / "noise_vectors.h").write_text("\n".join(lines) + "\n")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--crypto-dir", type=Path, required=True)
     parser.add_argument("--no-sanitize", action="store_true")
-    parser.add_argument("suites", nargs="*", default=["core", "cashu", "adapter", "flow"])
+    parser.add_argument("suites", nargs="*", default=["core", "noise", "cashu", "adapter", "flow"])
     args = parser.parse_args()
     crypto = args.crypto_dir.resolve()
     if json.loads((crypto / "library.json").read_text()).get("version") != "0.4.0":
@@ -76,17 +130,34 @@ def main():
     with tempfile.TemporaryDirectory(prefix="bitchat-tests-") as directory:
         build = Path(directory)
         vectors_header(build)
+        noise_header(build)
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import cashu_vectors
 
         cashu_vectors.header(build / "cashu_vectors.h")
         suites = {
-            "core": (["-I" + str(ROOT / "src"), "-I" + str(crypto), "-I" + str(build)], "test_main.cpp", CORE, crypto_sources),
+            "core": (
+                ["-I" + str(ROOT / "src"), "-I" + str(crypto), "-I" + str(build)],
+                "test_main.cpp",
+                CORE,
+                crypto_sources,
+            ),
+            "noise": (
+                ["-I" + str(ROOT / "src"), "-I" + str(crypto), "-I" + str(build)],
+                "test_noise.cpp",
+                NOISE,
+                crypto_sources,
+            ),
             "cashu": (["-I" + str(ROOT / "src"), "-I" + str(build)], "test_cashu.cpp", CASHU, []),
             "adapter": (["-I" + str(TESTS / "stubs"), "-I" + str(ROOT / "src")], "test_ble.cpp", ADAPTER, []),
             "flow": (
-                ["-I" + str(TESTS / "host"), "-I" + str(TESTS / "stubs"), "-I" + str(ROOT / "src"), "-I" + str(crypto),
-                 "-I" + str(build)],
+                [
+                    "-I" + str(TESTS / "host"),
+                    "-I" + str(TESTS / "stubs"),
+                    "-I" + str(ROOT / "src"),
+                    "-I" + str(crypto),
+                    "-I" + str(build),
+                ],
                 "test_flow.cpp",
                 FLOW,
                 crypto_sources,
