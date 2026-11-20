@@ -281,6 +281,11 @@ bool noiseDecrypt(NoiseReceiver &receiver, Bytes in, uint8_t *plain)
     return true;
 }
 
+void noiseWipe(void *data, size_t size)
+{
+    wipeBytes(data, size);
+}
+
 void noisePeerId(const uint8_t staticPublic[NOISE_KEY], PeerId &out)
 {
     uint8_t hash[32];

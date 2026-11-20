@@ -71,6 +71,9 @@ bool noiseEncrypt(NoiseSender &sender, Bytes plain, uint8_t *out);
 // `plain` takes in.size - NOISE_TRANSPORT_OVERHEAD bytes; false for a forged, replayed or too old message.
 bool noiseDecrypt(NoiseReceiver &receiver, Bytes in, uint8_t *plain);
 
+// Zeroes secrets on the stack in a way the compiler keeps.
+void noiseWipe(void *data, size_t size);
+
 // The peer ID a Noise static key stands for: the first 8 bytes of its SHA-256.
 void noisePeerId(const uint8_t staticPublic[NOISE_KEY], PeerId &out);
 } // namespace bitchat

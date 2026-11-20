@@ -147,8 +147,10 @@ void BitchatBridge::adoptPeerClock(Bytes frame, const Packet &packet)
     if (trustedUtc() || packet.type != 1 || packet.ttl != 7 || packet.timestamp < clockFloor)
         return;
     const uint64_t current = utc();
-    // A phone next to the radio beats what LoRa adverts gave, in either direction.
-    if (current && !peerClockFromRadio && packet.timestamp <= current + FRESHNESS_MS)
+    // A phone next to the radio moves the time only forward. A time from LoRa adverts it may also put back, by
+    // up to a quarter of an hour: an old announce heard again cannot take the bridge further into the past.
+    static constexpr uint64_t PHONE_BACK_MS = 15ULL * 60 * 1000;
+    if (current && (peerClockFromRadio ? packet.timestamp + PHONE_BACK_MS < current : packet.timestamp <= current + FRESHNESS_MS))
         return;
     Peer *peer = nullptr;
     if (runtime->peers->announce(crypto, frame, packet.timestamp, millis(), peer) != Result::Ok)
@@ -159,9 +161,11 @@ void BitchatBridge::adoptPeerClock(Bytes frame, const Packet &packet)
     announcedAt = peerClockAt - 60000;
 }
 
-// Adverts are signed with the time their radio keeps. One radio may be wrong, so two different ones must agree
-// within a minute; the earlier of the two is taken, so a fast clock does not lock the bridge ahead. Only
-// forward, never before the last trusted time, and the firmware clock is left alone.
+// Adverts are signed with the time their radio keeps. One radio may be wrong, and one transmitter may sign with
+// several keys, so the time comes from the largest group of radios agreeing within a minute, the earliest of the
+// group so a fast clock does not lead. An advert no newer than the last one of its radio is a replay and counts
+// for nothing. The LoRa time changes only when a larger group disagrees with it; it never goes below the last
+// trusted time, and the firmware clock is left alone.
 void BitchatBridge::onRadioTime(const uint8_t keyPrefix[4], uint32_t seconds)
 {
     static constexpr uint32_t KEEP_MS = 30UL * 60 * 1000;
@@ -170,41 +174,68 @@ void BitchatBridge::onRadioTime(const uint8_t keyPrefix[4], uint32_t seconds)
     // An advert may arrive before begin().
     if (!host || trustedUtc() || heard < clockFloor)
         return;
+#ifdef BRIDGE_BUILD_EPOCH
+    // Ten years after this firmware was built: a radio claiming more has a broken clock.
+    if (heard > (uint64_t(BRIDGE_BUILD_EPOCH) + 10ULL * 365 * 86400) * 1000)
+        return;
+#endif
     const uint32_t now = millis();
-    RadioTime *slot = nullptr;
+    RadioTime *slot = nullptr, *spare = nullptr;
     for (auto &entry : radioTimes) {
         if (entry.used && !Throttle::isWithinTimespanMsAt(entry.at, KEEP_MS, now))
             entry.used = false;
-        if (entry.used && std::equal(entry.key.begin(), entry.key.end(), keyPrefix)) {
+        if (entry.used && std::equal(entry.key.begin(), entry.key.end(), keyPrefix))
             slot = &entry;
-            break;
-        }
     }
-    if (!slot)
-        for (auto &entry : radioTimes)
-            if (!slot || !entry.used || (slot->used && int32_t(entry.at - slot->at) < 0)) {
-                slot = &entry;
-                if (!entry.used)
-                    break;
-            }
-    std::copy_n(keyPrefix, slot->key.size(), slot->key.begin());
+    // A free entry, or the one heard longest ago.
+    for (auto &entry : radioTimes)
+        if (!spare || (spare->used && (!entry.used || int32_t(entry.at - spare->at) < 0)))
+            spare = &entry;
+    if (slot) {
+        // Its own time carried to now: an advert that does not move it forward is an old one heard again.
+        if (heard <= slot->utc + uint32_t(now - slot->at))
+            return;
+    } else {
+        slot = spare;
+        std::copy_n(keyPrefix, slot->key.size(), slot->key.begin());
+    }
     slot->utc = heard;
     slot->at = now;
     slot->used = true;
-    uint64_t agreed = 0;
-    for (size_t i = 0; i < radioTimes.size(); ++i)
-        for (size_t j = i + 1; j < radioTimes.size(); ++j) {
-            const auto &a = radioTimes[i], &b = radioTimes[j];
-            if (!a.used || !b.used)
-                continue;
-            const uint64_t ta = a.utc + uint32_t(now - a.at), tb = b.utc + uint32_t(now - b.at);
-            if ((ta > tb ? ta - tb : tb - ta) <= AGREE_MS)
-                agreed = std::max(agreed, std::min(ta, tb));
+    const auto carried = [now](const RadioTime &entry) { return entry.utc + uint32_t(now - entry.at); };
+    const auto near = [](uint64_t a, uint64_t b) { return (a > b ? a - b : b - a) <= AGREE_MS; };
+    uint64_t best = 0;
+    size_t bestCount = 0;
+    for (const auto &a : radioTimes) {
+        if (!a.used)
+            continue;
+        const uint64_t ta = carried(a);
+        size_t count = 0;
+        uint64_t earliest = ta;
+        for (const auto &b : radioTimes)
+            if (b.used && near(carried(b), ta)) {
+                ++count;
+                earliest = std::min(earliest, carried(b));
+            }
+        if (count > bestCount || (count == bestCount && earliest < best)) {
+            bestCount = count;
+            best = earliest;
         }
-    const uint64_t current = utc();
-    if (!agreed || (current && (!peerClockFromRadio || agreed <= current)))
+    }
+    if (bestCount < 2)
         return;
-    peerClockUtc = agreed;
+    const uint64_t current = utc();
+    if (current) {
+        // A phone's own time stands.
+        if (!peerClockFromRadio || near(best, current))
+            return;
+        size_t support = 0;
+        for (const auto &entry : radioTimes)
+            support += entry.used && near(carried(entry), current);
+        if (bestCount <= support)
+            return;
+    }
+    peerClockUtc = best;
     peerClockAt = now;
     peerClockFromRadio = true;
     announcedAt = now - 60000;
@@ -1203,6 +1234,9 @@ size_t BitchatBridge::startRangeTest(bool portuguese, bool fromApp, char *out, s
     rangeTest.at = now;
     rangeTest.pending = true;
     rangeTest.fromApp = fromApp;
+    rangeTest.privately = !fromApp && privateReply;
+    if (privateReply)
+        rangeTest.asker = privateReply->peer;
     rangeTest.portuguese = portuguese;
     rangeTest.channel = appChannel;
     rangeTest.answers = 0;
@@ -1269,6 +1303,14 @@ void BitchatBridge::reportRangeTest(const char *text)
         appChannel = rangeTest.channel;
         replyToApp(text);
         appChannel = asked;
+    } else if (rangeTest.privately) {
+        // Back to the private chat it was asked in; never to the public one.
+        PrivateSession *session = runtime ? privateSession(rangeTest.asker, millis(), false) : nullptr;
+        if (session && session->ready) {
+            privateReply = session;
+            tellBitchat(text, strlen(text));
+            privateReply = nullptr;
+        }
     } else {
         tellBitchat(text, strlen(text));
     }
@@ -1316,7 +1358,8 @@ void BitchatBridge::watchGps(uint32_t now)
         return;
     }
     // A phone's time is enough for the bridge; the GPS is only for a radio with no time at all.
-    if (!settings.enabled || utc() ||
+    // A time from LoRa adverts is not a trusted one: the GPS still gives the real time.
+    if (!settings.enabled || (utc() && !peerClockFromRadio) ||
         (gpsTried ? Throttle::isWithinTimespanMsAt(gpsAt, GPS_AGAIN_MS, now) : now < GPS_AFTER_MS))
         return;
     gpsTried = true;

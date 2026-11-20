@@ -36,7 +36,13 @@ struct PrivateSession {
     PeerId peer{};
     bool used = false, ready = false, handshaking = false;
     uint8_t failures = 0;
-    uint32_t usedAt = 0, handshakeAt = 0, initiatedAt = 0, commandAt = 0;
+    // The link the phone talks to the bridge on directly, if any: answers go only there.
+    uint16_t link = NO_LINK;
+    uint32_t usedAt = 0, handshakeAt = 0, initiatedAt = 0, openedAt = 0;
+    // Handshakes cost curve operations and anyone may claim a phone's ID: a few per phone, then slowly.
+    RateBucket handshakes;
+    // Acks and answers: ten at once (the guide is five), then one a second, so a flood is not echoed in full.
+    RateBucket outgoing;
     NoiseSender send;
     NoiseReceiver receive;
     NoiseHandshake handshake;
@@ -262,6 +268,9 @@ class BitchatBridge
         uint16_t answeredId = 0;
         uint32_t answeredAt = 0;
         bool answered = false;
+        // Asked in a private chat: the result goes back there, never to the public chat.
+        bool privately = false;
+        bitchat::PeerId asker{};
     } rangeTest;
     // The payment this radio is taking over LoRa, for telling the payer how it went.
     struct Payment {
@@ -449,7 +458,7 @@ class BitchatBridge
     void keepClock(uint32_t now);
     // Private chats (BridgePrivate.cpp): a Noise packet addressed to this bridge.
     void privateFrame(const bitchat::Packet &packet, const bitchat::Peer &peer, uint16_t source, uint32_t now);
-    bitchat::PrivateSession *privateSession(const bitchat::PeerId &peer, uint32_t now);
+    bitchat::PrivateSession *privateSession(const bitchat::PeerId &peer, uint32_t now, bool create);
     void privateHandshake(bitchat::PrivateSession &session, const bitchat::Packet &packet, uint32_t now);
     void privateTransport(bitchat::PrivateSession &session, const bitchat::Packet &packet, const bitchat::Peer &peer,
                           bool direct, uint32_t now);
@@ -459,7 +468,8 @@ class BitchatBridge
     bool sendPrivate(bitchat::PrivateSession &session, uint8_t kind, bitchat::Bytes body);
     // Text to the chat being answered; a leading "[bridge] " is left out there.
     bool replyPrivately(const char *text, size_t size);
-    bool sendNoise(uint8_t type, const bitchat::PeerId &to, bitchat::Bytes payload);
+    bool sendNoise(uint8_t type, const bitchat::PeerId &to, bitchat::Bytes payload, uint16_t link);
+    void expireHandshake(bitchat::PrivateSession &session, uint32_t now);
 };
 extern BitchatBridge bitchat_bridge;
 #endif

@@ -548,27 +548,72 @@ static void privateChat(const Phone &ana, const Phone &bia, const Phone &caio, c
     CHECK(said[2].rfind("Ponte LoRa. Escreva: ponte (estado), bateria", 0) == 0);
     for (size_t i = 0; i < GUIDE_LINES; ++i)
         CHECK(said[3 + i] == guideLine(true, false, GuideMode::AllText, i));
-    // Asked twice within a second: the second is delivered but not answered.
+    // Asked twice at once: both answered.
     delivered.clear();
     said.clear();
     fakeSent.clear();
-    run(1100);
+    run(10000);
     chatAna.message("ID-6", "quem");
     chatAna.message("ID-7", "quem");
     run(200);
     chatAna.read(delivered, said);
-    CHECK((delivered == std::vector<std::string>{"ID-6", "ID-7"}) && said.size() == 1);
+    CHECK((delivered == std::vector<std::string>{"ID-6", "ID-7"}) && said.size() == 2);
+    // A flood is not echoed in full: ten packets at once, then one a second. A message that could not be
+    // acknowledged is not remembered, so the app's next try is answered.
+    delivered.clear();
+    said.clear();
+    fakeSent.clear();
+    run(10000);
+    for (int i = 0; i < 12; ++i)
+        chatAna.message("F-" + std::to_string(i), "bateria");
+    run(5000);
+    chatAna.read(delivered, said);
+    CHECK(delivered.size() < 12 && delivered.size() + said.size() <= 16);
+    std::string missed;
+    for (int i = 0; i < 12 && missed.empty(); ++i)
+        if (!contains(delivered, "F-" + std::to_string(i)))
+            missed = "F-" + std::to_string(i);
+    CHECK(!missed.empty());
+    delivered.clear();
+    said.clear();
+    fakeSent.clear();
+    run(10000);
+    chatAna.message(missed, "bateria");
+    run(200);
+    chatAna.read(delivered, said);
+    CHECK(delivered == std::vector<std::string>{missed} && said.size() == 1);
     // The public chat's spacing is not touched: someone asking there right after is answered.
     fakeSent.clear();
     bia.write(bia.say("!ponte bateria"));
     run(200);
     CHECK(chat(bia.handle, &bridgeId).back() == "[bridge] Bateria: 3,92 V, cerca de 69%.");
 
-    // A forged message: nothing delivered, nothing answered. Three in a row: the bridge starts a new handshake.
+    // Junk under Ana's ID while she is talking changes nothing.
+    const auto junk = [&](int count) {
+        for (int i = 0; i < count; ++i) {
+            uint8_t bytes[40];
+            for (int j = 0; j < 40; ++j)
+                bytes[j] = uint8_t(i * 50 + j + count);
+            ana.write(chatAna.directed(0x11, {bytes, sizeof(bytes)}));
+            run(100);
+        }
+    };
     delivered.clear();
     said.clear();
     fakeSent.clear();
-    run(1100);
+    run(5000);
+    chatAna.message("ID-J", "bateria");
+    run(200);
+    junk(4);
+    CHECK(chatAna.fromBridge(0x10).empty());
+    chatAna.read(delivered, said);
+    CHECK(delivered == std::vector<std::string>{"ID-J"} && said.size() == 1);
+    // A forged message: nothing delivered, nothing answered. Three in a row with nothing genuine for ten seconds:
+    // the bridge starts a new handshake.
+    delivered.clear();
+    said.clear();
+    fakeSent.clear();
+    run(11000);
     for (int i = 0; i < 3; ++i) {
         uint8_t junk[40];
         for (int j = 0; j < 40; ++j)
@@ -640,25 +685,98 @@ static void privateChat(const Phone &ana, const Phone &bia, const Phone &caio, c
         fakeSent.clear();
         impostor.message("ID-X", "bateria");
         run(200);
+        CHECK(impostor.fromBridge(0x11).empty() && impostor.fromBridge(0x10).empty());
+        // The bridge kept waiting for a genuine third message; once that wait is over, a new handshake from it.
+        run(21000);
+        impostor.message("ID-X2", "bateria");
+        run(200);
         CHECK(impostor.fromBridge(0x11).empty());
-        // Instead, a new handshake from the bridge.
         const auto restart = impostor.fromBridge(0x10);
         CHECK(restart.size() == 1 && restart[0].size() == NOISE_MESSAGE1);
+        // Nobody answers it. Not again at once, but the chat is not stuck either: after a minute the next
+        // message brings a new one.
+        fakeSent.clear();
+        run(30000);
+        impostor.message("ID-Y", "bateria");
+        run(200);
+        CHECK(impostor.fromBridge(0x10).empty());
+        run(31000);
+        impostor.message("ID-Z", "bateria");
+        run(200);
+        const auto again = impostor.fromBridge(0x10);
+        CHECK(again.size() == 1 && again[0].size() == NOISE_MESSAGE1);
     }
 
-    // Signed packets, as Android sends them, work the same; both chats are kept at once.
+    // Signed packets, as Android sends them, work the same; both chats are kept at once. Bytes under Bia's ID
+    // between the bridge's second message and her third do not end the handshake.
     {
         PrivatePhone chatBia{bia, bridgeId};
         run(11000);
-        chatBia.open(77, true);
+        uint8_t e[32];
+        for (int i = 0; i < 32; ++i)
+            e[i] = uint8_t(77 + 5 * i);
+        chatBia.handshake.start(true, e);
+        uint8_t m1[NOISE_MESSAGE1];
+        CHECK(chatBia.handshake.writeMessage1(m1));
+        fakeSent.clear();
+        bia.write(chatBia.directed(0x10, {m1, sizeof(m1)}, true));
+        run(100);
+        const auto answers = chatBia.fromBridge(0x10);
+        CHECK(answers.size() == 1 && chatBia.handshake.readMessage2({answers[0].data(), answers[0].size()}));
+        uint8_t m3[NOISE_MESSAGE3], forged[NOISE_MESSAGE3];
+        CHECK(chatBia.handshake.writeMessage3(bia.noiseKey.data(), bia.noisePublic.data(), m3));
+        for (size_t i = 0; i < sizeof(forged); ++i)
+            forged[i] = uint8_t(i * 3);
+        bia.write(chatBia.directed(0x10, {forged, sizeof(forged)}));
+        run(100);
+        bia.write(chatBia.directed(0x10, {m3, sizeof(m3)}, true));
+        chatBia.handshake.split(chatBia.send, chatBia.receive);
+        run(100);
         fakeSent.clear();
         chatBia.message("B-1", "teste");
         run(200);
         std::vector<std::string> d, s;
         chatBia.read(d, s);
         CHECK(d == std::vector<std::string>{"B-1"} && s.size() == 1 && s[0].rfind("Teste ", 0) == 0);
+
+        // Strangers that just announced themselves send ciphertext: they get a handshake each if a slot is free,
+        // but a chat in use is not given up for them.
+        std::vector<Phone> strangers;
+        for (uint8_t i = 0; i < 3; ++i)
+            strangers.emplace_back("x", uint8_t(60 + i), uint16_t(31 + i));
+        for (const auto &stranger : strangers) {
+            stranger.connect();
+            stranger.write(stranger.announce());
+        }
+        run(500);
+        for (const auto &stranger : strangers) {
+            PrivatePhone fake{stranger, bridgeId};
+            uint8_t bytes[40] = {1, 2, 3};
+            stranger.write(fake.directed(0x11, {bytes, sizeof(bytes)}));
+            run(100);
+        }
+        fakeSent.clear();
+        d.clear();
+        s.clear();
+        chatBia.message("B-2", "bateria");
+        run(200);
+        chatBia.read(d, s);
+        CHECK(d == std::vector<std::string>{"B-2"} && s.size() == 1);
+        for (const auto &stranger : strangers)
+            bleDisconnect(stranger.handle);
+
+        // The range test asked in private reports there, not in the public chat.
+        const auto publicNow = chat(bia.handle, &bridgeId).size();
+        fakeSent.clear();
+        d.clear();
+        s.clear();
+        run(130000);
+        chatBia.read(d, s);
+        CHECK(s.size() == 1 && s[0].find("nenhuma outra ponte respondeu") != std::string::npos);
+        CHECK(chat(bia.handle, &bridgeId).size() == 0 || chat(bia.handle, &bridgeId).size() <= publicNow);
+        for (const auto &line : chat(bia.handle, &bridgeId))
+            CHECK(line.find("nenhuma outra ponte respondeu") == std::string::npos);
     }
-    run(130000); // the range test runs out
 }
 
 // Cashu over LoRa: the payer's frames go whole to the other bridges, and come out whole there.
@@ -1087,9 +1205,20 @@ int main()
         snprintf(wanted, sizeof(wanted), "UTC %02u:%02u:%02u lora", unsigned(expected / 3600 % 24), unsigned(expected / 60 % 60),
                  unsigned(expected % 60));
         CHECK(std::string(diag).rfind(wanted, 0) == 0);
-        // Only forward: radios agreeing on an earlier time change nothing.
+        // An old advert heard again is a replay: it counts for nothing.
         bridge->onRadioTime(torto, real - 600);
         bridge->onRadioTime(sul, real - 620);
+        bridge->diagnostics(diag, sizeof(diag));
+        CHECK(std::string(diag).rfind(wanted, 0) == 0);
+        // One transmitter with two keys claiming seven hours later is outvoted by nothing, and changes nothing:
+        // a group no larger than the one behind the current time does not move it.
+        const uint8_t fakeA[4] = {0xa1, 0, 0, 1}, fakeB[4] = {0xa1, 0, 0, 2}, leste[4] = {7, 7, 7, 7};
+        bridge->onRadioTime(fakeA, real + 7 * 3600);
+        bridge->onRadioTime(fakeB, real + 7 * 3600 + 5);
+        bridge->diagnostics(diag, sizeof(diag));
+        CHECK(std::string(diag).rfind(wanted, 0) == 0);
+        // A third honest radio only adds support.
+        bridge->onRadioTime(leste, real - 10);
         bridge->diagnostics(diag, sizeof(diag));
         CHECK(std::string(diag).rfind(wanted, 0) == 0);
     }
@@ -2161,6 +2290,25 @@ int main()
     CHECK(!bleAdvertise());
     run(1500);
     CHECK(bridge->enabled() && bleAdvertise());
+
+    // A time from LoRa adverts is not a trusted one: the GPS is still turned on for the real time.
+    delete bridge;
+    mesh.gpsCalls.clear();
+    mesh.clockBase = 1715770351;
+    bridge = new BitchatBridge;
+    bridge->begin(mesh);
+    {
+        const uint8_t one[4] = {3, 1, 4, 1}, two[4] = {5, 9, 2, 6};
+        // Later than any time this test stored as trusted, so the floor does not refuse it.
+        const uint32_t later = uint32_t(nowUtc() / 1000) + 30 * 86400;
+        bridge->onRadioTime(one, later);
+        bridge->onRadioTime(two, later + 2);
+        char diag[200];
+        bridge->diagnostics(diag, sizeof(diag));
+        CHECK(std::string(diag).find(" lora.") != std::string::npos);
+    }
+    run(1500);
+    CHECK(mesh.gpsCalls == std::vector<bool>{true});
 
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;
