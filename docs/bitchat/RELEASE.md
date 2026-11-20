@@ -39,6 +39,11 @@ Os ESP32, o WadaMesh e o Saitama não mudam.
   dele supõe um cabeçalho de 13 bytes; o cabeçalho tem 14). Esses pedaços nunca chegam. Os nRF52
   aceitavam 244 bytes por envio; agora aceitam 257, e o pacote passa inteiro, como nos ESP32, que
   aceitam 514.
+- **Túnel e mensagens a contatos nos nRF52.** No ensaio do autor, `!ponte túnel on` no T1000-E
+  respondeu `Não mudou: erro de memória`. Nesses rádios, a ponte grava as escolhas num arquivo com
+  uma lista fixa de nomes, e as duas escolhas novas da `bitchat0.24` (túnel e mensagens a contatos)
+  ficaram fora dela: o túnel não podia ser ligado, e `!ponte privado off` também falhava. Agora
+  ficam num arquivo próprio; os arquivos antigos, com a identidade da ponte e o recado, não mudam.
 - **Limite que fica:** uma mensagem privada mandada do celular a um nRF52 com mais de cerca de 150
   caracteres (menos, com acentos) o Bitchat completa até 512 bytes, e ela continua sem chegar. Nos
   ESP32 passa. A biblioteca Bluetooth desses rádios não permite envios bem maiores com segurança.

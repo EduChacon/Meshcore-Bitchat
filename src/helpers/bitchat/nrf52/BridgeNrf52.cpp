@@ -568,6 +568,18 @@ struct Options {
     uint8_t note[80] = {};
     uint8_t check = 0;
 } options;
+// The switches added in bitchat0.24 (private messages to LoRa contacts, the tunnel) in a third file, so the two
+// above keep the layout earlier versions wrote. Before 0.25 they could not be saved here at all.
+constexpr char SWITCHES_PATH[] = "/bitchat_switches";
+constexpr uint32_t SWITCHES_MAGIC = 0x34504342;
+constexpr const char *SWITCH_KEYS[] = {"dm", "tunnel"};
+constexpr size_t SWITCH_COUNT = sizeof(SWITCH_KEYS) / sizeof(SWITCH_KEYS[0]);
+struct Switches {
+    uint32_t magic = SWITCHES_MAGIC;
+    uint8_t sizes[SWITCH_COUNT] = {};
+    uint8_t values[SWITCH_COUNT] = {};
+    uint8_t check = 0;
+} switches;
 // The layout written by bitchat0.11 and 0.12, read once and carried over.
 constexpr uint32_t LEGACY_OPTIONS_MAGIC = 0x32504342;
 struct LegacyOptions {
@@ -605,6 +617,18 @@ bool optionFor(const char *key, uint8_t *&bytes, size_t &capacity, uint8_t *&siz
             bytes = note ? options.note : &options.small[i];
             capacity = note ? sizeof(options.note) : 1;
             size = &options.sizes[i];
+            return true;
+        }
+    return false;
+}
+
+// The place of a switch and its stored size; false for a key that is not one.
+bool switchFor(const char *key, uint8_t *&value, uint8_t *&size)
+{
+    for (size_t i = 0; i < SWITCH_COUNT; ++i)
+        if (!strcmp(key, SWITCH_KEYS[i])) {
+            value = &switches.values[i];
+            size = &switches.sizes[i];
             return true;
         }
     return false;
@@ -649,6 +673,7 @@ bool Preferences::begin(const char *, bool)
     // A missing or damaged first file starts the bridge from its defaults, with a new identity.
     readImage(STORE_PATH, store, STORE_MAGIC);
     readImage(OPTIONS_PATH, options, OPTIONS_MAGIC);
+    readImage(SWITCHES_PATH, switches, SWITCHES_MAGIC);
     if (options.magic == OPTIONS_MAGIC && !std::any_of(std::begin(options.sizes), std::end(options.sizes), [](uint8_t n) { return n; })) {
         LegacyOptions legacy;
         legacy.magic = 0;
@@ -677,6 +702,8 @@ size_t Preferences::getBytesLength(const char *key)
 {
     uint8_t *bytes = nullptr, *stored = nullptr;
     size_t capacity = 0;
+    if (switchFor(key, bytes, stored))
+        return *stored == 1 ? 1 : 0;
     if (optionFor(key, bytes, capacity, stored))
         return *stored <= capacity ? *stored : 0;
     const auto *entry = entryFor(key);
@@ -687,6 +714,12 @@ size_t Preferences::getBytes(const char *key, void *out, size_t size)
 {
     uint8_t *bytes = nullptr, *stored = nullptr;
     size_t capacity = 0;
+    if (switchFor(key, bytes, stored)) {
+        if (*stored != 1 || !size)
+            return 0;
+        memcpy(out, bytes, 1);
+        return 1;
+    }
     if (optionFor(key, bytes, capacity, stored)) {
         if (!*stored || *stored > capacity || *stored > size)
             return 0;
@@ -704,6 +737,20 @@ size_t Preferences::putBytes(const char *key, const void *in, size_t size)
 {
     uint8_t *bytes = nullptr, *stored = nullptr;
     size_t capacity = 0;
+    if (switchFor(key, bytes, stored)) {
+        if (size != 1)
+            return 0;
+        if (*stored == 1 && *bytes == *static_cast<const uint8_t *>(in))
+            return 1;
+        // A failed write leaves the switch as it was.
+        const Switches before = switches;
+        *stored = 1;
+        *bytes = *static_cast<const uint8_t *>(in);
+        if (writeImage(SWITCHES_PATH, switches))
+            return 1;
+        switches = before;
+        return 0;
+    }
     if (optionFor(key, bytes, capacity, stored)) {
         if (!size || size > capacity)
             return 0;
