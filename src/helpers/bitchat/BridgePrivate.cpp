@@ -153,6 +153,7 @@ void BitchatBridge::privateFrame(const Packet &packet, const Peer &peer, uint16_
             return;
     }
     expireHandshake(*session, now);
+    session->heardStamp = packet.timestamp;
     // The link the frame came on, when the phone is connected here: the session takes it only once the frame
     // proved itself, so a stranger cannot send someone else's answers to its own link.
     const uint16_t link = source != NO_LINK && packet.ttl == 7 ? source : NO_LINK;
@@ -343,6 +344,37 @@ void BitchatBridge::privateTransport(PrivateSession &session, const Packet &pack
     noiseWipe(plain, size);
 }
 
+// Commands that change how the radio works.
+static bool ownerCommand(Command command)
+{
+    switch (command) {
+    case Command::Reset:
+    case Command::On:
+    case Command::Off:
+    case Command::Local:
+    case Command::Lora:
+    case Command::LinkOn:
+    case Command::LinkOff:
+    case Command::EconomyOn:
+    case Command::EconomyOff:
+    case Command::PrefixOn:
+    case Command::PrefixOff:
+    case Command::PositionOn:
+    case Command::PositionOff:
+    case Command::SoundOn:
+    case Command::SoundOff:
+    case Command::LightOn:
+    case Command::LightOff:
+    case Command::DmOn:
+    case Command::DmOff:
+    case Command::TunnelOn:
+    case Command::TunnelOff:
+        return true;
+    default:
+        return false;
+    }
+}
+
 void BitchatBridge::privateRequest(PrivateSession &session, const Peer &peer, Bytes text, bool direct, uint32_t now)
 {
     // "@name text": a direct message to a LoRa contact.
@@ -374,7 +406,18 @@ void BitchatBridge::privateRequest(PrivateSession &session, const Peer &peer, By
         }
     }
     privateReply = &session;
-    if (asked.command == Command::None || asked.command == Command::Help) {
+    // The radio's settings are its owner's: changed in the MeshCore app, never from a phone in Bitchat.
+    if (ownerCommand(asked.command)) {
+        char text[200];
+        const int size =
+            snprintf(text, sizeof(text), "%s",
+                     asked.portuguese ? "Isso só o dono muda: no aplicativo MeshCore ligado ao rádio, canal #bitchat, "
+                                        "mande !ponte e o comando. / Only the radio's owner changes this, in the "
+                                        "MeshCore app."
+                                      : "Only the radio's owner changes this: in the MeshCore app connected to the "
+                                        "radio, channel #bitchat, send !bridge and the command.");
+        replyPrivately(text, size_t(size));
+    } else if (asked.command == Command::None || asked.command == Command::Help) {
         static constexpr char HELP[] =
             "Ponte LoRa. Escreva: ponte (estado), bateria, quem, guia, teste, recado <texto>, sos <texto>, ou "
             "@contato texto para mandar pelo LoRa. In English: bridge, battery, who, guide, test, note, sos, @contact.";
@@ -457,7 +500,15 @@ bool BitchatBridge::sendNoise(uint8_t type, const PeerId &to, Bytes payload, uin
 {
     if (!identityReady || !utc())
         return false;
-    const uint64_t timestamp = nextTimestamp();
+    uint64_t timestamp = nextTimestamp();
+    // After the phone's own last packet: the app orders a chat by these times, and this clock, set to the second
+    // by the MeshCore app, can run up to a second behind the phone's; an answer would show above its question.
+    if (runtime->privates)
+        for (const auto &session : runtime->privates->slots)
+            if (session.used && session.peer == to && session.heardStamp > timestamp && session.heardStamp - timestamp < 5000) {
+                timestamp = session.heardStamp + 1;
+                lastOriginTimestamp = timestamp;
+            }
     if (encode(type, ownId, &to, timestamp, 7, payload, {}, runtime->working, true) != Result::Ok)
         return false;
     // No phone connected counts as not sent: a message for a phone that walked away stays in the mailbox.

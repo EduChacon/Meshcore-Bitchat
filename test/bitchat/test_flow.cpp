@@ -594,6 +594,26 @@ static void privateChat(const Phone &ana, const Phone &bia, const Phone &caio, c
     chatAna.read(delivered, said);
     CHECK(delivered == std::vector<std::string>{"ID-1"});
     CHECK(said == std::vector<std::string>{"Bateria: 3,92 V, cerca de 69%."});
+    // The radio's settings are not changed from Bitchat: the phone is told where they are changed. And an answer is
+    // never dated before its question, even when the phone's clock runs ahead of the bridge's.
+    {
+        const bool tunnelBefore = bridge->tunnel();
+        stamp = nowUtc() + 800;
+        fakeSent.clear();
+        chatAna.message("ID-T", "túnel on");
+        const uint64_t asked = stamp;
+        run(200);
+        std::vector<std::string> d, said;
+        chatAna.read(d, said);
+        CHECK(said.size() == 1 && said[0].rfind("Isso só o dono muda", 0) == 0);
+        CHECK(bridge->tunnel() == tunnelBefore);
+        for (const auto &frame : received(ana.handle)) {
+            Packet p;
+            CHECK(decode({frame.data(), frame.size()}, p) == Result::Ok);
+            if (p.sender == bridgeId && p.type == 0x11)
+                CHECK(p.timestamp > asked);
+        }
+    }
     // Nothing of it in public, nothing on LoRa, and the private packets were not passed on to other phones.
     CHECK(chat(bia.handle, &bridgeId).size() == publicBefore && mesh.radio.size() == radioBefore);
     for (const auto &frame : received(bia.handle)) {

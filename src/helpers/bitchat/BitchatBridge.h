@@ -39,6 +39,8 @@ struct PrivateSession {
     // The link the phone talks to the bridge on directly, if any: answers go only there.
     uint16_t link = NO_LINK;
     uint32_t usedAt = 0, handshakeAt = 0, initiatedAt = 0, openedAt = 0;
+    // The time on the phone's last packet, so the answers are not dated before their question.
+    uint64_t heardStamp = 0;
     // Handshakes cost curve operations and anyone may claim a phone's ID: a few per phone, then slowly.
     RateBucket handshakes;
     // Acks and answers: ten at once (the guide is five), then one a second, so a flood is not echoed in full.
