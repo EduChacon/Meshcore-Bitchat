@@ -479,6 +479,15 @@ bool BitchatBridge::setDirectMessages(bool value)
     if (!storageReady || storage.putBytes("dm", &stored, 1) != 1)
         return false;
     dmEnabled = value;
+    // Off forgets what was waiting and who was talking with whom.
+    if (!value && runtime) {
+        if (runtime->mailbox) {
+            noiseWipe(runtime->mailbox.get(), sizeof(Mailbox));
+            runtime->mailbox.reset();
+        }
+        for (auto &thread : runtime->threads)
+            thread = {};
+    }
     return true;
 }
 
@@ -1720,13 +1729,14 @@ bool BitchatBridge::handleFrame(Bytes frame, uint16_t source)
     if (packet.type == 1 && packet.ttl == 7) {
         peer->localAt = now ? now : 1;
         peer->remote = false;
+        peer->link = source;
     }
     if (relay(frame, runtime->working) == Result::Ok) {
         if (bleBroadcast(runtime->working.bytes(), source))
             ++forwardedBle;
         // Its announce and its private packets to phones near other bridges go over LoRa too, when the operator
         // turned that on.
-        tunnelOut(packet, *peer, runtime->working.bytes(), now);
+        tunnelOut(packet, *peer, runtime->working.bytes(), source, now);
     }
     if (packet.type == 1 && !peer->announcement.gateway) {
         rememberAnnounce(packet, frame);
@@ -1959,12 +1969,16 @@ void BitchatBridge::sendRadio()
             sendTunnel();
         return;
     }
-    // Then the phones' private chats: a handshake must cross within seconds.
-    if (runtime->frames && runtime->frames->out.size()) {
-        if (!host->radioBusy() && runtime->radioGate.admit(millis(), 1500))
-            sendFrame();
+    // Then the phones' private chats, taking turns with the public text so neither waits for the other.
+    if (runtime->frames && (runtime->frames->urgent.size() || runtime->frames->out.size()) && (!item || runtime->frames->turn)) {
+        if (!host->radioBusy() && runtime->radioGate.admit(millis(), 1500) && sendFrame())
+            runtime->frames->turn = false;
+        else if (item)
+            runtime->frames->turn = false;
         return;
     }
+    if (runtime->frames)
+        runtime->frames->turn = true;
     if (!item)
         return;
     if (!Throttle::isWithinTimespanMsAt(item->queuedAt, RADIO_DEADLINE_MS, millis()) || !textReady || textConflict) {

@@ -270,7 +270,7 @@ bool MyMesh::findContact(const char *text, size_t size, LoraContact &out, size_t
     ContactInfo c;
     ContactsIterator contacts = startContactsIterator();
     while (contacts.hasNext(this, c)) {
-        if (c.type != ADV_TYPE_CHAT)
+        if (c.type != ADV_TYPE_CHAT || !(c.flags & 1)) // favourites only
             continue;
         const size_t n = strnlen(c.name, sizeof(c.name));
         if (!n || size <= n || (text[n] != ' ' && text[n] != ':') || n < best)
@@ -289,9 +289,16 @@ bool MyMesh::findContact(const char *text, size_t size, LoraContact &out, size_t
     return best > 0;
 }
 
+// Only the owner's favourites (the contact's favourite flag, bit 0) talk with Bitchat phones.
+bool MyMesh::favouriteContact(const uint8_t id[8])
+{
+    ContactInfo *contact = lookupContactByPubKey(id, 8);
+    return contact != NULL && contact->type == ADV_TYPE_CHAT && (contact->flags & 1);
+}
+
 // A direct message of this radio, without the app's own retry and timeout bookkeeping; with the channel scope rules
 // of WadaMesh's own direct floods.
-bool MyMesh::sendDirectText(const uint8_t id[8], const char *text, size_t size)
+bool MyMesh::sendDirectText(const uint8_t id[8], uint32_t timestamp, const char *text, size_t size)
 {
     ContactInfo *contact = lookupContactByPubKey(id, 8);
     if (contact == NULL || size == 0 || size > MAX_TEXT_LEN)
@@ -301,7 +308,6 @@ bool MyMesh::sendDirectText(const uint8_t id[8], const char *text, size_t size)
     line[size] = 0;
     // As BaseChatMesh::composeMsgPacket (private there) builds a first attempt: time, attempt 0, text.
     uint8_t temp[5 + MAX_TEXT_LEN + 1];
-    const uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
     memcpy(temp, &timestamp, 4);
     temp[4] = 0;
     memcpy(&temp[5], line, size + 1);

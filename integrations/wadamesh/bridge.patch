@@ -92,7 +92,7 @@ index 7951872..cf0e165 100644
        ChannelDetails channel;
        // getChannel() succeeds for ANY in-range index, including a slot that was
 diff --git a/src/MyMesh.h b/src/MyMesh.h
-index eaa9077..38783bc 100644
+index eaa9077..8b3e431 100644
 --- a/src/MyMesh.h
 +++ b/src/MyMesh.h
 @@ -116,6 +116,9 @@
@@ -105,7 +105,7 @@ index eaa9077..38783bc 100644
  
  /* -------------------------------------------------------------------------------------- */
  
-@@ -141,8 +144,40 @@ struct RecentlyHeardName {
+@@ -141,8 +144,41 @@ struct RecentlyHeardName {
    uint8_t type;
  };
  
@@ -130,7 +130,8 @@ index eaa9077..38783bc 100644
 +  bool sendChannelData(uint8_t index, uint16_t dataType, const uint8_t *data, size_t size) override;
 +  bool nodeKeyPrefix(uint8_t keyPrefix[8]) override;
 +  bool findContact(const char *text, size_t size, LoraContact &out, size_t &consumed, bool &ambiguous) override;
-+  bool sendDirectText(const uint8_t id[8], const char *text, size_t size) override;
++  bool favouriteContact(const uint8_t id[8]) override;
++  bool sendDirectText(const uint8_t id[8], uint32_t timestamp, const char *text, size_t size) override;
 +  size_t directTextLimit() override { return MAX_TEXT_LEN; }
 +  bool signAsNode(const uint8_t *data, size_t size, uint8_t signature[64]) override;
 +  NodeCheck verifyNode(const uint8_t keyPrefix[8], const uint8_t *data, size_t size, const uint8_t signature[64],

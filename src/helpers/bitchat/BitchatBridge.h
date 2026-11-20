@@ -56,12 +56,15 @@ struct PrivateSessions {
     std::array<PrivateSession, BITCHAT_PRIVATE_SESSIONS> slots{};
 };
 // Direct messages from LoRa waiting for a phone that is away: delivered when it opens a private chat again.
+// An item stays until the phone acknowledges it ("delivered" with its message ID).
 struct Mailbox {
     struct Item {
         PeerId phone{};
-        uint32_t at = 0;
+        std::array<uint8_t, 8> from{};
+        uint32_t at = 0, sentAt = 0;
         uint8_t size = 0;
         bool used = false;
+        char id[37];
         char text[255];
     };
     std::array<Item, 8> items{};
@@ -172,17 +175,25 @@ class MeshHost
         uint8_t id[8];
         char name[32];
     };
-    // The contact whose name `text` starts with: the longest such name, in any letter case, followed by a space or
-    // ':'. `consumed` is the length of the name. False when none matches; `ambiguous` when two contacts have it.
+    // The FAVOURITE chat contact whose name `text` starts with: the longest such name, in any letter case, followed
+    // by a space or ':'. `consumed` is the length of the name. False when none matches; `ambiguous` when two
+    // favourites have it. Only the owner's favourites can be written to from Bitchat.
     virtual bool findContact(const char *text, size_t size, LoraContact &out, size_t &consumed, bool &ambiguous)
     {
         (void)text, (void)size, (void)out, (void)consumed;
         ambiguous = false;
         return false;
     }
-    virtual bool sendDirectText(const uint8_t id[8], const char *text, size_t size)
+    // Whether the contact with this ID is one of the owner's favourites: only their answers reach Bitchat.
+    virtual bool favouriteContact(const uint8_t id[8])
     {
-        (void)id, (void)text, (void)size;
+        (void)id;
+        return false;
+    }
+    // A direct message, dated `timestamp` (seconds, the bridge's own clock: the firmware's may be unset).
+    virtual bool sendDirectText(const uint8_t id[8], uint32_t timestamp, const char *text, size_t size)
+    {
+        (void)id, (void)timestamp, (void)text, (void)size;
         return false;
     }
     // The longest text one direct message carries; 0 when the firmware sends none for the bridge.
@@ -421,15 +432,28 @@ class BitchatBridge
         std::array<DirectThread, 8> threads{};
         std::unique_ptr<bitchat::Mailbox> mailbox;
         bitchat::RateBucket directs;
+        // Direct messages from LoRa just passed on: a resend after a lost ack is not passed on twice.
+        struct RecentDirect {
+            std::array<uint8_t, 8> from{};
+            uint32_t hash = 0, at = 0;
+        };
+        std::array<RecentDirect, 4> recentDirects{};
+        uint8_t nextRecentDirect = 0;
+        uint32_t directSeconds = 0;
         // Frames between phones near different bridges: parts to send and parts heard.
         struct Frames {
             struct Part {
                 bitchat::TunnelDatagram datagram;
                 uint32_t queuedAt = 0;
             };
-            bitchat::BoundedQueue<Part, 9> out;
+            // Handshake parts first: they must cross within seconds. Then announces and messages.
+            bitchat::BoundedQueue<Part, 6> urgent, out;
             bitchat::FrameReceiver in;
-            uint32_t nextId = 0;
+            uint32_t nextId = 0, heardAt = 0;
+            // All the phones' private packets together.
+            bitchat::RateBucket budget;
+            // Turns between these parts and the public text, so neither waits for the other.
+            bool turn = false;
         };
         std::unique_ptr<Frames> frames;
         bitchat::BleInput input;
@@ -528,26 +552,30 @@ class BitchatBridge
     // Private chats (BridgePrivate.cpp): a Noise packet addressed to this bridge.
     void privateFrame(const bitchat::Packet &packet, const bitchat::Peer &peer, uint16_t source, uint32_t now);
     bitchat::PrivateSession *privateSession(const bitchat::PeerId &peer, uint32_t now, bool create);
-    void privateHandshake(bitchat::PrivateSession &session, const bitchat::Packet &packet, uint32_t now);
+    void privateHandshake(bitchat::PrivateSession &session, const bitchat::Packet &packet, uint16_t link, uint32_t now);
     void privateTransport(bitchat::PrivateSession &session, const bitchat::Packet &packet, const bitchat::Peer &peer,
-                          bool direct, uint32_t now);
+                          uint16_t link, uint32_t now);
     void privateRequest(bitchat::PrivateSession &session, const bitchat::Peer &peer, bitchat::Bytes text, bool direct,
                         uint32_t now);
     bool initiatePrivate(bitchat::PrivateSession &session, uint32_t now);
-    bool sendPrivate(bitchat::PrivateSession &session, uint8_t kind, bitchat::Bytes body);
+    bool sendPrivate(bitchat::PrivateSession &session, uint8_t kind, bitchat::Bytes body, bool linkOnly = false);
     // Text to the chat being answered; a leading "[bridge] " is left out there.
     bool replyPrivately(const char *text, size_t size);
-    bool sendPrivateText(bitchat::PrivateSession &session, const char *text, size_t size);
-    bool sendNoise(uint8_t type, const bitchat::PeerId &to, bitchat::Bytes payload, uint16_t link);
+    // `id`, when given, gets the message ID; `linkOnly` sends only to the phone's own link, nowhere else.
+    bool sendPrivateText(bitchat::PrivateSession &session, const char *text, size_t size, char *id = nullptr,
+                         bool linkOnly = false);
+    bool sendNoise(uint8_t type, const bitchat::PeerId &to, bitchat::Bytes payload, uint16_t link, bool linkOnly = false);
+    void mailAcknowledged(const bitchat::PeerId &phone, bitchat::Bytes id);
+    bitchat::Peer *namedPhone(bitchat::Bytes text, size_t &consumed);
     // Direct messages with LoRa contacts (BridgeDirect.cpp).
     void privateDirect(bitchat::PrivateSession &session, const bitchat::Peer &peer, bitchat::Bytes text, uint32_t now);
     void directText(const uint8_t id[8], const char *name, const char *text, size_t size);
     void deliverMail(bitchat::PrivateSession &session, uint32_t now);
     void offerMail(const bitchat::PeerId &phone, uint32_t now);
     // Private chats between phones near different bridges (BridgeRemote.cpp).
-    void tunnelOut(const bitchat::Packet &packet, bitchat::Peer &peer, bitchat::Bytes relayed, uint32_t now);
+    void tunnelOut(const bitchat::Packet &packet, bitchat::Peer &peer, bitchat::Bytes relayed, uint16_t source, uint32_t now);
     void tunnelIn(bitchat::Bytes data, uint32_t now);
-    bool queueFrame(bitchat::Bytes frame, uint32_t now);
+    bool queueFrame(bitchat::Bytes frame, uint32_t now, bool urgent = false);
     bool sendFrame();
     void expireHandshake(bitchat::PrivateSession &session, uint32_t now);
 };

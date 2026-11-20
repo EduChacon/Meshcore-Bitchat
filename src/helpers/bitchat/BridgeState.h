@@ -128,6 +128,8 @@ struct Peer {
     bool remote = false;
     // When it last announced itself directly to this radio, and when that announce last went over LoRa.
     uint32_t localAt = 0, tunneledAt = 0;
+    // The Bluetooth link it announced itself on directly: only its own packets from there go over LoRa.
+    uint16_t link = 0xffff;
     // Its private packets over LoRa: a burst, then one every two seconds.
     RateBucket frames;
     RateGate traffic;
@@ -145,6 +147,11 @@ class PeerTable
     Peer *find(const PeerId &id);
     // The phone whose nickname `text` starts with (any letter case, then a space or ':'); none when two share it.
     Peer *named(Bytes text, size_t &consumed);
+    // Every slot, used or not, for a walk over the table.
+    Peer &slot(size_t index) { return entries[index]; }
+    // Phones known only through another bridge's tunnel: few, so they never crowd out the phones here.
+    size_t remoteCount() const;
+    void dropOldestRemote();
     size_t size() const;
     bool nicknameShared(const Peer &peer) const;
 

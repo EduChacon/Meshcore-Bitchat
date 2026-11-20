@@ -36,10 +36,11 @@ Versão grande, pensada para ficar meses sem troca. **Nada do que é novo foi li
   entre telefones (Noise), conferida byte a byte com uma implementação independente e com o código
   do Bitchat para iPhone e Android.
 - **Mensagem a um contato do LoRa.** Na conversa privada com a ponte, `@Fulano texto` vai ao contato
-  Fulano do rádio como mensagem direta do MeshCore, com o apelido de quem escreveu; a resposta dele
-  volta à mesma conversa. Se o celular estiver longe, a resposta espera até 24 horas e é entregue
-  quando ele volta. A ponte lê essas mensagens (não é ponta a ponta). O dono desliga com
-  `!ponte privado off`.
+  Fulano do rádio como mensagem direta do MeshCore, com o apelido de quem escreveu, **só se Fulano
+  for um favorito do dono** (a estrela no aplicativo MeshCore). A resposta dele volta à mesma
+  conversa em até 30 minutos, ou a qualquer hora quando começa com `@apelido`. Se o celular estiver
+  longe, a resposta espera até 24 horas e só sai da caixa quando o celular confirma o recebimento. A
+  ponte lê essas mensagens (não é ponta a ponta). O dono desliga com `!ponte privado off`.
 - **Conversa privada entre celulares de casas diferentes**, de ponta a ponta, pelo LoRa: com
   `!ponte túnel on` nas pontes das duas casas, cada celular vê no Bitchat quem está perto da outra
   ponte e conversa com ele no privado. As pontes só carregam os pacotes criptografados. Vem
@@ -53,7 +54,8 @@ Versão grande, pensada para ficar meses sem troca. **Nada do que é novo foi li
   T-Echo; RAK4631 e RAK3112; Seeed Xiao S3 WIO e Xiao nRF52; Elecrow ThinkNode M1, M2 e M5; Station G2.
   Os nRF52 novos (RAK4631, T-Echo, T114, ThinkNode M1, Xiao nRF52) seguem o T1000-E.
 - **WadaMesh e Saitama** recebem tudo isso também.
-- Correções de uma revisão independente das conversas privadas e da hora pelo LoRa (13 pontos).
+- Duas rodadas de revisão independente (conversas privadas, hora pelo LoRa, mensagens a contatos e
+  túnel), com as falhas corrigidas e cobertas por testes.
 
 ## O que veio na `bitchat0.23`
 

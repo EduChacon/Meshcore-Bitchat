@@ -251,7 +251,7 @@ bool makeTunnelFrame(uint32_t id, Bytes frame, uint8_t index, TunnelDatagram &ou
     return true;
 }
 
-bool FrameReceiver::accept(Bytes data, uint32_t now, Bytes &out)
+bool FrameReceiver::accept(Bytes data, uint32_t now, Bytes &out, uint32_t *frameId)
 {
     expire(now);
     if (!tunnelDatagram(data) || (data.data[2] & 0x0f) != uint8_t(TunnelKind::Frame) || data.size <= TUNNEL_HEADER)
@@ -269,9 +269,10 @@ bool FrameReceiver::accept(Bytes data, uint32_t now, Bytes &out)
     if (slot && (slot->done || slot->count != count))
         return false;
     if (!slot) {
-        // a free slot, or the one started longest ago
+        // a free slot, else one already delivered, else the one started longest ago
+        const auto rank = [](const Slot &s) { return !s.used ? 0 : s.done ? 1 : 2; };
         for (auto &s : slots)
-            if (!slot || (slot->used && (!s.used || int32_t(s.firstAt - slot->firstAt) < 0)))
+            if (!slot || rank(s) < rank(*slot) || (rank(s) == rank(*slot) && int32_t(s.firstAt - slot->firstAt) < 0))
                 slot = &s;
         *slot = {};
         slot->used = true;
@@ -291,7 +292,16 @@ bool FrameReceiver::accept(Bytes data, uint32_t now, Bytes &out)
         size += slot->sizes[i];
     slot->done = true;
     out = {slot->data.data(), size};
+    if (frameId)
+        *frameId = id;
     return true;
+}
+
+void FrameReceiver::forget(uint32_t id)
+{
+    for (auto &s : slots)
+        if (s.used && s.id == id)
+            s = {};
 }
 
 void FrameReceiver::expire(uint32_t now)

@@ -40,6 +40,24 @@ Peer *PeerTable::named(Bytes text, size_t &consumed)
     return best;
 }
 
+size_t PeerTable::remoteCount() const
+{
+    size_t count = 0;
+    for (const auto &entry : entries)
+        count += entry.used && entry.remote;
+    return count;
+}
+
+void PeerTable::dropOldestRemote()
+{
+    Peer *oldest = nullptr;
+    for (auto &entry : entries)
+        if (entry.used && entry.remote && (!oldest || int32_t(entry.seenAt - oldest->seenAt) < 0))
+            oldest = &entry;
+    if (oldest)
+        *oldest = {};
+}
+
 size_t PeerTable::size() const
 {
     size_t count = 0;

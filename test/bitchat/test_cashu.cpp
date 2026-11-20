@@ -403,6 +403,24 @@ static void frameParts()
     // A one-part frame.
     TunnelDatagram one;
     CHECK(makeTunnelFrame(5, {frame.data(), 20}, 0, one) && receiver.accept(one.bytes(), 9000, out) && out.size == 20);
+    // Frames already delivered give way first: a three-part frame in progress survives three small ones.
+    FrameReceiver busy;
+    TunnelDatagram whole[3];
+    for (uint8_t i = 0; i < 3; ++i)
+        CHECK(makeTunnelFrame(500, {frame.data(), frame.size()}, i, whole[i]));
+    CHECK(!busy.accept(whole[0].bytes(), 100, out));
+    for (uint32_t small = 0; small < 3; ++small) {
+        TunnelDatagram d;
+        CHECK(makeTunnelFrame(600 + small, {frame.data(), 10}, 0, d) && busy.accept(d.bytes(), 200 + small, out));
+    }
+    CHECK(!busy.accept(whole[1].bytes(), 300, out) && busy.accept(whole[2].bytes(), 301, out) && out.size == frame.size());
+    // A frame that did not hold up is forgotten: its parts are taken again.
+    uint32_t heardId = 0;
+    FrameReceiver again;
+    CHECK(again.accept(one.bytes(), 10, out, &heardId) && heardId == 5);
+    CHECK(!again.accept(one.bytes(), 11, out));
+    again.forget(5);
+    CHECK(again.accept(one.bytes(), 12, out));
 }
 
 int main()

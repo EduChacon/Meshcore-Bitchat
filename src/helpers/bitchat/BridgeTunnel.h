@@ -145,8 +145,10 @@ class FrameReceiver
   public:
     // A kind 3 datagram. When it completes a frame, true with the frame in `out` (valid until the next call); a
     // frame is given once, later copies of its parts are not.
-    bool accept(Bytes data, uint32_t now, Bytes &out);
+    bool accept(Bytes data, uint32_t now, Bytes &out, uint32_t *id = nullptr);
     void expire(uint32_t now);
+    // Drops a frame that did not hold up (forged or broken), so its parts may arrive again.
+    void forget(uint32_t id);
     bool empty() const;
 
   private:

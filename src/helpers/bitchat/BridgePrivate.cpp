@@ -100,7 +100,7 @@ PrivateSession *BitchatBridge::privateSession(const PeerId &peer, uint32_t now, 
 {
     if (!runtime->privates && (!create || !allocateBuffer(runtime->privates)))
         return nullptr;
-    PrivateSession *found = nullptr, *free = nullptr, *oldest = nullptr;
+    PrivateSession *found = nullptr, *free = nullptr, *idle = nullptr, *oldest = nullptr;
     for (auto &session : runtime->privates->slots) {
         if (session.used) {
             expireHandshake(session, now);
@@ -112,14 +112,19 @@ PrivateSession *BitchatBridge::privateSession(const PeerId &peer, uint32_t now, 
         else if (!session.used) {
             if (!free)
                 free = &session;
-        } else if (!session.handshaking && !Throttle::isWithinTimespanMsAt(session.usedAt, SESSION_KEEP_MS, now) &&
+        } else if (!session.ready && !session.handshaking) {
+            // Taken by a phone that never finished a handshake: the first to give way.
+            if (!idle)
+                idle = &session;
+        } else if (session.ready && !session.handshaking &&
+                   !Throttle::isWithinTimespanMsAt(session.usedAt, SESSION_KEEP_MS, now) &&
                    (!oldest || int32_t(session.usedAt - oldest->usedAt) < 0)) {
             oldest = &session;
         }
     }
     if (found || !create)
         return found;
-    PrivateSession *slot = free ? free : oldest;
+    PrivateSession *slot = free ? free : idle ? idle : oldest;
     if (!slot)
         return nullptr;
     clearSession(*slot);
@@ -134,19 +139,27 @@ void BitchatBridge::privateFrame(const Packet &packet, const Peer &peer, uint16_
     // Bitchat never compresses ciphertext in practice; a compressed one is not read.
     if (packet.compressed() || !utc())
         return;
-    // Only a first handshake message, or ciphertext from a phone this bridge lost track of, may take a slot.
-    const bool opener =
-        packet.type == TYPE_HANDSHAKE ? packet.payload.size == NOISE_MESSAGE1 : packet.payload.size > NOISE_TRANSPORT_OVERHEAD;
-    PrivateSession *session = privateSession(packet.sender, now, opener);
-    if (!session)
-        return;
+    PrivateSession *session = privateSession(packet.sender, now, false);
+    if (!session) {
+        // Only a first handshake message, or ciphertext from a phone this bridge lost track of, may take a slot,
+        // and only when a handshake could be afforded now.
+        const bool opener = packet.type == TYPE_HANDSHAKE ? packet.payload.size == NOISE_MESSAGE1
+                                                          : packet.payload.size > NOISE_TRANSPORT_OVERHEAD;
+        RateBucket probe = runtime->handshakes;
+        if (!opener || !probe.admit(now, 6, 5000))
+            return;
+        session = privateSession(packet.sender, now, true);
+        if (!session)
+            return;
+    }
     expireHandshake(*session, now);
-    // Answers go straight to the phone when it is connected to this radio, and through the others when not.
-    session->link = source != NO_LINK && packet.ttl == 7 ? source : NO_LINK;
+    // The link the frame came on, when the phone is connected here: the session takes it only once the frame
+    // proved itself, so a stranger cannot send someone else's answers to its own link.
+    const uint16_t link = source != NO_LINK && packet.ttl == 7 ? source : NO_LINK;
     if (packet.type == TYPE_HANDSHAKE)
-        privateHandshake(*session, packet, now);
+        privateHandshake(*session, packet, link, now);
     else if (packet.type == TYPE_ENCRYPTED)
-        privateTransport(*session, packet, peer, session->link != NO_LINK, now);
+        privateTransport(*session, packet, peer, link, now);
 }
 
 static void established(PrivateSession &session, NoiseHandshake &trial, uint32_t now)
@@ -161,7 +174,7 @@ static void established(PrivateSession &session, NoiseHandshake &trial, uint32_t
     session.openedAt = now ? now : 1;
 }
 
-void BitchatBridge::privateHandshake(PrivateSession &session, const Packet &packet, uint32_t now)
+void BitchatBridge::privateHandshake(PrivateSession &session, const Packet &packet, uint16_t link, uint32_t now)
 {
     const Bytes in = packet.payload;
     auto &handshake = session.handshake;
@@ -177,10 +190,11 @@ void BitchatBridge::privateHandshake(PrivateSession &session, const Packet &pack
             if (ok) {
                 noisePeerId(trial.remoteStatic(), proved);
                 ok = proved == packet.sender && trial.writeMessage3(staticPrivate, noisePublic.data(), out) &&
-                     sendNoise(TYPE_HANDSHAKE, packet.sender, {out, sizeof(out)}, session.link);
+                     sendNoise(TYPE_HANDSHAKE, packet.sender, {out, sizeof(out)}, link);
             }
             if (ok) {
                 established(session, trial, now);
+                session.link = link;
                 deliverMail(session, now);
             } else {
                 trial.wipe();
@@ -201,6 +215,7 @@ void BitchatBridge::privateHandshake(PrivateSession &session, const Packet &pack
         // The new session replaces the old one only now; anything else keeps waiting.
         if (ok) {
             established(session, trial, now);
+            session.link = link;
             deliverMail(session, now);
         } else {
             trial.wipe();
@@ -223,7 +238,7 @@ void BitchatBridge::privateHandshake(PrivateSession &session, const Packet &pack
     noiseWipe(ephemeral, sizeof(ephemeral));
     uint8_t out[NOISE_MESSAGE2];
     if (!fresh.readMessage1(in) || !fresh.writeMessage2(staticPrivate, noisePublic.data(), out) ||
-        !sendNoise(TYPE_HANDSHAKE, packet.sender, {out, sizeof(out)}, session.link)) {
+        !sendNoise(TYPE_HANDSHAKE, packet.sender, {out, sizeof(out)}, link)) {
         fresh.wipe();
         return;
     }
@@ -257,8 +272,9 @@ bool BitchatBridge::initiatePrivate(PrivateSession &session, uint32_t now)
     return true;
 }
 
-void BitchatBridge::privateTransport(PrivateSession &session, const Packet &packet, const Peer &peer, bool direct, uint32_t now)
+void BitchatBridge::privateTransport(PrivateSession &session, const Packet &packet, const Peer &peer, uint16_t link, uint32_t now)
 {
+    const bool direct = link != NO_LINK;
     const Bytes in = packet.payload;
     if (!session.ready) {
         // A phone that still holds a session this bridge lost (a restart): a new handshake, as the apps do.
@@ -280,8 +296,13 @@ void BitchatBridge::privateTransport(PrivateSession &session, const Packet &pack
     const size_t size = in.size - NOISE_TRANSPORT_OVERHEAD;
     session.failures = 0;
     session.usedAt = now;
+    // Proved by the session keys: answers go to this link from now on.
+    session.link = link;
     ++privateIn;
-    // Delivery and read receipts, verification, files: nothing for the bridge to do.
+    // The phone confirms a message from LoRa: it leaves the mailbox.
+    if (plain[0] == KIND_DELIVERED && size > 1)
+        mailAcknowledged(session.peer, {plain + 1, size - 1});
+    // Delivery and read receipts, verification, files: nothing more for the bridge to do.
     if (plain[0] != KIND_MESSAGE) {
         noiseWipe(plain, size);
         return;
@@ -376,7 +397,7 @@ bool BitchatBridge::replyPrivately(const char *text, size_t size)
     return sendPrivateText(*privateReply, text, size);
 }
 
-bool BitchatBridge::sendPrivateText(PrivateSession &session, const char *text, size_t size)
+bool BitchatBridge::sendPrivateText(PrivateSession &session, const char *text, size_t size, char *messageId, bool linkOnly)
 {
     if (!session.ready)
         return false;
@@ -386,8 +407,11 @@ bool BitchatBridge::sendPrivateText(PrivateSession &session, const char *text, s
         while (size && (uint8_t(text[size]) & 0xc0) == 0x80)
             --size;
     }
+    // A message sent again keeps its ID, so the app shows it once.
     char id[37];
-    if (!newMessageId(id))
+    if (messageId && messageId[0])
+        std::memcpy(id, messageId, sizeof(id));
+    else if (!newMessageId(id))
         return false;
     uint8_t body[2 + 36 + 2 + 255];
     size_t offset = 0;
@@ -399,21 +423,26 @@ bool BitchatBridge::sendPrivateText(PrivateSession &session, const char *text, s
     body[offset++] = uint8_t(size);
     std::memcpy(body + offset, text, size);
     offset += size;
-    const bool sent = sendPrivate(session, KIND_MESSAGE, {body, offset});
+    const bool sent = sendPrivate(session, KIND_MESSAGE, {body, offset}, linkOnly);
     noiseWipe(body, offset);
+    if (sent && messageId)
+        std::memcpy(messageId, id, sizeof(id));
     return sent;
 }
 
-bool BitchatBridge::sendPrivate(PrivateSession &session, uint8_t kind, Bytes body)
+bool BitchatBridge::sendPrivate(PrivateSession &session, uint8_t kind, Bytes body, bool linkOnly)
 {
+    if (linkOnly && session.link == NO_LINK)
+        return false;
     if (!session.ready || body.size + 1 > PRIVATE_LIMIT || !session.outgoing.admit(millis(), 10, 1000))
         return false;
     uint8_t plain[PRIVATE_LIMIT];
     uint8_t sealed[PRIVATE_LIMIT + NOISE_TRANSPORT_OVERHEAD];
     plain[0] = kind;
     std::memcpy(plain + 1, body.data, body.size);
-    const bool ok = noiseEncrypt(session.send, {plain, body.size + 1}, sealed) &&
-                    sendNoise(TYPE_ENCRYPTED, session.peer, {sealed, body.size + 1 + NOISE_TRANSPORT_OVERHEAD}, session.link);
+    const bool ok =
+        noiseEncrypt(session.send, {plain, body.size + 1}, sealed) &&
+        sendNoise(TYPE_ENCRYPTED, session.peer, {sealed, body.size + 1 + NOISE_TRANSPORT_OVERHEAD}, session.link, linkOnly);
     noiseWipe(plain, body.size + 1);
     if (ok)
         ++privateOut;
@@ -424,14 +453,16 @@ bool BitchatBridge::sendPrivate(PrivateSession &session, uint8_t kind, Bytes bod
 // stream reader takes their length as the padded one. Straight to the phone when it is connected here; else to
 // every phone, which pass it on. Not put in the shared list of recent packets: the copies the phones relay
 // back carry this bridge's own ID and are dropped anyway.
-bool BitchatBridge::sendNoise(uint8_t type, const PeerId &to, Bytes payload, uint16_t link)
+bool BitchatBridge::sendNoise(uint8_t type, const PeerId &to, Bytes payload, uint16_t link, bool linkOnly)
 {
     if (!identityReady || !utc())
         return false;
     const uint64_t timestamp = nextTimestamp();
     if (encode(type, ownId, &to, timestamp, 7, payload, {}, runtime->working, true) != Result::Ok)
         return false;
-    const bool sent = (link != NO_LINK && bleSendTo(runtime->working.bytes(), link)) || bleBroadcast(runtime->working.bytes());
+    // No phone connected counts as not sent: a message for a phone that walked away stays in the mailbox.
+    const bool sent = (link != NO_LINK && bleSendTo(runtime->working.bytes(), link)) ||
+                      (!linkOnly && blePhones() && bleBroadcast(runtime->working.bytes()));
     if (!sent) {
         reject(Result::Full);
         return false;

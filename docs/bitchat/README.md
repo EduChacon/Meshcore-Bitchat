@@ -368,32 +368,38 @@ aplicativo de verdade ainda não foi ensaiada.
 Na conversa privada com a ponte, `@Nome texto` manda o texto ao contato `Nome` do rádio, como
 mensagem direta do MeshCore. Exemplo: `@Fulano chego às 18h`.
 
-a) **O nome** é o do contato na lista do rádio, em maiúsculas ou minúsculas; vale o nome mais longo
-que combina, então `@Fulano de Tal oi` vai para "Fulano de Tal", não para "Fulano". Depois do nome,
-um espaço ou `:`. Só contatos de conversa (não repetidores).
+a) **Só aos favoritos do dono.** Valem apenas os contatos que o dono marcou como favoritos no
+aplicativo MeshCore (a estrela). Assim, quem passa perto da casa com o Bitchat não escreve a
+qualquer contato do rádio, nem descobre quem está na lista: para um nome que não existe e para um
+que não é favorito, a resposta é a mesma.
 
-b) **Quem recebe vê** `[Bitchat ana] chego às 18h`, vindo do rádio da ponte, com o apelido de quem
-escreveu. Cabe uma mensagem do MeshCore (160 caracteres, com o apelido); o que passa disso é
-recusado, não cortado.
+b) **O nome** é o do contato, em maiúsculas ou minúsculas; vale o nome mais longo que combina, então
+`@Fulano de Tal oi` vai para "Fulano de Tal", não para "Fulano". Depois do nome, um espaço ou `:`.
 
-c) **A resposta volta** à mesma conversa privada, como `[MC Fulano] texto`, quando o contato
-responde ao rádio da ponte nas 24 horas seguintes. Um contato também pode escrever primeiro, ao
-rádio da ponte, começando com `@apelido` de quem está no Bitchat: `@ana o portão está aberto`.
+c) **Quem recebe vê** `[Bitchat ana] chego às 18h`, vindo do rádio da ponte, com a data do relógio da
+ponte. Cabe uma mensagem do MeshCore (160 bytes, com o apelido); o que passa disso é recusado, não
+cortado. Quebras de linha viram espaços.
 
-d) **Se o celular não estiver perto** quando a resposta chegar, ela fica guardada por até 24 horas
-(oito mensagens no total). Quando o celular volta e se apresenta à ponte, a ponte abre a conversa
-privada sozinha e entrega.
+d) **A resposta volta** à mesma conversa privada, como `[MC Fulano] texto`, quando o contato responde
+ao rádio da ponte **em até 30 minutos**. Depois disso, ou a qualquer hora, um favorito pode escrever
+ao rádio da ponte começando com `@apelido` de quem está no Bitchat: `@ana o portão está aberto`.
+Mensagens de quem não é favorito nunca vão ao Bitchat.
 
-e) **Limites:** duas mensagens por celular, depois uma a cada 20 segundos; para todos juntos,
-cinco, depois uma a cada três minutos.
+e) **Se o celular não estiver perto**, a mensagem fica guardada por até 24 horas (três por celular,
+três por contato, oito no total) e só sai da caixa quando o Bitchat do celular confirma que a
+recebeu. Quando o celular volta e se apresenta à ponte, a ponte abre a conversa privada sozinha e
+entrega.
 
-f) **Privacidade:** a ponte lê a mensagem (ela a tira da conversa criptografada do Bitchat e a manda
-pela criptografia do MeshCore). As mensagens também aparecem no aplicativo MeshCore do dono do
-rádio, como qualquer mensagem direta dele. Não é criptografia de ponta a ponta entre o celular e o
-contato.
+f) **Limites:** duas mensagens por celular, depois uma a cada 20 segundos; para todos juntos, cinco,
+depois uma a cada três minutos.
 
-g) **O dono do rádio desliga** com `!ponte privado off` no aplicativo MeshCore (`on` religa). Vem
-ligado.
+g) **Privacidade:** a ponte lê a mensagem (ela a tira da conversa criptografada do Bitchat e a manda
+pela criptografia do MeshCore). As respostas aparecem também no aplicativo MeshCore do dono, como
+qualquer mensagem direta ao rádio; o que a ponte manda em nome do rádio não aparece ali. Não é
+criptografia de ponta a ponta entre o celular e o contato.
+
+h) **O dono do rádio desliga** com `!ponte privado off` no aplicativo MeshCore (`on` religa); ao
+desligar, o que estava guardado é apagado. Vem ligado.
 
 ## Conversa privada entre celulares de casas diferentes (a partir da `bitchat0.24`)
 
@@ -404,17 +410,25 @@ privado como se estivessem lado a lado.
 a) **Criptografia de ponta a ponta:** as pontes só carregam os pacotes do Bitchat, que já vêm
 criptografados pelos celulares. Nenhuma ponte lê a conversa.
 
-b) **O que vai pelo LoRa:** o anúncio de cada celular ligado diretamente à ponte, no máximo a cada
-três minutos, e os pacotes privados entre um celular daqui e um de lá. O texto público continua
-como antes.
+b) **O que vai pelo LoRa:** o anúncio de cada celular ligado diretamente à ponte (apelido e chaves
+públicas, legíveis por quem tem a chave do canal), a cada três minutos enquanto outra ponte com
+túnel tiver sido ouvida na última meia hora, ou a cada 30 minutos quando nenhuma foi ouvida; e os
+pacotes privados entre um celular daqui e um de lá, só do próprio celular, pelo enlace Bluetooth em
+que ele se apresentou. O texto público continua como antes.
 
 c) **Custa tempo de rádio no canal**, que é compartilhado. Por isso vem desligado, e cada dono
-decide. Pontes mais antigas que a `bitchat0.24` ignoram esses pacotes.
+decide. A ponte reveza os pacotes do túnel com o texto público, para um não segurar o outro. Pontes
+mais antigas que a `bitchat0.24` ignoram esses pacotes.
 
-d) **Sem garantia de entrega:** o próprio Bitchat confirma as mensagens e reenvia o que não foi
-confirmado. Com o LoRa congestionado, abrir a conversa pode exigir uma segunda tentativa.
+d) **Proteções:** no máximo seis celulares de fora ocupam lugar na lista da ponte, sem nunca tirar o
+lugar dos celulares da casa; um pacote que chega pelo LoRa em nome de um celular da casa é
+descartado.
 
-e) **Não foi ligado em aparelho.** O caminho foi testado no computador com dois celulares simulados,
+e) **Sem garantia de entrega:** o próprio Bitchat confirma as mensagens e reenvia o que não foi
+confirmado. Com o LoRa congestionado, abrir a conversa pode exigir uma segunda tentativa: o Bitchat
+do iPhone desiste de um aperto de mão em 10 segundos.
+
+f) **Não foi ligado em aparelho.** O caminho foi testado no computador com dois celulares simulados,
 do aperto de mão à confirmação de entrega.
 
 ## Histórico para quem chega depois
