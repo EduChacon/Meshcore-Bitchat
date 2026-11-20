@@ -262,6 +262,54 @@ bool MyMesh::positionShared()
     return _prefs.advert_loc_policy != ADVERT_LOC_NONE;
 }
 
+// The chat contact whose name the text starts with, as the bridge's private chat writes "@Name text".
+bool MyMesh::findContact(const char *text, size_t size, LoraContact &out, size_t &consumed, bool &ambiguous)
+{
+    ambiguous = false;
+    size_t best = 0;
+    ContactInfo c;
+    ContactsIterator contacts = startContactsIterator();
+    while (contacts.hasNext(this, c)) {
+        if (c.type != ADV_TYPE_CHAT)
+            continue;
+        const size_t n = strnlen(c.name, sizeof(c.name));
+        if (!n || size <= n || (text[n] != ' ' && text[n] != ':') || n < best)
+            continue;
+        bool same = true;
+        for (size_t i = 0; i < n && same; i++)
+            same = tolower((unsigned char)text[i]) == tolower((unsigned char)c.name[i]);
+        if (!same)
+            continue;
+        ambiguous = n == best;
+        best = n;
+        memcpy(out.id, c.id.pub_key, sizeof(out.id));
+        StrHelper::strncpy(out.name, c.name, sizeof(out.name));
+    }
+    consumed = best;
+    return best > 0;
+}
+
+// A direct message of this radio, without the app's own retry and timeout bookkeeping; with the channel scope rules
+// of WadaMesh's own direct floods.
+bool MyMesh::sendDirectText(const uint8_t id[8], const char *text, size_t size)
+{
+    ContactInfo *contact = lookupContactByPubKey(id, 8);
+    if (contact == NULL || size == 0 || size > MAX_TEXT_LEN)
+        return false;
+    char line[MAX_TEXT_LEN + 1];
+    memcpy(line, text, size);
+    line[size] = 0;
+    uint32_t expected_ack = 0;
+    mesh::Packet *pkt = composeMsgPacket(*contact, getRTCClock()->getCurrentTimeUnique(), 0, line, expected_ack);
+    if (pkt == NULL)
+        return false;
+    if (contact->out_path_len == OUT_PATH_UNKNOWN)
+        sendFloodScoped(*contact, pkt);
+    else
+        sendDirect(pkt, contact->out_path, contact->out_path_len);
+    return true;
+}
+
 void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp, const uint8_t *app_data,
                           size_t app_data_len)
 {

@@ -93,6 +93,13 @@ void BitchatBridge::begin(MeshHost &meshHost)
     stored = 0;
     if (storageReady && storage.isKey("sospos") && storage.getBytesLength("sospos") == 1 && storage.getBytes("sospos", &stored, 1) == 1)
         sosPosition = stored != 0;
+    stored = 1;
+    if (storageReady && storage.isKey("dm") && storage.getBytesLength("dm") == 1 && storage.getBytes("dm", &stored, 1) == 1)
+        dmEnabled = stored != 0;
+    stored = 0;
+    if (storageReady && storage.isKey("tunnel") && storage.getBytesLength("tunnel") == 1 &&
+        storage.getBytes("tunnel", &stored, 1) == 1)
+        tunnelOn = stored != 0;
     if (storageReady && storage.isKey("note") && storage.getBytesLength("note") == sizeof(note) &&
         storage.getBytes("note", &note, sizeof(note)) == sizeof(note)) {
         note.author[sizeof(note.author) - 1] = 0;
@@ -466,6 +473,26 @@ bool BitchatBridge::setPrefixed(bool value)
     return true;
 }
 
+bool BitchatBridge::setDirectMessages(bool value)
+{
+    const uint8_t stored = value;
+    if (!storageReady || storage.putBytes("dm", &stored, 1) != 1)
+        return false;
+    dmEnabled = value;
+    return true;
+}
+
+bool BitchatBridge::setTunnel(bool value)
+{
+    const uint8_t stored = value;
+    if (!storageReady || storage.putBytes("tunnel", &stored, 1) != 1)
+        return false;
+    tunnelOn = value;
+    if (!value && runtime)
+        runtime->frames.reset();
+    return true;
+}
+
 bool BitchatBridge::setSosPosition(bool value)
 {
     const uint8_t stored = value;
@@ -687,6 +714,34 @@ void BitchatBridge::answerApp()
     }
     const bool portuguese = appPortuguese;
     const size_t room = sizeof(text) - strlen(APP_SENDER);
+    if (command == Command::TunnelOn || command == Command::TunnelOff) {
+        const bool value = command == Command::TunnelOn;
+        if (!setTunnel(value))
+            replyToApp(portuguese ? "Não mudou: erro de memória" : "Not changed: Storage error");
+        else if (portuguese)
+            replyToApp(value ? "Túnel ligado: os celulares perto de outra ponte com túnel aparecem no Bitchat e conversam no "
+                               "privado pelo LoRa."
+                             : "Túnel desligado: conversas privadas só entre celulares perto deste rádio.");
+        else
+            replyToApp(value
+                           ? "Tunnel on: phones near another bridge with the tunnel show in Bitchat and chat privately over LoRa."
+                           : "Tunnel off: private chats only between phones near this radio.");
+        return;
+    }
+    if (command == Command::DmOn || command == Command::DmOff) {
+        const bool value = command == Command::DmOn;
+        if (!setDirectMessages(value))
+            replyToApp(portuguese ? "Não mudou: erro de memória" : "Not changed: Storage error");
+        else if (portuguese)
+            replyToApp(
+                value ? "Mensagens privadas ligadas: no chat privado com a ponte, @contato texto vai a esse contato pelo LoRa."
+                      : "Mensagens privadas desligadas: o Bitchat não manda mais mensagens diretas pelo LoRa.");
+        else
+            replyToApp(
+                value ? "Direct messages on: in the private chat with the bridge, @contact text goes to that contact over LoRa."
+                      : "Direct messages off: Bitchat no longer sends direct messages over LoRa.");
+        return;
+    }
     if (command == Command::PrefixOn || command == Command::PrefixOff) {
         const bool value = command == Command::PrefixOn;
         if (!setPrefixed(value))
@@ -1661,12 +1716,23 @@ bool BitchatBridge::handleFrame(Bytes frame, uint16_t source)
             privateFrame(packet, *peer, source, now);
         return true;
     }
+    // A phone that announces itself directly is here, not behind another bridge.
+    if (packet.type == 1 && packet.ttl == 7) {
+        peer->localAt = now ? now : 1;
+        peer->remote = false;
+    }
     if (relay(frame, runtime->working) == Result::Ok) {
         if (bleBroadcast(runtime->working.bytes(), source))
             ++forwardedBle;
+        // Its announce and its private packets to phones near other bridges go over LoRa too, when the operator
+        // turned that on.
+        tunnelOut(packet, *peer, runtime->working.bytes(), now);
     }
-    if (packet.type == 1 && !peer->announcement.gateway)
+    if (packet.type == 1 && !peer->announcement.gateway) {
         rememberAnnounce(packet, frame);
+        // Messages from LoRa may be waiting for this phone.
+        offerMail(packet.sender, now);
+    }
     // A phone that arrives, announcing itself directly to this radio, is given the house note.
     if (packet.type == 1 && packet.ttl == 7 && note.text[0] && !peer->announcement.gateway)
         deliverNote(packet, source);
@@ -1893,6 +1959,12 @@ void BitchatBridge::sendRadio()
             sendTunnel();
         return;
     }
+    // Then the phones' private chats: a handshake must cross within seconds.
+    if (runtime->frames && runtime->frames->out.size()) {
+        if (!host->radioBusy() && runtime->radioGate.admit(millis(), 1500))
+            sendFrame();
+        return;
+    }
     if (!item)
         return;
     if (!Throttle::isWithinTimespanMsAt(item->queuedAt, RADIO_DEADLINE_MS, millis()) || !textReady || textConflict) {
@@ -1952,6 +2024,22 @@ void BitchatBridge::onChannelText(uint8_t channel, const uint8_t *packetHash, co
         [](void *argument) {
             auto *c = static_cast<Call *>(argument);
             c->self->channelText(c->channel, c->hash, c->text, c->snr);
+        },
+        &call);
+}
+
+void BitchatBridge::onDirectText(const uint8_t id[8], const char *name, const char *text, size_t size)
+{
+    struct Call {
+        BitchatBridge *self;
+        const uint8_t *id;
+        const char *name, *text;
+        size_t size;
+    } call{this, id, name, text, size};
+    onLargeStack(
+        [](void *argument) {
+            auto *c = static_cast<Call *>(argument);
+            c->self->directText(c->id, c->name, c->text, c->size);
         },
         &call);
 }

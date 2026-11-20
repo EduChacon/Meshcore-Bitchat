@@ -405,6 +405,11 @@ void BitchatBridge::channelData(uint8_t channel, Bytes data)
         return;
     const uint32_t now = millis();
     TunnelHeard heard;
+    // A frame between phones near different bridges (BridgeRemote.cpp).
+    if ((data.data[2] & 0x0f) == uint8_t(TunnelKind::Frame)) {
+        tunnelIn(data, now);
+        return;
+    }
     if (data.data[2] & 0x0f) {
         // An answer about a payment: only the bridge that sent it cares.
         if (readTunnelAnswer(data, heard))

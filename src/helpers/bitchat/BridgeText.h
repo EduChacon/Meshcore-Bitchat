@@ -68,7 +68,11 @@ enum class Command : uint8_t {
     SoundOn,
     SoundOff,
     LightOn,
-    LightOff
+    LightOff,
+    DmOn,
+    DmOff,
+    TunnelOn,
+    TunnelOff
 };
 // A command and what follows it. Portuguese when "!ponte" or a Portuguese word was used; for "note" and
 // "sos" the argument is the rest of the text, in its own letter case.

@@ -354,12 +354,64 @@ static void tunnel()
     }
 }
 
+// Kind 3: frames between phones near different bridges, in up to three parts, best effort.
+static void frameParts()
+{
+    std::vector<uint8_t> frame(TUNNEL_FRAME);
+    for (size_t i = 0; i < frame.size(); ++i)
+        frame[i] = uint8_t(i * 7);
+    TunnelDatagram parts[TUNNEL_FRAME_PARTS];
+    CHECK(tunnelFrameParts(frame.size()) == 3 && tunnelFrameParts(1) == 1 && tunnelFrameParts(TUNNEL_CHUNK + 1) == 2);
+    for (uint8_t i = 0; i < 3; ++i)
+        CHECK(makeTunnelFrame(0x01020304, {frame.data(), frame.size()}, i, parts[i]));
+    TunnelDatagram extra;
+    CHECK(!makeTunnelFrame(1, {frame.data(), frame.size()}, 3, extra));
+    std::vector<uint8_t> big(TUNNEL_FRAME + 1, 1);
+    CHECK(!makeTunnelFrame(1, {big.data(), big.size()}, 0, extra));
+    CHECK(!makeTunnelFrame(1, {frame.data(), 0}, 0, extra));
+    // An old bridge reads it as an answer it does not know: nothing.
+    TunnelHeard heard;
+    CHECK(tunnelDatagram(parts[0].bytes()) && !readTunnelAnswer(parts[0].bytes(), heard));
+    // Out of order, with a copy in between: whole once.
+    FrameReceiver receiver;
+    Bytes out;
+    CHECK(!receiver.accept(parts[2].bytes(), 1000, out));
+    CHECK(!receiver.accept(parts[0].bytes(), 1100, out));
+    CHECK(!receiver.accept(parts[0].bytes(), 1200, out));
+    CHECK(receiver.accept(parts[1].bytes(), 1300, out));
+    CHECK(out.size == frame.size() && std::equal(frame.begin(), frame.end(), out.data));
+    CHECK(!receiver.accept(parts[1].bytes(), 1400, out));
+    // A short part before the last, a count that disagrees, a part past the count: refused.
+    TunnelDatagram shortPart = parts[0];
+    shortPart.size -= 1;
+    write32(shortPart.data.data() + 3, 77);
+    CHECK(!receiver.accept(shortPart.bytes(), 2000, out));
+    TunnelDatagram wrong = parts[2];
+    write32(wrong.data.data() + 3, 78);
+    wrong.data[8] = 4;
+    CHECK(!receiver.accept(wrong.bytes(), 2000, out));
+    wrong.data[8] = 2;
+    CHECK(!receiver.accept(wrong.bytes(), 2000, out));
+    // A frame left incomplete is dropped after half a minute; its parts are welcome again.
+    TunnelDatagram a = parts[0], b = parts[1], c = parts[2];
+    for (auto *d : {&a, &b, &c})
+        write32(d->data.data() + 3, 99);
+    CHECK(!receiver.accept(a.bytes(), 3000, out) && !receiver.accept(b.bytes(), 3000, out));
+    CHECK(!receiver.accept(c.bytes(), 3000 + TUNNEL_FRAME_WAIT_MS + 1, out));
+    CHECK(!receiver.accept(a.bytes(), 3000 + TUNNEL_FRAME_WAIT_MS + 2, out));
+    CHECK(receiver.accept(b.bytes(), 3000 + TUNNEL_FRAME_WAIT_MS + 3, out) && out.size == frame.size());
+    // A one-part frame.
+    TunnelDatagram one;
+    CHECK(makeTunnelFrame(5, {frame.data(), 20}, 0, one) && receiver.accept(one.bytes(), 9000, out) && out.size == 20);
+}
+
 int main()
 {
     inflateStreams();
     messagePayloads();
     tokens();
     tunnel();
+    frameParts();
     std::cout << "cashu: " << checks << " checks passed\n";
     return 0;
 }

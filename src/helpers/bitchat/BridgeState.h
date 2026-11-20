@@ -34,6 +34,7 @@ template <typename T, size_t Capacity> class BoundedQueue
         }
     }
     size_t size() const { return count; }
+    static constexpr size_t capacity() { return Capacity; }
     void clear() { head = count = 0; }
 
   private:
@@ -123,6 +124,12 @@ struct Peer {
     Announcement announcement{};
     uint32_t seenAt = 0;
     bool used = false;
+    // Known through another bridge's LoRa tunnel, not heard here directly: its private packets go over LoRa.
+    bool remote = false;
+    // When it last announced itself directly to this radio, and when that announce last went over LoRa.
+    uint32_t localAt = 0, tunneledAt = 0;
+    // Its private packets over LoRa: a burst, then one every two seconds.
+    RateBucket frames;
     RateGate traffic;
     RateBucket lora;
     RateGate presence;
@@ -136,6 +143,8 @@ class PeerTable
     Result announce(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer);
     Result authenticate(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer);
     Peer *find(const PeerId &id);
+    // The phone whose nickname `text` starts with (any letter case, then a space or ':'); none when two share it.
+    Peer *named(Bytes text, size_t &consumed);
     size_t size() const;
     bool nicknameShared(const Peer &peer) const;
 

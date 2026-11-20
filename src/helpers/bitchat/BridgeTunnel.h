@@ -32,7 +32,7 @@ constexpr uint32_t TUNNEL_WAIT_MS = 100000;
 constexpr uint32_t TUNNEL_QUIET_MS = 12000;
 constexpr uint8_t TUNNEL_WANTS = 2;
 
-enum class TunnelKind : uint8_t { Data = 0, Ack = 1, Want = 2 };
+enum class TunnelKind : uint8_t { Data = 0, Ack = 1, Want = 2, Frame = 3 };
 
 enum class TunnelOutcome : uint8_t {
     Delivered = 0, // given to the phones near the receiving bridge
@@ -127,6 +127,37 @@ class TunnelReceiver
         bool used = false, done = false;
     };
     std::array<Slot, 2> slots{};
+};
+
+// Kind 3, frame: one Bitchat frame between phones near different bridges, so they can hold a private chat over LoRa
+// (the phones' own announces, and their Noise packets to each other). Same header as data: index, count, chunk;
+// the frame goes without its padding. Best effort, with no ack: the apps resend what they do not hear back about.
+// Bridges before 0.24 ignore this kind.
+constexpr size_t TUNNEL_FRAME_PARTS = 3;
+constexpr size_t TUNNEL_FRAME = TUNNEL_FRAME_PARTS * TUNNEL_CHUNK;
+constexpr uint32_t TUNNEL_FRAME_WAIT_MS = 30000;
+size_t tunnelFrameParts(size_t frameSize);
+bool makeTunnelFrame(uint32_t id, Bytes frame, uint8_t index, TunnelDatagram &out);
+
+// Frame parts heard from other bridges, kept until the frame is whole or too old.
+class FrameReceiver
+{
+  public:
+    // A kind 3 datagram. When it completes a frame, true with the frame in `out` (valid until the next call); a
+    // frame is given once, later copies of its parts are not.
+    bool accept(Bytes data, uint32_t now, Bytes &out);
+    void expire(uint32_t now);
+    bool empty() const;
+
+  private:
+    struct Slot {
+        std::array<uint8_t, TUNNEL_FRAME> data{};
+        std::array<uint16_t, TUNNEL_FRAME_PARTS> sizes{};
+        uint32_t id = 0, firstAt = 0;
+        uint8_t have = 0, count = 0;
+        bool used = false, done = false;
+    };
+    std::array<Slot, 3> slots{};
 };
 
 } // namespace bitchat

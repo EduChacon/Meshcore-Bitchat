@@ -227,4 +227,86 @@ bool TunnelReceiver::empty() const
     return !slots[0].used && !slots[1].used;
 }
 
+size_t tunnelFrameParts(size_t frameSize)
+{
+    return (frameSize + TUNNEL_CHUNK - 1) / TUNNEL_CHUNK;
+}
+
+bool makeTunnelFrame(uint32_t id, Bytes frame, uint8_t index, TunnelDatagram &out)
+{
+    const size_t count = tunnelFrameParts(frame.size);
+    if (!frame.size || frame.size > TUNNEL_FRAME || index >= count)
+        return false;
+    const size_t offset = size_t(index) * TUNNEL_CHUNK;
+    const size_t chunk = std::min(TUNNEL_CHUNK, frame.size - offset);
+    out = {};
+    out.data[0] = 'B';
+    out.data[1] = 'C';
+    out.data[2] = uint8_t((TUNNEL_VERSION << 4) | uint8_t(TunnelKind::Frame));
+    write32(out.data.data() + 3, id);
+    out.data[7] = index;
+    out.data[8] = uint8_t(count);
+    memcpy(out.data.data() + TUNNEL_HEADER, frame.data + offset, chunk);
+    out.size = TUNNEL_HEADER + chunk;
+    return true;
+}
+
+bool FrameReceiver::accept(Bytes data, uint32_t now, Bytes &out)
+{
+    expire(now);
+    if (!tunnelDatagram(data) || (data.data[2] & 0x0f) != uint8_t(TunnelKind::Frame) || data.size <= TUNNEL_HEADER)
+        return false;
+    const uint32_t id = read32(data.data + 3);
+    const uint8_t index = data.data[7], count = data.data[8];
+    const size_t chunk = data.size - TUNNEL_HEADER;
+    // every part but the last is full
+    if (!count || count > TUNNEL_FRAME_PARTS || index >= count || (index + 1 < count && chunk != TUNNEL_CHUNK))
+        return false;
+    Slot *slot = nullptr;
+    for (auto &s : slots)
+        if (s.used && s.id == id)
+            slot = &s;
+    if (slot && (slot->done || slot->count != count))
+        return false;
+    if (!slot) {
+        // a free slot, or the one started longest ago
+        for (auto &s : slots)
+            if (!slot || (slot->used && (!s.used || int32_t(s.firstAt - slot->firstAt) < 0)))
+                slot = &s;
+        *slot = {};
+        slot->used = true;
+        slot->id = id;
+        slot->count = count;
+        slot->firstAt = now;
+    }
+    if (slot->have & (1u << index))
+        return false;
+    memcpy(slot->data.data() + size_t(index) * TUNNEL_CHUNK, data.data + TUNNEL_HEADER, chunk);
+    slot->sizes[index] = uint16_t(chunk);
+    slot->have = uint8_t(slot->have | (1u << index));
+    if (slot->have != (1u << count) - 1)
+        return false;
+    size_t size = 0;
+    for (uint8_t i = 0; i < count; ++i)
+        size += slot->sizes[i];
+    slot->done = true;
+    out = {slot->data.data(), size};
+    return true;
+}
+
+void FrameReceiver::expire(uint32_t now)
+{
+    for (auto &s : slots)
+        if (s.used && now - s.firstAt > TUNNEL_FRAME_WAIT_MS)
+            s = {};
+}
+
+bool FrameReceiver::empty() const
+{
+    for (const auto &s : slots)
+        if (s.used)
+            return false;
+    return true;
+}
+
 } // namespace bitchat

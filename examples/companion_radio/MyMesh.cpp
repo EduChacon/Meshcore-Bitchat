@@ -528,6 +528,10 @@ void MyMesh::onMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t 
                            const char *text) {
   markConnectionActive(from); // in case this is from a server, and we have a connection
   queueMessage(from, TXT_TYPE_PLAIN, pkt, sender_timestamp, NULL, 0, text);
+#ifdef WITH_BITCHAT_BRIDGE
+  // A Bitchat phone may be talking with this contact through the bridge; the app still has the message.
+  bitchat_bridge.onDirectText(from.id.pub_key, from.name, text, strlen(text));
+#endif
 }
 
 void MyMesh::onCommandDataRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp, const char *text) {
@@ -2666,6 +2670,53 @@ bitchat::MeshHost::NodeCheck MyMesh::verifyNode(const uint8_t keyPrefix[8], cons
   if (!contact->id.verify(signature, data, (int)size)) return NodeCheck::Invalid;
   StrHelper::strncpy(name, contact->name, 32);
   return NodeCheck::Valid;
+}
+
+// The chat contact whose name the text starts with, as the bridge's private chat writes "@Name text".
+bool MyMesh::findContact(const char *text, size_t size, LoraContact &out, size_t &consumed, bool &ambiguous)
+{
+  ambiguous = false;
+  size_t best = 0;
+  ContactInfo c;
+  ContactsIterator contacts = startContactsIterator();
+  while (contacts.hasNext(this, c)) {
+    if (c.type != ADV_TYPE_CHAT)
+      continue;
+    const size_t n = strnlen(c.name, sizeof(c.name));
+    if (!n || size <= n || (text[n] != ' ' && text[n] != ':') || n < best)
+      continue;
+    bool same = true;
+    for (size_t i = 0; i < n && same; i++)
+      same = tolower((unsigned char)text[i]) == tolower((unsigned char)c.name[i]);
+    if (!same)
+      continue;
+    ambiguous = n == best;
+    best = n;
+    memcpy(out.id, c.id.pub_key, sizeof(out.id));
+    StrHelper::strncpy(out.name, c.name, sizeof(out.name));
+  }
+  consumed = best;
+  return best > 0;
+}
+
+// A direct message of this radio, as the app sends one, without the app's own retry and timeout bookkeeping.
+bool MyMesh::sendDirectText(const uint8_t id[8], const char *text, size_t size)
+{
+  ContactInfo *contact = lookupContactByPubKey(id, 8);
+  if (contact == NULL || size == 0 || size > MAX_TEXT_LEN)
+    return false;
+  char line[MAX_TEXT_LEN + 1];
+  memcpy(line, text, size);
+  line[size] = 0;
+  uint32_t expected_ack = 0;
+  mesh::Packet *pkt = composeMsgPacket(*contact, getRTCClock()->getCurrentTimeUnique(), 0, line, expected_ack);
+  if (pkt == NULL)
+    return false;
+  if (contact->out_path_len == OUT_PATH_UNKNOWN)
+    sendFloodScoped(*contact, pkt);
+  else
+    sendDirect(pkt, contact->out_path, contact->out_path_len);
+  return true;
 }
 
 void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp, const uint8_t *app_data,

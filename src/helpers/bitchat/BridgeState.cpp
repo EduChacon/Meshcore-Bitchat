@@ -11,6 +11,35 @@ Peer *PeerTable::find(const PeerId &id)
     return nullptr;
 }
 
+Peer *PeerTable::named(Bytes text, size_t &consumed)
+{
+    Peer *best = nullptr;
+    size_t bestSize = 0;
+    bool tie = false;
+    for (auto &entry : entries) {
+        if (!entry.used)
+            continue;
+        const auto &nick = entry.announcement.nickname;
+        const size_t n = strnlen(nick.data(), nick.size());
+        if (!n || text.size <= n || (text.data[n] != ' ' && text.data[n] != ':'))
+            continue;
+        bool same = true;
+        for (size_t i = 0; i < n && same; ++i) {
+            const auto lower = [](uint8_t c) { return c >= 'A' && c <= 'Z' ? uint8_t(c + 32) : c; };
+            same = lower(text.data[i]) == lower(uint8_t(nick[i]));
+        }
+        if (!same || n < bestSize)
+            continue;
+        tie = n == bestSize && best;
+        best = &entry;
+        bestSize = n;
+    }
+    if (tie)
+        return nullptr;
+    consumed = bestSize;
+    return best;
+}
+
 size_t PeerTable::size() const
 {
     size_t count = 0;

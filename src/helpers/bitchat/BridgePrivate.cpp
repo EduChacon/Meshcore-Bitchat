@@ -179,10 +179,12 @@ void BitchatBridge::privateHandshake(PrivateSession &session, const Packet &pack
                 ok = proved == packet.sender && trial.writeMessage3(staticPrivate, noisePublic.data(), out) &&
                      sendNoise(TYPE_HANDSHAKE, packet.sender, {out, sizeof(out)}, session.link);
             }
-            if (ok)
+            if (ok) {
                 established(session, trial, now);
-            else
+                deliverMail(session, now);
+            } else {
                 trial.wipe();
+            }
             return;
         }
         // Both sides started at once: the lower ID stays the initiator, as in both apps.
@@ -197,10 +199,12 @@ void BitchatBridge::privateHandshake(PrivateSession &session, const Packet &pack
             ok = proved == packet.sender;
         }
         // The new session replaces the old one only now; anything else keeps waiting.
-        if (ok)
+        if (ok) {
             established(session, trial, now);
-        else
+            deliverMail(session, now);
+        } else {
             trial.wipe();
+        }
         return;
     }
     // Only a first message is answered: with no handshake under way the apps take anything as one, so a
@@ -320,6 +324,13 @@ void BitchatBridge::privateTransport(PrivateSession &session, const Packet &pack
 
 void BitchatBridge::privateRequest(PrivateSession &session, const Peer &peer, Bytes text, bool direct, uint32_t now)
 {
+    // "@name text": a direct message to a LoRa contact.
+    if (text.size && text.data[0] == '@') {
+        privateReply = &session;
+        privateDirect(session, peer, text, now);
+        privateReply = nullptr;
+        return;
+    }
     BridgeRequest asked;
     // In the private chat the command words are enough: "bateria" as "!ponte bateria".
     char line[COMMAND_TEXT_LIMIT + 1];
@@ -344,8 +355,8 @@ void BitchatBridge::privateRequest(PrivateSession &session, const Peer &peer, By
     privateReply = &session;
     if (asked.command == Command::None || asked.command == Command::Help) {
         static constexpr char HELP[] =
-            "Ponte LoRa. Escreva: ponte (estado), bateria, quem, guia, teste, recado <texto>, sos <texto>. "
-            "In English: bridge, battery, who, guide, test, note <text>, sos <text>.";
+            "Ponte LoRa. Escreva: ponte (estado), bateria, quem, guia, teste, recado <texto>, sos <texto>, ou "
+            "@contato texto para mandar pelo LoRa. In English: bridge, battery, who, guide, test, note, sos, @contact.";
         replyPrivately(HELP, sizeof(HELP) - 1);
     } else {
         answerAsked(asked, peer, direct, now);
@@ -355,14 +366,26 @@ void BitchatBridge::privateRequest(PrivateSession &session, const Peer &peer, By
 
 bool BitchatBridge::replyPrivately(const char *text, size_t size)
 {
-    if (!privateReply || !privateReply->ready)
+    if (!privateReply)
         return false;
     const size_t prefix = sizeof(REPLY_PREFIX) - 1;
     if (size >= prefix && std::memcmp(text, REPLY_PREFIX, prefix) == 0) {
         text += prefix;
         size -= prefix;
     }
-    size = std::min<size_t>(size, 255);
+    return sendPrivateText(*privateReply, text, size);
+}
+
+bool BitchatBridge::sendPrivateText(PrivateSession &session, const char *text, size_t size)
+{
+    if (!session.ready)
+        return false;
+    // At most 255 bytes, cut on a character boundary.
+    if (size > 255) {
+        size = 255;
+        while (size && (uint8_t(text[size]) & 0xc0) == 0x80)
+            --size;
+    }
     char id[37];
     if (!newMessageId(id))
         return false;
@@ -376,7 +399,7 @@ bool BitchatBridge::replyPrivately(const char *text, size_t size)
     body[offset++] = uint8_t(size);
     std::memcpy(body + offset, text, size);
     offset += size;
-    const bool sent = sendPrivate(*privateReply, KIND_MESSAGE, {body, offset});
+    const bool sent = sendPrivate(session, KIND_MESSAGE, {body, offset});
     noiseWipe(body, offset);
     return sent;
 }
