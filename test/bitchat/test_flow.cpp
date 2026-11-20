@@ -1325,6 +1325,29 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const PeerId &bridgeI
     run(300);
     // Nothing of it on the LoRa text channel.
     CHECK(mesh.radio.size() == radioBefore);
+    // Another bridge heard over Bluetooth, with a lower node number, puts this one on standby for the public text
+    // (both would relay it). The tunnel goes on: its frames are each phone's own, and the two sides of a chat
+    // need both bridges.
+    {
+        Phone other("LoRa bridge 0001", 77);
+        uint8_t proof[GATEWAY_PROOF];
+        makeGatewayProof(crypto, other.id, 1, bridge->gatewayKey(), proof);
+        std::vector<uint8_t> extra{GATEWAY_TLV, uint8_t(GATEWAY_PROOF)};
+        extra.insert(extra.end(), proof, proof + GATEWAY_PROOF);
+        bia.write(other.announce({extra.data(), extra.size()}, 6));
+        run(300);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) == 0);
+        const std::string again = "\x01\x00\x04M-02\x01\x03Oi?";
+        std::vector<uint8_t> second(again.size() + NOISE_TRANSPORT_OVERHEAD);
+        CHECK(noiseEncrypt(anaSend, {reinterpret_cast<const uint8_t *>(again.data()), again.size()}, second.data()));
+        mesh.data.clear();
+        ana.write(directedFrame(ana, rui.id, 0x11, {second.data(), second.size()}));
+        run(3000);
+        CHECK(tunneled().size() == 1);
+        // The standby ends by itself.
+        run(91000);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) != 0);
+    }
     // Off again: frames from LoRa are ignored.
     CHECK(fromApp("!bridge tunnel off"));
     run(100);

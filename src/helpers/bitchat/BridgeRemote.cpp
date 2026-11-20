@@ -26,7 +26,9 @@ static constexpr size_t REMOTE_PEERS = 6;
 
 void BitchatBridge::tunnelOut(const Packet &packet, Peer &peer, Bytes relayed, uint16_t source, uint32_t now)
 {
-    if (!tunnelOn || !textReady || textConflict || !runtime || peer.announcement.gateway || peer.remote)
+    // Not held back by a standby for the public text: these frames are each phone's own, and a chat needs both
+    // bridges to carry its side.
+    if (!tunnelOn || !textReady || !runtime || peer.announcement.gateway || peer.remote)
         return;
     const bool partner =
         runtime->frames && runtime->frames->heardAt && Throttle::isWithinTimespanMsAt(runtime->frames->heardAt, PARTNER_MS, now);
@@ -114,7 +116,7 @@ bool BitchatBridge::sendFrame()
     // Stale parts are of no use: the apps gave up the handshake or sent again. All of them go at once.
     for (auto *queue : {&frames.urgent, &frames.out})
         while (auto *part = queue->front()) {
-            if (Throttle::isWithinTimespanMsAt(part->queuedAt, TUNNEL_FRAME_WAIT_MS, now) && textReady && !textConflict)
+            if (Throttle::isWithinTimespanMsAt(part->queuedAt, TUNNEL_FRAME_WAIT_MS, now) && textReady)
                 break;
             queue->pop();
             reject(Result::Expired);

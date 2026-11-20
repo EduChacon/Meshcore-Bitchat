@@ -226,6 +226,8 @@ class BitchatBridge
     bool directMessages() const { return dmEnabled; }
     bool setDirectMessages(bool value);
     bool tunnel() const { return tunnelOn; }
+    // The key that proves a bridge on this channel in its announce (for tests that play another bridge).
+    const uint8_t *gatewayKey() const { return textKey.data(); }
     bool setTunnel(bool value);
     // Channel data heard on LoRa. True when it was the bridges' own (a part of a payment, a confirmation),
     // which is not for the attached app.
