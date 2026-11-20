@@ -150,7 +150,11 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   
   // Two links: the companion app and a Bitchat phone, or one phone running both apps on a single
   // link. Shorter radio events let them share the air; the larger table holds the extra service.
-  Bluefruit.configPrphConn(247, 6, 3, 3);
+  // ATT MTU 260: the Bitchat apps pad every private packet to 256 bytes, and an iPhone cuts a packet larger than
+  // a write into fragments one byte too large for the link (its overhead counts a 13-byte header; the header
+  // has 14), which never arrive. With 257 bytes per write those packets go whole. Bluefruit sizes its event
+  // buffer for the worst event at MTU 247 (about 500 bytes), which a 257-byte write still fits.
+  Bluefruit.configPrphConn(260, 6, 3, 3);
   Bluefruit.configAttrTableSize(0x1400);
   bitchat::platformBluetooth.startupFailed = !Bluefruit.begin(2, 0);
   if (bitchat::platformBluetooth.startupFailed) {

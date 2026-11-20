@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.24
+# MeshCore + Bitchat v1.18.0-bitchat0.25
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -26,6 +26,23 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   localizadas; a `bitchat0.15` mostra em **Device Info** o que é preciso para localizá-las.
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
+
+## O que há de novo na `bitchat0.25`
+
+Correção só para os aparelhos nRF52 (T1000-E, RAK4631, T-Echo, T114, ThinkNode M1 e Xiao nRF52).
+Os ESP32, o WadaMesh e o Saitama não mudam.
+
+- **Conversa privada nos nRF52.** No ensaio do autor com a `bitchat0.24`, a conversa privada com o
+  T1000-E não abria (cadeado vermelho no Bitchat), enquanto a de um rádio ESP32 abria e respondia.
+  Causa achada no código do Bitchat para iPhone: ele completa cada pacote privado até 256 bytes e,
+  quando o pacote não cabe num envio, divide-o em pedaços que passam do limite em 1 byte (a conta
+  dele supõe um cabeçalho de 13 bytes; o cabeçalho tem 14). Esses pedaços nunca chegam. Os nRF52
+  aceitavam 244 bytes por envio; agora aceitam 257, e o pacote passa inteiro, como nos ESP32, que
+  aceitam 514.
+- **Limite que fica:** uma mensagem privada mandada do celular a um nRF52 com mais de cerca de 150
+  caracteres (menos, com acentos) o Bitchat completa até 512 bytes, e ela continua sem chegar. Nos
+  ESP32 passa. A biblioteca Bluetooth desses rádios não permite envios bem maiores com segurança.
+- Compilado (T1000-E e RAK4631 no computador, e todos no GitHub); **não foi ligado em aparelho.**
 
 ## O que há de novo na `bitchat0.24`
 
