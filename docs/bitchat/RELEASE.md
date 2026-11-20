@@ -14,9 +14,11 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
   `bitchat0.11` e as correções da `bitchat0.12`. Passou nos testes em computador e compila.
 - **Testes em computador desta versão:** 943 verificações do núcleo, 223 da criptografia das
-  conversas privadas (conferida com uma implementação independente do Noise), 8113 dos pagamentos
-  Cashu e 2015 do fluxo completo, com telefones e rádio simulados; compilados no computador o
-  Heltec V3, o T1000-E, o T-Deck (MeshCore e WadaMesh) e o Cardputer ADV.
+  conversas privadas (conferida com uma implementação independente do Noise), 8146 dos pagamentos
+  Cashu e 2966 do fluxo completo, com telefones e rádio simulados; compilados no computador o
+  Heltec V3 e o V4, o T1000-E, o RAK4631, o T-Echo, o T114 (com e sem tela), o ThinkNode M1, o Xiao
+  nRF52, o T-Deck (MeshCore, WadaMesh e Saitama) e o Cardputer ADV (MeshCore e Saitama), e no
+  GitHub os 27 aparelhos da versão.
 - **T1000-E:** o autor gravou a `bitchat0.14`. O aplicativo MeshCore conectou, e a ponte ficou
   pronta para o LoRa, mas o Bitchat não a encontrava; a `bitchat0.17` corrige a causa achada.
 - **Cardputer ADV:** o autor gravou a `bitchat0.13` e a `0.14`. Com a `0.14`, relatou melhora,
