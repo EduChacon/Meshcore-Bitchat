@@ -9,8 +9,8 @@ instalação e de primeiro uso abaixo e relatou que tudo funcionou. O relato nã
 alcance, consumo, memória livre e duração não foram medidos. Tudo o que veio depois da
 `bitchat0.1` (ligação entre as redes, modo econômico, guia, pacotes por país, histórico, lista de
 nomes e, na `bitchat0.11`, prefixo, recado, rádios, bateria, socorro, teste de alcance e hora pelo
-GPS e, na `bitchat0.20`, os pagamentos Cashu e as opções de som e luz) só foi simulado e
-compilado. Os demais aparelhos da [lista](DEVICES.md) nunca foram
+GPS e, na `bitchat0.20` e na `0.21`, os pagamentos Cashu, a confirmação assinada e as opções de
+som e luz) só foi simulado e compilado. Os demais aparelhos da [lista](DEVICES.md) nunca foram
 ligados. Trate como versão experimental.
 
 O que está pronto, o que vem em seguida e o que ainda é estudo: [roteiro](ROADMAP.md).
