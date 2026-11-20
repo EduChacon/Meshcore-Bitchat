@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.18
+# MeshCore + Bitchat v1.18.0-bitchat0.19
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -24,7 +24,14 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.18`
+## O que há de novo na `bitchat0.19`
+
+- **Versões mais rápidas.** Cada versão passa a trazer só os aparelhos principais (Heltec V3, os
+  quatro Heltec V4, T1000-E, Cardputer ADV e T-Deck) e o pacote do Brasil: 16 compilações em vez
+  de 220. Os demais aparelhos e países saem sob pedido, numa execução à parte, e continuam nas
+  versões anteriores. O firmware é o mesmo da `bitchat0.18`.
+
+## O que veio na `bitchat0.18`
 
 - **Heltec V3 e V4 (e outros com desligamento por bateria fraca): o rádio se desligava sozinho.**
   Relatado em aparelho: os Heltec V3 desligavam depois de algum tempo, com bateria ligada. O

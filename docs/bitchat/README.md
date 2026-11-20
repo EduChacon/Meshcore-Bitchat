@@ -49,13 +49,21 @@ pagamentos não atravessam a ponte.
 | SenseCAP T1000-E (nRF52)                                 | Experimental; não foi ligado. [Notas](T1000E.md) |
 | Outros nRF52 (RAK4631 etc.)                              | Fora por ora (ver "O que falta")                 |
 
+**Em cada versão (a partir da `bitchat0.19`) saem só os aparelhos principais:** Heltec V3, Heltec V4
+(os quatro arquivos: chip S3R2 ou S3R8, tela comum ou colorida), T1000-E, Cardputer ADV e T-Deck,
+com o pacote do Brasil. Os demais aparelhos da [lista](DEVICES.md) e os outros países são compilados
+sob pedido, numa execução à parte (no GitHub, _Actions_ > _Bitchat bridge_ > _Run workflow_, com
+_scope_ `all`), e continuam nas versões anteriores. Assim cada versão sai em minutos, e não em meia
+hora.
+
 Há um arquivo por aparelho, com o mesmo nome do firmware _companion_ Bluetooth original e o final
 `_bitchat`. Nos aparelhos sem memória PSRAM (ESP32 clássico e C3) a ponte pode recusar-se a ligar
 por falta de memória e avisar `Low memory: bridge OFF`; o rádio segue como MeshCore comum.
 
 ## Arquivos por país
 
-A página de cada versão traz, além dos arquivos gerais, um pacote por país:
+A página de cada versão traz, além dos arquivos gerais, o pacote do **Brasil**. Os demais pacotes
+saem nas execuções sob pedido (ver "Aparelhos"):
 
 | Pacote                 | Frequência  | Banda    | SF  | CR  | _Hash_ do caminho |
 | ---------------------- | ----------- | -------- | --- | --- | ----------------- |

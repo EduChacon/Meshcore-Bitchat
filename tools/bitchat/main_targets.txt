@@ -1,0 +1,11 @@
+# Built and published with every version: the boards the bridge is tried on. The other bridge
+# environments of variants/bitchat/platformio.ini are built only when a run asks for all of them
+# (Actions > Bitchat bridge > Run workflow, scope "all").
+Heltec_v3_companion_radio_ble_bitchat
+heltec_v4_companion_radio_ble_bitchat
+heltec_v4_r8_companion_radio_ble_bitchat
+heltec_v4_tft_companion_radio_ble_bitchat
+heltec_v4_r8_tft_companion_radio_ble_bitchat
+t1000e_companion_radio_ble_bitchat
+M5Stack_Cardputer_ADV_companion_radio_ble_bitchat
+LilyGo_TDeck_companion_radio_ble_bitchat

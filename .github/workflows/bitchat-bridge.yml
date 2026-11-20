@@ -1,8 +1,9 @@
 name: Bitchat bridge
 
-# Tests on every push that touches the bridge. On main, or when started by hand, every bridge
-# environment is built; a release is published when the head commit message contains
-# [publish-release] or the manual run asks for it.
+# Tests on every push that touches the bridge. On main, the boards of tools/bitchat/main_targets.txt
+# are built, each also with the Brasil radio; a manual run with scope "all" builds every bridge
+# environment and every country of tools/bitchat/regions.json. A release is published when the head
+# commit message contains [publish-release] or the manual run asks for it.
 
 on:
   workflow_dispatch:
@@ -11,6 +12,13 @@ on:
         description: Publish the version named in variants/bitchat/platformio.ini
         type: boolean
         default: false
+      scope:
+        description: "main: the boards in tools/bitchat/main_targets.txt, Brasil package; all: every board and country"
+        type: choice
+        options:
+          - main
+          - all
+        default: main
   push:
     branches:
       - main
@@ -42,6 +50,7 @@ jobs:
     timeout-minutes: 45
     outputs:
       targets: ${{ steps.targets.outputs.targets }}
+      regions: ${{ steps.targets.outputs.regions }}
       version: ${{ steps.targets.outputs.version }}
     steps:
       - name: Clone Repo
@@ -93,11 +102,19 @@ jobs:
       - name: Targets
         id: targets
         run: |
-          if [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          regions="brasil"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.scope }}" = "all" ]; then
             list=$(grep -oP '(?<=^\[env:)[^\]]+' variants/bitchat/platformio.ini)
+            regions=$(python3 -c "import json; print(' '.join(json.load(open('tools/bitchat/regions.json'))))")
+          elif [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            list=$(grep -v '^#' tools/bitchat/main_targets.txt | sed '/^$/d')
+            for env in $list; do
+              grep -q "^\[env:$env\]" variants/bitchat/platformio.ini || { echo "::error::$env is not in variants/bitchat/platformio.ini"; exit 1; }
+            done
           else
             list="$REFERENCE_ENV"
           fi
+          echo "regions=$regions" >> "$GITHUB_OUTPUT"
           echo "targets=$(echo "$list" | jq -R -s -c 'split("\n") | map(select(length > 0))')" >> "$GITHUB_OUTPUT"
           echo "version=$(grep -oP "FIRMWARE_VERSION='\"\K[^\"]+" variants/bitchat/platformio.ini | head -1)" >> "$GITHUB_OUTPUT"
 
@@ -151,12 +168,12 @@ jobs:
           name: firmware-${{ matrix.environment }}
           path: firmware/
 
-      # The same environment again for each country of tools/bitchat/regions.json: only the radio a
-      # never-configured device starts with changes.
+      # The same environment again for each country asked (Brasil, or every country of
+      # tools/bitchat/regions.json): only the radio a never-configured device starts with changes.
       - name: Build for each country
         run: |
           set -o pipefail
-          for region in $(python3 -c "import json; print(' '.join(json.load(open('tools/bitchat/regions.json'))))"); do
+          for region in ${{ needs.verify.outputs.regions }}; do
             export BITCHAT_REGION="$region"
             pio run -e "${{ matrix.environment }}" 2>&1 | tee "build-$region.log" | grep -E "Bridge: factory radio|^RAM:|^Flash:|SUCCESS|FAILED|error:"
             tools/bitchat/collect_firmware.sh "${{ matrix.environment }}" "countries/$region"

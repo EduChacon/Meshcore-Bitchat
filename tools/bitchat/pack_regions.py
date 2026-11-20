@@ -47,11 +47,16 @@ def main():
     args = parser.parse_args()
     regions = json.loads((Path(__file__).with_name("regions.json")).read_text(encoding="utf-8"))
     args.output.mkdir(parents=True, exist_ok=True)
+    # A version built for the main boards carries only the Brasil package; a run for every board, all of them.
+    packed = 0
     for name, radio in regions.items():
         folder = args.countries / name
-        files = sorted(path for path in folder.glob("*") if path.is_file()) if folder.is_dir() else []
+        if not folder.is_dir():
+            continue
+        files = sorted(path for path in folder.glob("*") if path.is_file())
         if not files:
             raise SystemExit(f"No firmware was built for {name}")
+        packed += 1
         title = radio["title"]
         repeat_note = REPEAT_NOTE if radio.get("repeat") else ""
         note = NOTE.format(version=args.version, repeat_note=repeat_note, **radio)
@@ -64,6 +69,8 @@ def main():
             for path in files:
                 archive.write(path, top + path.name)
         print(f"{target.name}: {len(files)} files")
+    if not packed:
+        raise SystemExit("No country firmware was built")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,10 @@ Um arquivo por aparelho, com o nome do firmware _companion_ Bluetooth original d
 final `_bitchat`. **Só o Heltec V3 foi ligado.** "Compila" quer dizer apenas que o arquivo foi
 gerado sem erro: nada garante que o rádio funcione com ele.
 
+**A partir da `bitchat0.19`, cada versão traz só os aparelhos de `tools/bitchat/main_targets.txt`**
+(Heltec V3, os quatro Heltec V4, T1000-E, Cardputer ADV e T-Deck). Os demais desta lista são
+compilados sob pedido (_Actions_ > _Bitchat bridge_ > _Run workflow_, _scope_ `all`).
+
 Os 42 primeiros ambientes foram compilados pela compilação automática do GitHub em 2026-11-15, para a
 versão `v1.18.0-bitchat0.2`. O Cardputer ADV e o T1000-E entraram na `v1.18.0-bitchat0.3`.
 
@@ -61,10 +65,10 @@ Ficam fora: os aparelhos ESP32-C6, que usam outra versão da biblioteca Bluetoot
 
 O MeshCore tem duas variantes do Heltec WiFi LoRa 32 V4, conforme a memória do chip:
 
-| Arquivo          | Chip do módulo | Memória extra (PSRAM) | Ligação do LoRa e do LED    |
-| ---------------- | -------------- | --------------------- | --------------------------- |
-| `heltec_v4_…`    | ESP32-S3R2     | 2 MB                  | alimentação no pino 36      |
-| `heltec_v4_r8_…` | ESP32-S3R8     | 8 MB                  | alimentação no pino 40      |
+| Arquivo          | Chip do módulo | Memória extra (PSRAM) | Ligação do LoRa e do LED |
+| ---------------- | -------------- | --------------------- | ------------------------ |
+| `heltec_v4_…`    | ESP32-S3R2     | 2 MB                  | alimentação no pino 36   |
+| `heltec_v4_r8_…` | ESP32-S3R8     | 8 MB                  | alimentação no pino 40   |
 
 Os valores vêm das definições de placa do próprio MeshCore (`boards/heltec_v4.json`,
 `boards/heltec_v4_r8.json` e as pastas `variants/`). O arquivo errado pode não iniciar ou deixar o
