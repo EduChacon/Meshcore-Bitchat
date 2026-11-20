@@ -99,6 +99,13 @@ própria recompressão. A entrega do outro lado se comporta como a de um celular
 perto do pagador; se o próprio Bitchat não se entender entre iOS e Android com uma mensagem
 longa, a ponte não muda isso.
 
+j) **A confirmação não é assinada.** Num canal de chave pública, quem tiver a chave do canal pode
+forjar um `✓` ou atrapalhar a montagem das partes. Não pode criar nem gastar o token travado, mas
+pode enganar quem paga sobre a entrega. Por isso a mensagem diz "Confirme com quem recebe".
+
+k) **Uma menção a `cashuA`/`cashuB` que não seja um token legível também fica fora do LoRa**, com o
+aviso `Token Cashu ilegível`. Dois tokens na mesma mensagem não vão.
+
 ## Para quem desenvolve
 
 - `src/helpers/bitchat/BridgeInflate.*`: DEFLATE puro (RFC 1951), como o Bitchat comprime acima de

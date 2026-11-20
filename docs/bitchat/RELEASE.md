@@ -13,8 +13,8 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
   pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
   `bitchat0.11` e as correções da `bitchat0.12`. Passou nos testes em computador e compila.
-- **Testes em computador desta versão:** 943 verificações do núcleo, 8005 dos pagamentos Cashu e
-  1502 do fluxo completo, com telefones e rádio simulados; compilados no computador o Heltec V3, o
+- **Testes em computador desta versão:** 943 verificações do núcleo, 8101 dos pagamentos Cashu e
+  1604 do fluxo completo, com telefones e rádio simulados; compilados no computador o Heltec V3, o
   T1000-E, o Cardputer ADV e o T-Deck.
 - **T1000-E:** o autor gravou a `bitchat0.14`. O aplicativo MeshCore conectou, e a ponte ficou
   pronta para o LoRa, mas o Bitchat não a encontrava; a `bitchat0.17` corrige a causa achada.
@@ -41,9 +41,13 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   continuam para mensagens de outras pessoas enquanto o aplicativo MeshCore não está conectado; o
   `som off` os cala também. No T1000-E, o toque triplo no botão continua ligando e desligando o
   som. **Não foi ligado em aparelho.**
-- As duas pontes precisam desta versão para os pagamentos. **Não foi ligado em aparelho:** passou em 8005 verificações
+- As duas pontes precisam desta versão para os pagamentos. **Não foi ligado em aparelho:** passou em 8101 verificações
   novas (descompressão, tokens oficiais NUT-00 e gerados, túnel) e no fluxo completo simulado
-  (1502 verificações), e compila para os aparelhos principais.
+  (1604 verificações). Uma revisão independente do código achou e esta versão já corrige: um
+  segundo token colado a uma palavra escapava da conferência da trava; um token em link
+  (`?token=cashuA…`) podia ir ao LoRa como texto; um token digitado no aplicativo MeshCore saía no
+  ar; um canal de chave pública salvo com outro nome passava por privado; e as confirmações
+  esperavam atrás do texto, e compila para os aparelhos principais.
 
 ## O que veio na `bitchat0.19`
 

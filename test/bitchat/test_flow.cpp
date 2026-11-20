@@ -415,11 +415,32 @@ static void cashuTunnel(const Phone &ana, const Phone &bia, const PeerId &bridge
     run(5000);
     CHECK(mesh.data.empty() && mesh.radio.empty());
     CHECK(lastSaid() == "[bridge] Token sem trava P2PK: num canal aberto outros poderiam gastá-lo. Não foi pela LoRa.");
+    // The same public key saved under another name ("BitChat", no "#") is still public.
+    mesh.channels[1].name = "BitChat";
+    run(4000);
+    ana.write(ana.announce());
+    run(200);
+    ana.write(ana.sayCompressed(open));
+    run(5000);
+    CHECK(mesh.data.empty() && mesh.radio.empty());
+    CHECK(lastSaid() == "[bridge] Token sem trava P2PK: num canal aberto outros poderiam gastá-lo. Não foi pela LoRa.");
+    mesh.channels[1].name = PUBLIC_CHANNEL_NAME;
     // Uncompressed text naming a token is not text for LoRa either, nor a token cut short.
     ana.write(ana.say("cashuB" + std::string(50, 'Q')));
     run(5000);
     CHECK(mesh.radio.empty() && mesh.data.empty());
     CHECK(lastSaid() == "[bridge] Token Cashu ilegível: não foi levado pela LoRa.");
+    // A locked token with an unlocked one glued to a word: nothing goes.
+    run(4000);
+    ana.write(ana.sayCompressed(locked + " e x" + open));
+    run(5000);
+    CHECK(mesh.radio.empty() && mesh.data.empty());
+    CHECK(lastSaid() == "[bridge] Um token por mensagem: nada foi levado pela LoRa.");
+    // A token in a link is read as one; an unlocked one stays here.
+    run(4000);
+    ana.write(ana.say("https://wallet.example/?token=cashuB" + std::string(60, 'Q')));
+    run(5000);
+    CHECK(mesh.radio.empty() && mesh.data.empty());
 
     // No answer at all: the payer hears so, with what it means.
     fakeSent.clear();
@@ -583,11 +604,11 @@ static void cashuTunnel(const Phone &ana, const Phone &bia, const PeerId &bridge
     // A token typed in the MeshCore app is not sent to Bitchat as text.
     mesh.app.clear();
     fakeSent.clear();
-    CHECK(!fromApp(open));
+    CHECK(fromApp(open)); // kept from the air
     run(1000);
     CHECK(bridgeSaid().empty());
     CHECK(mesh.app.size() == 1 &&
-          mesh.app[0].text == "bridge: Tokens Cashu vão pelo Bitchat (chat público), não pelo canal do MeshCore.");
+          mesh.app[0].text == "bridge: Não enviado: tokens Cashu vão pelo Bitchat (chat público), não pelo canal do MeshCore.");
     mesh.app.clear();
     fromLoRa("Jo\xc3\xa3o: " + open.substr(0, 120));
     run(1000);

@@ -516,7 +516,11 @@ bool tokenAt(Bytes text, size_t i)
 {
     if (text.size - i < 6 + 40 || memcmp(text.data + i, "cashu", 5) != 0 || (text.data[i + 5] != 'A' && text.data[i + 5] != 'B'))
         return false;
-    if (i && tokenChar(text.data[i - 1]) && text.data[i - 1] != '/')
+    // Not inside a word, as the app's \b wants: "=cashuA..." in a link is still a token.
+    const auto word = [](uint8_t c) {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+    };
+    if (i && word(text.data[i - 1]))
         return false;
     for (size_t k = i + 6; k < i + 46; ++k)
         if (!tokenChar(text.data[k]))
@@ -530,14 +534,20 @@ bool lockedSecret(Bytes secret)
 {
     Json j{secret.data, secret.size};
     Bytes kind, data;
-    bool locktime = false, refund = false;
+    bool locktime = false, refund = false, haveData = false, haveTags = false, haveRefund = false, twice = false;
     if (!j.eat('[') || !j.plain(kind) || !sameText(kind, "P2PK") || !j.eat(','))
         return false;
     const bool ok = j.object([&](Bytes key) {
-        if (sameText(key, "data"))
+        // Readers differ on repeated keys (the mint may keep another one than this): repeated means unlocked.
+        if (sameText(key, "data")) {
+            twice |= haveData;
+            haveData = true;
             return j.plain(data);
+        }
         if (!sameText(key, "tags"))
             return j.skip();
+        twice |= haveTags;
+        haveTags = true;
         return j.array([&]() {
             Bytes name;
             unsigned values = 0;
@@ -551,14 +561,18 @@ bool lockedSecret(Bytes secret)
             }
             if (!j.eat(']'))
                 return false;
-            if (sameText(name, "locktime"))
+            if (sameText(name, "locktime")) {
+                twice |= locktime;
                 locktime = true;
-            else if (sameText(name, "refund"))
+            } else if (sameText(name, "refund")) {
+                twice |= haveRefund;
+                haveRefund = true;
                 refund = values > 0;
+            }
             return true;
         });
     });
-    if (!ok || !j.eat(']'))
+    if (!ok || twice || !j.eat(']'))
         return false;
     j.space();
     if (j.at != j.size)
@@ -586,17 +600,22 @@ bool mentionsCashu(Bytes text)
 CashuFound findCashu(Bytes text, uint8_t (&scratch)[CASHU_SCRATCH], CashuToken &out)
 {
     out = {};
-    size_t start = text.size;
-    for (size_t i = 0; i + 46 <= text.size; ++i)
-        if (tokenAt(text, i)) {
-            if (start != text.size)
-                return CashuFound::Several;
-            start = i;
-            while (i < text.size && tokenChar(text.data[i]))
-                ++i;
-        }
-    if (start == text.size)
+    // Every mention counts, read or not: a second token the reader cannot see must not slip past the lock
+    // check, and a mention that is no readable token is still kept off the text paths.
+    size_t mentions = 0;
+    for (size_t i = 0; i + 6 <= text.size; ++i)
+        if (memcmp(text.data + i, "cashu", 5) == 0 && (text.data[i + 5] == 'A' || text.data[i + 5] == 'B'))
+            ++mentions;
+    if (!mentions)
         return CashuFound::None;
+    if (mentions > 1)
+        return CashuFound::Several;
+    size_t start = text.size;
+    for (size_t i = 0; i + 46 <= text.size && start == text.size; ++i)
+        if (tokenAt(text, i))
+            start = i;
+    if (start == text.size)
+        return CashuFound::Malformed;
     size_t end = start + 6;
     while (end < text.size && tokenChar(text.data[end]))
         ++end;

@@ -77,15 +77,28 @@ bool BitchatBridge::channelPrivate() const
     if (!host || settings.channel == NO_CHANNEL || !host->readChannel(settings.channel, name, secret))
         return false;
     name[31] = 0;
-    if (name[0] != '#')
-        return true;
-    Digest hash;
-    SHA256 sha;
-    sha.update(name, strlen(name));
-    sha.finalize(hash.data(), hash.size());
-    const bool hashtagKey = std::equal(hash.begin(), hash.begin() + 16, secret) &&
-                            std::all_of(secret + 16, secret + 32, [](uint8_t b) { return b == 0; });
-    return !hashtagKey;
+    // MeshCore's well-known Public key.
+    static const uint8_t PUBLIC_KEY[16] = {0x8b, 0x33, 0x87, 0xe9, 0xc5, 0xcd, 0xea, 0x6a,
+                                           0xc9, 0xe5, 0xed, 0xba, 0xa1, 0x15, 0xcd, 0x72};
+    if (std::equal(PUBLIC_KEY, PUBLIC_KEY + 16, secret))
+        return false;
+    // A hashtag key, whatever name it was saved under: "#name" as written and in lower case, with or
+    // without the "#" in the stored name.
+    const char *bare = name[0] == '#' ? name + 1 : name;
+    for (int lowered = 0; lowered < 2; ++lowered) {
+        char tag[34] = "#";
+        size_t n = 1;
+        for (const char *c = bare; *c && n + 1 < sizeof(tag); ++c)
+            tag[n++] = lowered && *c >= 'A' && *c <= 'Z' ? char(*c - 'A' + 'a') : *c;
+        tag[n] = 0;
+        Digest hash;
+        SHA256 sha;
+        sha.update(tag, n);
+        sha.finalize(hash.data(), hash.size());
+        if (std::equal(hash.begin(), hash.begin() + 16, secret))
+            return false;
+    }
+    return true;
 }
 
 void BitchatBridge::rememberAnnounce(const Packet &packet, Bytes frame)
@@ -172,6 +185,9 @@ bool BitchatBridge::carryCashu(const Packet &packet, Bytes frame, const Peer &pe
     clip(label, 14, payment.payer, sizeof(payment.payer));
     payment.sender = packet.sender;
     payment.messageId = id;
+    // Every limit counts from when the payer's phone signed the message: phones check that time.
+    const uint64_t now = utc();
+    payment.signedAt = millis() - uint32_t(packet.timestamp < now ? std::min<uint64_t>(now - packet.timestamp, 120000) : 0);
     for (const auto &entry : runtime->announced)
         if (entry.size && entry.peer == packet.sender && millis() - entry.at < ANNOUNCE_FRESH_MS) {
             startPayment({entry.frame.data(), entry.size}, message);
@@ -185,7 +201,7 @@ bool BitchatBridge::carryCashu(const Packet &packet, Bytes frame, const Peer &pe
     std::copy_n(message.data, message.size, runtime->held->data.begin());
     runtime->held->size = message.size;
     payment.holding = true;
-    payment.at = millis();
+    payment.heldAt = millis();
     interval = 0;
     return true;
 }
@@ -193,7 +209,13 @@ bool BitchatBridge::carryCashu(const Packet &packet, Bytes frame, const Peer &pe
 void BitchatBridge::startPayment(Bytes announce, Bytes message)
 {
     payment.holding = false;
-    if (!runtime->tunnelOut->start(payment.id, announce, message, millis())) {
+    // Too little of the two minutes left for the trip and a resend: better to say so now.
+    if (!Throttle::isWithinTimespanMsAt(payment.signedAt, 70000, millis())) {
+        say("Seu celular demorou a se anunciar: nada foi levado. Reenvie o token.");
+        runtime->held.reset();
+        return;
+    }
+    if (!runtime->tunnelOut->start(payment.id, announce, message, payment.signedAt)) {
         say("Token grande demais para a LoRa: junte as provas na carteira e reenvie.");
         runtime->held.reset();
         return;
@@ -201,7 +223,7 @@ void BitchatBridge::startPayment(Bytes announce, Bytes message)
     runtime->held.reset();
     // Remembered across a restart, so the same message is never carried twice.
     record(payment.messageId);
-    payment.at = millis();
+    payment.at = payment.signedAt;
     payment.waiting = true;
     char amount[32], line[160];
     amountText(payment.amount, payment.unit, amount, sizeof(amount));
@@ -265,13 +287,13 @@ void BitchatBridge::watchPayment(uint32_t now)
 {
     if (runtime->tunnelIn) {
         TunnelDatagram want;
-        if (runtime->tunnelIn->want(now, want) && !runtime->tunnelControl.push(want))
-            reject(Result::Full);
+        if (runtime->tunnelControl.size() < 3 && runtime->tunnelIn->want(now, want))
+            runtime->tunnelControl.push(want);
         runtime->tunnelIn->expire(now);
         if (runtime->tunnelIn->empty())
             runtime->tunnelIn.reset();
     }
-    if (payment.holding && !Throttle::isWithinTimespanMsAt(payment.at, ANNOUNCE_WAIT_MS, now)) {
+    if (payment.holding && !Throttle::isWithinTimespanMsAt(payment.heldAt, ANNOUNCE_WAIT_MS, now)) {
         payment.holding = false;
         runtime->held.reset();
         say("Seu celular não se anunciou a tempo: nada foi levado. Reenvie o token.");
@@ -405,15 +427,17 @@ void BitchatBridge::deliverPayment(const TunnelHeard &heard)
     const uint8_t phones = uint8_t(std::min<size_t>(bleListeners(), 255));
     if (outcome == TunnelOutcome::Delivered && !phones)
         outcome = TunnelOutcome::NoPhones;
-    // Phones relay what they hear, so the copies coming back are dropped as any other.
     if (outcome == TunnelOutcome::Delivered && !runtime->dedup->contains(messageId, now, 125000)) {
-        runtime->dedup->insert(announceId, now, 125000);
-        runtime->dedup->insert(messageId, now, 125000);
         // The announce first: a phone shows a message only from someone it knows.
         for (const Bytes frame : {heard.announce, heard.message}) {
             const Bytes out = relay(frame, runtime->working) == Result::Ok ? runtime->working.bytes() : frame;
             if (!bleBroadcast(out))
                 outcome = TunnelOutcome::NoPhones;
+        }
+        // Phones relay what they hear, so the copies coming back are dropped as any other.
+        if (outcome == TunnelOutcome::Delivered) {
+            runtime->dedup->insert(announceId, now, 125000);
+            runtime->dedup->insert(messageId, now, 125000);
         }
         if (outcome == TunnelOutcome::Delivered) {
             char text[32], line[160];
@@ -422,6 +446,9 @@ void BitchatBridge::deliverPayment(const TunnelHeard &heard)
             say(line);
         }
     }
+    // Parts that did not hold together may be someone else's: the true ones can still complete it.
+    if (outcome == TunnelOutcome::Invalid && runtime->tunnelIn)
+        runtime->tunnelIn->forget(heard.id);
     TunnelDatagram ack;
     makeTunnelAck(heard.id, outcome, phones, host->nodeNumber(), ack);
     if (!runtime->tunnelControl.push(ack))

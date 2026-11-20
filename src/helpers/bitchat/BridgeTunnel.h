@@ -102,6 +102,8 @@ class TunnelReceiver
     // A want for a bundle still incomplete and quiet; false when nothing is to be asked now.
     bool want(uint32_t now, TunnelDatagram &out);
     void expire(uint32_t now);
+    // Drops a bundle, done or not, so its parts may arrive again.
+    void forget(uint32_t id);
     bool empty() const;
 
   private:

@@ -167,6 +167,11 @@ static void tokens()
     CHECK(!secret("[\"P2PK\",{\"data\":\"" + key + "\"}] x"));
     CHECK(!secret("[\"P2PK\",{\"data\":\"" + key.substr(2) + "00\"}]"));
     CHECK(!secret("[\"HTLC\",{\"data\":\"" + key + "\"}]"));
+    // Repeated keys or tags: read differently by different readers, so never taken as locked.
+    CHECK(!secret("[\"P2PK\",{\"data\":\"" + key + "\",\"data\":\"" + upper + "\"}]"));
+    CHECK(!secret("[\"P2PK\",{\"data\":\"" + key + "\",\"tags\":[],\"tags\":[[\"locktime\",\"1\"]]}]"));
+    CHECK(!secret("[\"P2PK\",{\"data\":\"" + key + "\",\"tags\":[[\"locktime\",\"1\"],[\"refund\"],[\"refund\",\"" + upper +
+                  "\"]]}]"));
 }
 
 static std::vector<uint8_t> filled(size_t size, uint8_t seed)

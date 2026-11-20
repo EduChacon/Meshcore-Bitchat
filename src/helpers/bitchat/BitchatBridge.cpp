@@ -1594,6 +1594,9 @@ void BitchatBridge::exportText(const Packet &packet, Peer &peer, const Digest &i
     }
     if (result == Result::Ok && textConflict)
         result = Result::Policy;
+    // A token never goes to LoRa as text, whoever brought it: only whole, by the tunnel.
+    if (result == Result::Ok && mentionsCashu(packet.payload))
+        result = Result::Policy;
     // With the prefix on, only what the person marked goes to LoRa; text other bridges bring is not theirs to mark.
     if (result == Result::Ok && prefixOnly && !peer.announcement.gateway && !startsWith(packet.payload, LORA_PREFIX))
         result = Result::Policy;
@@ -1727,10 +1730,11 @@ bool BitchatBridge::appText(uint8_t channel, const char *text, size_t size)
     if (!settings.enabled || !runtime || !wasActive || !storageReady || !identityReady || !utc())
         return false;
     refreshChannel();
+    // Typed on the bridge's channel, a token would go on the air as text anyone with the key may spend.
     if (textReady && channel == settings.channel && mentionsCashu(body)) {
         appChannel = channel;
-        replyToApp("Tokens Cashu vão pelo Bitchat (chat público), não pelo canal do MeshCore.");
-        return false;
+        replyToApp("Não enviado: tokens Cashu vão pelo Bitchat (chat público), não pelo canal do MeshCore.");
+        return true;
     }
     if (textReady && !textConflict && !textGuard() && channel == settings.channel && (blePhones() || BITCHAT_HISTORY_ENTRIES) &&
         body.size) {
@@ -1743,11 +1747,14 @@ bool BitchatBridge::appText(uint8_t channel, const char *text, size_t size)
 void BitchatBridge::sendRadio()
 {
     auto *item = runtime->radioQueue.front();
-    if (!item) {
-        if (tunnelDue() && !host->radioBusy() && runtime->radioGate.admit(millis(), 1500))
+    // A confirmation or a request for a missing part goes first: the payer's two minutes are running.
+    if ((!item || runtime->tunnelControl.size()) && tunnelDue()) {
+        if (!host->radioBusy() && runtime->radioGate.admit(millis(), 1500))
             sendTunnel();
         return;
     }
+    if (!item)
+        return;
     if (!Throttle::isWithinTimespanMsAt(item->queuedAt, RADIO_DEADLINE_MS, millis()) || !textReady || textConflict) {
         reject(Result::Expired);
         ++lost;

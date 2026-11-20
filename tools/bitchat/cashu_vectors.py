@@ -103,8 +103,14 @@ def tokens():
         cases.append((f"{label} several", good + " " + good, 3, 0, 0, 0, "", ""))
         cases.append((f"{label} uri", "cashu:" + good, 1, 5, 1, 1, "sat", mint))
         cases.append((f"{label} zero amount", maker(["p2pk"], [0]), 2, 0, 0, 0, "", ""))
-    cases.append(("no token", "hello cashu world, cashuA is a prefix", 0, 0, 0, 0, "", ""))
-    cases.append(("inside word", "xcashuB" + "Q" * 60, 0, 0, 0, 0, "", ""))
+    cases.append(("no token", "hello cashu world, cashu is ecash", 0, 0, 0, 0, "", ""))
+    # A mention that is no readable token is kept off the text paths all the same.
+    cases.append(("bare word", "cashuA is a prefix", 2, 0, 0, 0, "", ""))
+    cases.append(("inside word", "xcashuB" + "Q" * 60, 2, 0, 0, 0, "", ""))
+    locked, open_ = token_b(["p2pk"], [5]), token_b(["plain"], [5])
+    # A second token glued to a word is still seen: the lock check cannot be dodged.
+    cases.append(("hidden second", locked + " and x" + open_, 3, 0, 0, 0, "", ""))
+    cases.append(("in a link", "https://wallet.example/?token=" + locked, 1, 5, 1, 1, "sat", "mint.example.com"))
     cases.append(("garbage", "cashuB" + "Q" * 60, 2, 0, 0, 0, "", ""))
     cases.append(("bad base64", "cashuA" + "e" * 61, 2, 0, 0, 0, "", ""))
     return cases

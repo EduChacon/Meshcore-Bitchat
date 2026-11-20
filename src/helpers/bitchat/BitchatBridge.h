@@ -212,7 +212,7 @@ class BitchatBridge
     } rangeTest;
     // The payment this radio is taking over LoRa, for telling the payer how it went.
     struct Payment {
-        uint32_t id = 0, at = 0, refusedAt = 0;
+        uint32_t id = 0, at = 0, refusedAt = 0, signedAt = 0, heldAt = 0;
         uint64_t amount = 0;
         char unit[13]{};
         char payer[bitchat::LABEL_LIMIT + 1]{};

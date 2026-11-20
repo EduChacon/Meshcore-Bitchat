@@ -189,6 +189,13 @@ void TunnelReceiver::expire(uint32_t now)
             s = {};
 }
 
+void TunnelReceiver::forget(uint32_t id)
+{
+    for (auto &s : slots)
+        if (s.used && s.id == id)
+            s = {};
+}
+
 bool TunnelReceiver::empty() const
 {
     return !slots[0].used && !slots[1].used;
