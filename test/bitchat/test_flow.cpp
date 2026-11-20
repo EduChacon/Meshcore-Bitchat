@@ -598,7 +598,7 @@ static void privateChat(const Phone &ana, const Phone &bia, const Phone &caio, c
     // never dated before its question, even when the phone's clock runs ahead of the bridge's.
     {
         const bool tunnelBefore = bridge->tunnel();
-        stamp = nowUtc() + 800;
+        stamp = nowUtc() + 3000;
         fakeSent.clear();
         chatAna.message("ID-T", "túnel on");
         const uint64_t asked = stamp;

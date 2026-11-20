@@ -29,8 +29,8 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 
 ## O que há de novo na `bitchat0.25`
 
-Correção só para os aparelhos nRF52 (T1000-E, RAK4631, T-Echo, T114, ThinkNode M1 e Xiao nRF52).
-Os ESP32, o WadaMesh e o Saitama não mudam.
+Correções do primeiro ensaio em aparelho das conversas privadas. As duas primeiras valem só para os
+nRF52 (T1000-E, RAK4631, T-Echo, T114, ThinkNode M1 e Xiao nRF52); as duas últimas, para todos.
 
 - **Conversa privada nos nRF52.** No ensaio do autor com a `bitchat0.24`, a conversa privada com o
   T1000-E não abria (cadeado vermelho no Bitchat), enquanto a de um rádio ESP32 abria e respondia.
@@ -44,10 +44,17 @@ Os ESP32, o WadaMesh e o Saitama não mudam.
   uma lista fixa de nomes, e as duas escolhas novas da `bitchat0.24` (túnel e mensagens a contatos)
   ficaram fora dela: o túnel não podia ser ligado, e `!ponte privado off` também falhava. Agora
   ficam num arquivo próprio; os arquivos antigos, com a identidade da ponte e o recado, não mudam.
+- **Resposta abaixo da pergunta.** Na conversa privada, cada resposta da ponte aparecia acima da
+  pergunta: o aplicativo MeshCore acerta o relógio da ponte só até o segundo, e o Bitchat ordena a
+  conversa pelo horário de cada mensagem. A resposta agora sai com horário posterior ao da pergunta.
+- **Configurações só pelo dono.** `túnel on` ou `!ponte túnel on` escritos na conversa privada
+  devolviam o estado da ponte, o que parecia defeito. As configurações do rádio nunca mudam pelo
+  Bitchat; a ponte agora diz isso e indica o aplicativo MeshCore, canal `#bitchat`.
 - **Limite que fica:** uma mensagem privada mandada do celular a um nRF52 com mais de cerca de 150
   caracteres (menos, com acentos) o Bitchat completa até 512 bytes, e ela continua sem chegar. Nos
   ESP32 passa. A biblioteca Bluetooth desses rádios não permite envios bem maiores com segurança.
-- Compilado (T1000-E e RAK4631 no computador, e todos no GitHub); **não foi ligado em aparelho.**
+- Compilado (T1000-E, RAK4631 e Xiao nRF52 no computador, e todos no GitHub) e testado no
+  computador (2999 verificações do fluxo); **não foi ligado em aparelho.**
 
 ## O que há de novo na `bitchat0.24`
 
