@@ -116,7 +116,7 @@ build_src_filter =
   ${{env:{stock}.build_src_filter}}
   ${{bitchat_bridge_nrf52.build_src_filter}}
 extra_scripts =
-  ${{nrf52_base.extra_scripts}}
+  ${{env:{stock}.extra_scripts}}
   ${{bitchat_bridge_nrf52.extra_scripts}}
 """
 
