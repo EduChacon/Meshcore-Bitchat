@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.21
+# MeshCore + Bitchat v1.18.0-bitchat0.22
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -24,7 +24,23 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.21`
+## O que há de novo na `bitchat0.22`
+
+- **Bateria: o rádio desligava "com 30%".** Relatado em aparelho, num Heltec V3: o aplicativo
+  mostrava uns 30% quando o rádio desligava, e a tela mostrou 3,38 V. O rádio desliga abaixo de
+  3,40 V; o aplicativo calcula a porcentagem como uma reta de 3,0 V a 4,2 V, e nela 3,40 V dá 33%.
+  Pela curva de uma bateria de lítio, 3,40 V é cerca de 2% a 3%. Duas mudanças:
+  - nas versões com ponte, o rádio passa a desligar abaixo de **3,30 V** (com os mesmos 2 minutos de
+    confirmação), o que rende uns 2% a 3% a mais de bateria. Perto desse limite o rádio pode
+    reiniciar num pico de transmissão;
+  - a tela do rádio (Heltec, T-Deck, Cardputer) mostra a porcentagem pela curva do lítio, a mesma do
+    `!ponte bateria`, e chega a 0% quando o rádio desliga.
+- A porcentagem do **aplicativo MeshCore** continua sendo a reta: é ele que a calcula. Para a carga
+  real, use a tela do rádio ou `!ponte bateria`.
+- Compilados no computador o Heltec V3 (com e sem ponte), o Heltec V4, o T-Deck e o Cardputer ADV.
+  **Não foi ligado em aparelho.**
+
+## O que veio na `bitchat0.21`
 
 - **Confirmação assinada.** A ponte de destino assina a confirmação de um pagamento com a identidade
   MeshCore do próprio rádio, e a ponte de quem paga a confere com a chave que conhece pelos anúncios
