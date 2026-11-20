@@ -89,20 +89,35 @@ build_src_filter =
   +<helpers/bitchat/nrf52/*.cpp>
 extra_scripts =
   pre:tools/bitchat/nimble_pre.py
+"""
 
-[env:t1000e_companion_radio_ble_bitchat]
-extends = env:t1000e_companion_radio_ble
-board_build.ldscript = variants/bitchat/nrf52840_s140_v7_extrafs_bridge.ld
-build_unflags = ${bitchat_bridge_nrf52.build_unflags}
+
+# nRF52 companions with the bridge: the popular boards, each with the linker script of its SoftDevice, its RAM
+# start moved up for the larger Bluetooth tables of the bridge (two links, two services).
+NRF52_BOARDS = [
+    ("t1000e_companion_radio_ble", "nrf52840_s140_v7_extrafs_bridge.ld"),
+    ("RAK_4631_companion_radio_ble", "nrf52840_s140_v6_extrafs_bridge.ld"),
+    ("LilyGo_T-Echo_companion_radio_ble", "nrf52840_s140_v6_extrafs_bridge.ld"),
+    ("Heltec_t114_companion_radio_ble", "nrf52840_s140_v6_extrafs_bridge.ld"),
+    ("Heltec_t114_without_display_companion_radio_ble", "nrf52840_s140_v6_extrafs_bridge.ld"),
+    ("ThinkNode_M1_companion_radio_ble", "nrf52840_s140_v6_extrafs_bridge.ld"),
+    ("Xiao_nrf52_companion_radio_ble", "nrf52840_s140_v7_extrafs_bridge.ld"),
+]
+
+NRF52_BLOCK = """
+[env:{name}]
+extends = env:{stock}
+board_build.ldscript = variants/bitchat/{ld}
+build_unflags = ${{bitchat_bridge_nrf52.build_unflags}}
 build_flags =
-  ${env:t1000e_companion_radio_ble.build_flags}
-  ${bitchat_bridge_nrf52.build_flags}
+  ${{env:{stock}.build_flags}}
+  ${{bitchat_bridge_nrf52.build_flags}}
 build_src_filter =
-  ${env:t1000e_companion_radio_ble.build_src_filter}
-  ${bitchat_bridge_nrf52.build_src_filter}
+  ${{env:{stock}.build_src_filter}}
+  ${{bitchat_bridge_nrf52.build_src_filter}}
 extra_scripts =
-  ${nrf52_base.extra_scripts}
-  ${bitchat_bridge_nrf52.extra_scripts}
+  ${{nrf52_base.extra_scripts}}
+  ${{bitchat_bridge_nrf52.extra_scripts}}
 """
 
 
@@ -111,7 +126,9 @@ def text(value):
 
 
 def stock_environments():
-    raw = subprocess.run(["pio", "project", "config", "--json-output"], cwd=ROOT, check=True, capture_output=True, text=True)
+    raw = subprocess.run(
+        ["pio", "project", "config", "--json-output"], cwd=ROOT, check=True, capture_output=True, text=True
+    )
     found = []
     for section, options in json.loads(raw.stdout):
         options = dict(options)
@@ -133,7 +150,10 @@ def main():
     # The generated file must not feed its own input.
     TARGET.write_text(HEADER)
     stock = stock_environments()
-    TARGET.write_text(HEADER + "".join(BLOCK.format(name=name.rstrip("_") + SUFFIX, stock=name) for name in stock) + NRF52)
+    nrf52 = "".join(NRF52_BLOCK.format(name=name + SUFFIX, stock=name, ld=ld) for name, ld in NRF52_BOARDS)
+    TARGET.write_text(
+        HEADER + "".join(BLOCK.format(name=name.rstrip("_") + SUFFIX, stock=name) for name in stock) + NRF52 + nrf52
+    )
     print(f"{len(stock)} bridge environments written to {TARGET.relative_to(ROOT)}")
 
 

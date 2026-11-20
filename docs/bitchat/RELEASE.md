@@ -27,20 +27,33 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 
 ## O que há de novo na `bitchat0.24`
 
+Versão grande, pensada para ficar meses sem troca. **Nada do que é novo foi ligado em aparelho.**
+
 - **Conversa privada com a ponte.** No Bitchat, a ponte aparece na lista de pessoas como
   `LoRa bridge` e quatro caracteres; abre-se com ela uma conversa privada como com qualquer pessoa.
   Ali basta a palavra (`bateria`, `quem`, `guia`, `teste`, `recado <texto>`, `sos <texto>`, ou
-  `ponte` para o estado), e a resposta sai só nessa conversa, sem aparecer no chat público. As
-  regras são as do chat público: a lista de rádios e os ajustes continuam só no aplicativo do rádio.
-  A criptografia é a mesma das conversas entre telefones (Noise, conferido byte a byte com uma
-  implementação independente e com o código do Bitchat para iPhone e Android). Mensagens privadas
-  entre pessoas continuam sem atravessar o LoRa.
+  `ponte` para o estado), e a resposta sai só nessa conversa. A criptografia é a mesma das conversas
+  entre telefones (Noise), conferida byte a byte com uma implementação independente e com o código
+  do Bitchat para iPhone e Android.
+- **Mensagem a um contato do LoRa.** Na conversa privada com a ponte, `@Fulano texto` vai ao contato
+  Fulano do rádio como mensagem direta do MeshCore, com o apelido de quem escreveu; a resposta dele
+  volta à mesma conversa. Se o celular estiver longe, a resposta espera até 24 horas e é entregue
+  quando ele volta. A ponte lê essas mensagens (não é ponta a ponta). O dono desliga com
+  `!ponte privado off`.
+- **Conversa privada entre celulares de casas diferentes**, de ponta a ponta, pelo LoRa: com
+  `!ponte túnel on` nas pontes das duas casas, cada celular vê no Bitchat quem está perto da outra
+  ponte e conversa com ele no privado. As pontes só carregam os pacotes criptografados. Vem
+  desligado, porque gasta tempo do canal compartilhado.
 - **Hora pelos anúncios do LoRa.** Sem aplicativo, GPS ou telefone por perto, a ponte acerta a hora
-  quando dois rádios MeshCore diferentes ao alcance concordam com diferença de até um minuto. Resolve
-  o `Clock not set` do Heltec V3 ligado sozinho. A hora só avança, o relógio do rádio não é alterado,
-  e a hora de um telefone por perto continua valendo mais. Também no WadaMesh e no Saitama.
-- **Nada disso foi ligado em aparelho.** Guia:
-  [conversa privada](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md#conversa-privada-com-a-ponte-a-partir-da-bitchat024).
+  pelo maior grupo de rádios MeshCore ao alcance que concordam entre si (pelo menos dois). Resolve o
+  `Clock not set` do Heltec V3 ligado sozinho. O relógio do rádio não é alterado, e a hora de um
+  telefone por perto continua valendo mais.
+- **Mais aparelhos em cada versão:** além dos de antes, Heltec V2, Wireless Tracker (V1 e V2),
+  Wireless Paper e T114 (com e sem tela); LilyGo T-Beam, T-Beam S3 Supreme, T3S3, T-LoRa V2.1.6 e
+  T-Echo; RAK4631 e RAK3112; Seeed Xiao S3 WIO e Xiao nRF52; Elecrow ThinkNode M1, M2 e M5; Station G2.
+  Os nRF52 novos (RAK4631, T-Echo, T114, ThinkNode M1, Xiao nRF52) seguem o T1000-E.
+- **WadaMesh e Saitama** recebem tudo isso também.
+- Correções de uma revisão independente das conversas privadas e da hora pelo LoRa (13 pontos).
 
 ## O que veio na `bitchat0.23`
 

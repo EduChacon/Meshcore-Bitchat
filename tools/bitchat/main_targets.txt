@@ -1,11 +1,33 @@
-# Built and published with every version: the boards the bridge is tried on. The other bridge
-# environments of variants/bitchat/platformio.ini are built only when a run asks for all of them
+# Built and published with every version: the popular boards. The other bridge environments of
+# variants/bitchat/platformio.ini are built only when a run asks for all of them
 # (Actions > Bitchat bridge > Run workflow, scope "all").
+# Heltec
 Heltec_v3_companion_radio_ble_bitchat
 heltec_v4_companion_radio_ble_bitchat
 heltec_v4_r8_companion_radio_ble_bitchat
 heltec_v4_tft_companion_radio_ble_bitchat
 heltec_v4_r8_tft_companion_radio_ble_bitchat
-t1000e_companion_radio_ble_bitchat
-M5Stack_Cardputer_ADV_companion_radio_ble_bitchat
+Heltec_v2_companion_radio_ble_bitchat
+Heltec_Wireless_Tracker_companion_radio_ble_bitchat
+heltec_tracker_v2_companion_radio_ble_bitchat
+Heltec_Wireless_Paper_companion_radio_ble_bitchat
+Heltec_t114_companion_radio_ble_bitchat
+Heltec_t114_without_display_companion_radio_ble_bitchat
+# LilyGo
 LilyGo_TDeck_companion_radio_ble_bitchat
+Tbeam_SX1262_companion_radio_ble_bitchat
+T_Beam_S3_Supreme_SX1262_companion_radio_ble_bitchat
+LilyGo_T3S3_sx1262_companion_radio_ble_bitchat
+LilyGo_TLora_V2_1_1_6_companion_radio_ble_bitchat
+LilyGo_T-Echo_companion_radio_ble_bitchat
+# RAK, Seeed, Elecrow, M5Stack, others
+RAK_4631_companion_radio_ble_bitchat
+RAK_3112_companion_radio_ble_bitchat
+t1000e_companion_radio_ble_bitchat
+Xiao_S3_WIO_companion_radio_ble_bitchat
+Xiao_nrf52_companion_radio_ble_bitchat
+ThinkNode_M1_companion_radio_ble_bitchat
+ThinkNode_M2_companion_radio_ble_bitchat
+ThinkNode_M5_companion_radio_ble_bitchat
+Station_G2_companion_radio_ble_bitchat
+M5Stack_Cardputer_ADV_companion_radio_ble_bitchat

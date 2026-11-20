@@ -246,6 +246,8 @@ nesse aplicativo e **não são transmitidos**.
 | `!bridge position on`   | Socorro pedido pelo Bitchat leva a posição do rádio (trilha); `off` desliga (padrão) |
 | `!ponte som off`        | O rádio para de apitar (`on` volta); guardado no rádio (a partir da `bitchat0.20`)   |
 | `!ponte luz off`        | A luz de aviso fica apagada (`on` volta); guardado no rádio                          |
+| `!ponte privado off`    | Desliga as mensagens privadas do Bitchat aos contatos do LoRa (`on` volta; padrão)   |
+| `!ponte túnel on`       | Liga as conversas privadas entre celulares de casas diferentes (`off`; padrão)       |
 | `!bridge help`          | Lista os comandos                                                                    |
 
 `!ponte` vale no lugar de `!bridge`, e a resposta sai em português quando se usa `!ponte` ou a
@@ -256,7 +258,7 @@ No Bitchat, escritos no `#mesh`, valem todos, menos os que mudam a configuraçã
 (`!bridge`), os nomes (`!ponte quem`), o guia (`!ponte guia`, no máximo uma vez a cada 30
 segundos), o recado, a bateria, os rádios, o socorro e o teste. As respostas vão a todos os
 telefones próximos, uma a cada cinco segundos. Os comandos que mudam a configuração (`on`, `off`,
-`local`, `lora`, `link`, `economy`, `prefix`, `reset`, `som`, `luz`) só valem no aplicativo MeshCore; no Bitchat,
+`local`, `lora`, `link`, `economy`, `prefix`, `reset`, `som`, `luz`, `privado`, `túnel`) só valem no aplicativo MeshCore; no Bitchat,
 recebem o estado como resposta. O guia diz se o texto está indo ao LoRa ou não.
 
 O `/who` do Bitchat só mostra quem está na malha Bluetooth; quem fala pelo LoRa não aparece ali.
@@ -355,12 +357,65 @@ conversas ao mesmo tempo; a que ficou mais tempo parada dá lugar a uma nova, e 
 por 30 minutos é encerrada. Depois de reiniciar o rádio, a primeira mensagem refaz a conversa
 sozinha.
 
-d) **Mensagens privadas entre pessoas continuam sem atravessar o LoRa.** Levar uma mensagem privada
-do Bitchat a um contato do MeshCore é uma etapa seguinte, ainda não feita.
+d) **Mensagens a contatos do LoRa e conversas entre casas:** veja as duas seções seguintes.
 
 e) **Não foi ligado em aparelho.** O protocolo foi conferido byte a byte com uma implementação
 independente do Noise e com o código do Bitchat para iPhone e Android, mas a conversa com o
 aplicativo de verdade ainda não foi ensaiada.
+
+## Mensagem privada a um contato do LoRa (a partir da `bitchat0.24`)
+
+Na conversa privada com a ponte, `@Nome texto` manda o texto ao contato `Nome` do rádio, como
+mensagem direta do MeshCore. Exemplo: `@Fulano chego às 18h`.
+
+a) **O nome** é o do contato na lista do rádio, em maiúsculas ou minúsculas; vale o nome mais longo
+que combina, então `@Fulano de Tal oi` vai para "Fulano de Tal", não para "Fulano". Depois do nome,
+um espaço ou `:`. Só contatos de conversa (não repetidores).
+
+b) **Quem recebe vê** `[Bitchat ana] chego às 18h`, vindo do rádio da ponte, com o apelido de quem
+escreveu. Cabe uma mensagem do MeshCore (160 caracteres, com o apelido); o que passa disso é
+recusado, não cortado.
+
+c) **A resposta volta** à mesma conversa privada, como `[MC Fulano] texto`, quando o contato
+responde ao rádio da ponte nas 24 horas seguintes. Um contato também pode escrever primeiro, ao
+rádio da ponte, começando com `@apelido` de quem está no Bitchat: `@ana o portão está aberto`.
+
+d) **Se o celular não estiver perto** quando a resposta chegar, ela fica guardada por até 24 horas
+(oito mensagens no total). Quando o celular volta e se apresenta à ponte, a ponte abre a conversa
+privada sozinha e entrega.
+
+e) **Limites:** duas mensagens por celular, depois uma a cada 20 segundos; para todos juntos,
+cinco, depois uma a cada três minutos.
+
+f) **Privacidade:** a ponte lê a mensagem (ela a tira da conversa criptografada do Bitchat e a manda
+pela criptografia do MeshCore). As mensagens também aparecem no aplicativo MeshCore do dono do
+rádio, como qualquer mensagem direta dele. Não é criptografia de ponta a ponta entre o celular e o
+contato.
+
+g) **O dono do rádio desliga** com `!ponte privado off` no aplicativo MeshCore (`on` religa). Vem
+ligado.
+
+## Conversa privada entre celulares de casas diferentes (a partir da `bitchat0.24`)
+
+Com o túnel ligado nas pontes das duas casas (`!ponte túnel on`, no aplicativo MeshCore de cada
+uma), quem está perto de uma ponte vê no Bitchat quem está perto da outra, e os dois conversam no
+privado como se estivessem lado a lado.
+
+a) **Criptografia de ponta a ponta:** as pontes só carregam os pacotes do Bitchat, que já vêm
+criptografados pelos celulares. Nenhuma ponte lê a conversa.
+
+b) **O que vai pelo LoRa:** o anúncio de cada celular ligado diretamente à ponte, no máximo a cada
+três minutos, e os pacotes privados entre um celular daqui e um de lá. O texto público continua
+como antes.
+
+c) **Custa tempo de rádio no canal**, que é compartilhado. Por isso vem desligado, e cada dono
+decide. Pontes mais antigas que a `bitchat0.24` ignoram esses pacotes.
+
+d) **Sem garantia de entrega:** o próprio Bitchat confirma as mensagens e reenvia o que não foi
+confirmado. Com o LoRa congestionado, abrir a conversa pode exigir uma segunda tentativa.
+
+e) **Não foi ligado em aparelho.** O caminho foi testado no computador com dois celulares simulados,
+do aperto de mão à confirmação de entrega.
 
 ## Histórico para quem chega depois
 

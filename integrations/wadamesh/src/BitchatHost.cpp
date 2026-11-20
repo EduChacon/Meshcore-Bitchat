@@ -299,8 +299,13 @@ bool MyMesh::sendDirectText(const uint8_t id[8], const char *text, size_t size)
     char line[MAX_TEXT_LEN + 1];
     memcpy(line, text, size);
     line[size] = 0;
-    uint32_t expected_ack = 0;
-    mesh::Packet *pkt = composeMsgPacket(*contact, getRTCClock()->getCurrentTimeUnique(), 0, line, expected_ack);
+    // As BaseChatMesh::composeMsgPacket (private there) builds a first attempt: time, attempt 0, text.
+    uint8_t temp[5 + MAX_TEXT_LEN + 1];
+    const uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
+    memcpy(temp, &timestamp, 4);
+    temp[4] = 0;
+    memcpy(&temp[5], line, size + 1);
+    mesh::Packet *pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, contact->id, contact->getSharedSecret(self_id), temp, 5 + size);
     if (pkt == NULL)
         return false;
     if (contact->out_path_len == OUT_PATH_UNKNOWN)
