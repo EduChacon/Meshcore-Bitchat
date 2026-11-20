@@ -57,28 +57,29 @@ público do Bitchat vai, inteiro e assinado por quem paga, até as outras pontes
 o entregam aos celulares perto delas; quem paga recebe a confirmação. Só tokens travados para a
 chave de quem recebe passam pelo canal `#bitchat`. Como usar e os limites: [pagamentos](CASHU.md).
 
-Fora os pagamentos Cashu, só texto público é levado de um lado ao outro. Mensagens privadas do
-Bitchat, arquivos e áudio não atravessam a ponte.
+Fora os pagamentos Cashu e, a partir da `bitchat0.24`, as conversas privadas descritas mais abaixo
+(com a ponte, com contatos favoritos do rádio e, com o túnel ligado, entre celulares de casas
+diferentes), só texto público é levado de um lado ao outro. Arquivos e áudio não atravessam a ponte.
 
 ## Aparelhos
 
-| Aparelhos                                                | Estado                                           |
-| -------------------------------------------------------- | ------------------------------------------------ |
-| Heltec V3 (ESP32-S3, SX1262)                             | Funcionou no ensaio do autor                     |
-| Outros ESP32, ESP32-S3 e ESP32-C3 da [lista](DEVICES.md) | Compilam; nenhum foi ligado                      |
-| ESP32-C6                                                 | Fora: a biblioteca Bluetooth usada não os atende |
-| M5Stack Cardputer ADV com Cap LoRa-1262                  | Compila; não foi ligado. [Notas](CARDPUTER.md)   |
-| LilyGo T-Deck e T-Deck Plus (sem uso do teclado)         | Compila; não foi ligado. [Notas](TDECK.md)       |
-| T-Deck e T-Deck Plus com WadaMesh (tela de toque)        | Compila; não foi ligado. [Guia](WADAMESH.md)     |
-| SenseCAP T1000-E (nRF52)                                 | Experimental; não foi ligado. [Notas](T1000E.md) |
-| Outros nRF52 (RAK4631 etc.)                              | Fora por ora (ver "O que falta")                 |
+| Aparelhos                                                | Estado                                              |
+| -------------------------------------------------------- | --------------------------------------------------- |
+| Heltec V3 (ESP32-S3, SX1262)                             | Funcionou no ensaio do autor                        |
+| Outros ESP32, ESP32-S3 e ESP32-C3 da [lista](DEVICES.md) | Compilam; nenhum foi ligado                         |
+| ESP32-C6                                                 | Fora: a biblioteca Bluetooth usada não os atende    |
+| M5Stack Cardputer ADV com Cap LoRa-1262                  | Ligado pelo autor. [Notas](CARDPUTER.md)            |
+| LilyGo T-Deck e T-Deck Plus (sem uso do teclado)         | Compila; não foi ligado. [Notas](TDECK.md)          |
+| T-Deck e T-Deck Plus com WadaMesh (tela de toque)        | Compila; não foi ligado. [Guia](WADAMESH.md)        |
+| SenseCAP T1000-E (nRF52)                                 | Experimental; ligado pelo autor. [Notas](T1000E.md) |
+| RAK4631, T-Echo, T114, ThinkNode M1, Xiao nRF52 (nRF52)  | Experimental; compilam; não foram ligados           |
 
-**Em cada versão (a partir da `bitchat0.19`) saem só os aparelhos principais:** Heltec V3, Heltec V4
-(os quatro arquivos: chip S3R2 ou S3R8, tela comum ou colorida), T1000-E, Cardputer ADV e T-Deck,
-com o pacote do Brasil, e o T-Deck com WadaMesh (a partir da `bitchat0.23`). Os demais aparelhos da [lista](DEVICES.md) e os outros países são compilados
+**Em cada versão saem os aparelhos populares:** a partir da `bitchat0.24`, 27 aparelhos (Heltec,
+LilyGo, RAK, Seeed, Elecrow, Station G2, M5Stack; os nRF52 mais comuns entre eles; lista completa em
+[DEVICES.md](DEVICES.md)), com o pacote do Brasil, e o T-Deck com WadaMesh (a partir da
+`bitchat0.23`). Os demais aparelhos da [lista](DEVICES.md) e os outros países são compilados
 sob pedido, numa execução à parte (no GitHub, _Actions_ > _Bitchat bridge_ > _Run workflow_, com
-_scope_ `all`), e continuam nas versões anteriores. Assim cada versão sai em minutos, e não em meia
-hora.
+_scope_ `all`), e continuam nas versões anteriores.
 
 Há um arquivo por aparelho, com o mesmo nome do firmware _companion_ Bluetooth original e o final
 `_bitchat`. Nos aparelhos sem memória PSRAM (ESP32 clássico e C3) a ponte pode recusar-se a ligar
@@ -606,10 +607,11 @@ O núcleo veio da ponte para Meshtastic do mesmo autor
 
 ### O que falta
 
-a) Ensaio em aparelho de todos os modelos além do Heltec V3, e medições no próprio Heltec V3.
+a) Ensaio em aparelho de todos os modelos além do Heltec V3, e medições no próprio Heltec V3; ensaio
+em aparelho das conversas privadas, do túnel e da hora pelo LoRa.
 
-b) Os demais nRF52 (RAK4631 e outros): só o T1000-E foi preparado, e ainda não foi ligado; os
-outros dependem do resultado desse ensaio.
+b) Os nRF52 da `bitchat0.24` (RAK4631, T-Echo, T114, ThinkNode M1, Xiao nRF52) só foram
+compilados; o Bluetooth deles é o mesmo do T1000-E.
 
 c) Página da ponte nas outras interfaces de tela (`ui-orig`, `ui-tiny`).
 

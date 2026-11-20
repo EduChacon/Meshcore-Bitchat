@@ -1,8 +1,8 @@
 # Aparelhos
 
 Um arquivo por aparelho, com o nome do firmware _companion_ Bluetooth original do MeshCore e o
-final `_bitchat`. **Só o Heltec V3 e o T1000-E foram ligados.** "Compila" quer dizer apenas que o
-arquivo foi gerado sem erro: nada garante que o rádio funcione com ele.
+final `_bitchat`. **Só o Heltec V3, o T1000-E e o Cardputer ADV foram ligados.** "Compila" quer
+dizer apenas que o arquivo foi gerado sem erro: nada garante que o rádio funcione com ele.
 
 **Cada versão traz os aparelhos populares de `tools/bitchat/main_targets.txt`** (marcados com
 "Em toda versão" na tabela), mais o T-Deck com WadaMesh ([guia](WADAMESH.md)). A lista cresceu na
@@ -41,7 +41,7 @@ versão `v1.18.0-bitchat0.2`. O Cardputer ADV e o T1000-E entraram na `v1.18.0-b
 | `LilyGo_TDeck_companion_radio_ble_bitchat`                | ESP32-S3 | Em toda versão; compila; não foi ligado. [Notas](TDECK.md)                           |
 | `LilyGo_TETH_Elite_sx1262_companion_radio_ble_bitchat`    | ESP32-S3 | Compila; não foi ligado                                                              |
 | `LilyGo_TLora_V2_1_1_6_companion_radio_ble_bitchat`       | ESP32    | Em toda versão; compila; não foi ligado                                              |
-| `M5Stack_Cardputer_ADV_companion_radio_ble_bitchat`       | ESP32-S3 | Em toda versão; compila; não foi ligado. [Notas](CARDPUTER.md)                       |
+| `M5Stack_Cardputer_ADV_companion_radio_ble_bitchat`       | ESP32-S3 | Em toda versão; ligado pelo autor. [Notas](CARDPUTER.md)                             |
 | `Meshadventurer_sx1262_companion_radio_ble_bitchat`       | ESP32    | Compila; não foi ligado                                                              |
 | `Meshadventurer_sx1268_companion_radio_ble_bitchat`       | ESP32    | Compila; não foi ligado                                                              |
 | `meshnology_w12_companion_radio_ble_bitchat`              | ESP32-S3 | Compila; não foi ligado                                                              |
