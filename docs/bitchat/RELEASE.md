@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.19
+# MeshCore + Bitchat v1.18.0-bitchat0.20
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -13,9 +13,9 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
   pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
   `bitchat0.11` e as correções da `bitchat0.12`. Passou nos testes em computador e compila.
-- **Testes em computador desta versão:** 943 verificações do núcleo e 1075 do fluxo completo, com
-  telefones e rádio simulados; compilados no computador o Heltec V3 (com e sem ponte), o T1000-E,
-  o Heltec Wireless Tracker e o Cardputer ADV.
+- **Testes em computador desta versão:** 943 verificações do núcleo, 8005 dos pagamentos Cashu e
+  1502 do fluxo completo, com telefones e rádio simulados; compilados no computador o Heltec V3, o
+  T1000-E, o Cardputer ADV e o T-Deck.
 - **T1000-E:** o autor gravou a `bitchat0.14`. O aplicativo MeshCore conectou, e a ponte ficou
   pronta para o LoRa, mas o Bitchat não a encontrava; a `bitchat0.17` corrige a causa achada.
 - **Cardputer ADV:** o autor gravou a `bitchat0.13` e a `0.14`. Com a `0.14`, relatou melhora,
@@ -24,7 +24,28 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.19`
+## O que há de novo na `bitchat0.20`
+
+- **Pagamentos Cashu pelo LoRa.** Um token Cashu colado no chat público do Bitchat é levado pela
+  ponte, inteiro, até as outras pontes do mesmo canal, que o entregam aos celulares perto delas. Vão
+  as próprias mensagens assinadas pelo celular de quem paga, em partes que só aparecem do outro lado
+  quando todas chegam; uma parte perdida é pedida de novo. Quem paga recebe no chat a confirmação
+  (`✓`) ou o motivo da falha (`✗`). No canal padrão `#bitchat`, de chave pública, só passam tokens
+  travados para a chave de quem recebe (P2PK); um token sem trava é recusado com aviso. A ponte não
+  guarda nem gasta o token. Um token nunca vai como texto pelo MeshCore nem chega ao Bitchat em
+  pedaços. Guia e limites: [pagamentos](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/CASHU.md).
+- **Som e luz do rádio (relato do T1000-E).** O rádio apitava a cada mensagem que a própria ponte
+  levava do Bitchat ao LoRa, e a luz verde não parava de piscar. Agora o rádio não apita nem vibra
+  com o próprio texto da ponte, e há duas opções, guardadas no rádio e digitadas no aplicativo
+  MeshCore: `!ponte som off` (ou `on`) e `!ponte luz off` (ou `on`). Os bipes do MeshCore original
+  continuam para mensagens de outras pessoas enquanto o aplicativo MeshCore não está conectado; o
+  `som off` os cala também. No T1000-E, o toque triplo no botão continua ligando e desligando o
+  som. **Não foi ligado em aparelho.**
+- As duas pontes precisam desta versão para os pagamentos. **Não foi ligado em aparelho:** passou em 8005 verificações
+  novas (descompressão, tokens oficiais NUT-00 e gerados, túnel) e no fluxo completo simulado
+  (1502 verificações), e compila para os aparelhos principais.
+
+## O que veio na `bitchat0.19`
 
 - **Versões mais rápidas.** Cada versão passa a trazer só os aparelhos principais (Heltec V3, os
   quatro Heltec V4, T1000-E, Cardputer ADV e T-Deck) e o pacote do Brasil: 16 compilações em vez

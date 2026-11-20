@@ -1,10 +1,11 @@
 // End-to-end host test: the production bridge and Bluetooth adapter, simulated phones and a simulated MeshCore companion.
 #include "HeapModel.h"
-#include <NimBLEDevice.h>
+#include "cashu_vectors.h"
+#include "gcs_reference.h"
 #include "helpers/bitchat/BitchatBridge.h"
 #include "helpers/bitchat/BridgePlatform.h"
-#include "gcs_reference.h"
 #include <Curve25519.h>
+#include <NimBLEDevice.h>
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
@@ -107,6 +108,15 @@ struct FakeMesh : MeshHost {
     {
         app.push_back({index, timestamp, std::string(text, size)});
     }
+    // Channel datagrams the bridge sent: the parts and answers of the Cashu tunnel.
+    std::vector<std::vector<uint8_t>> data;
+    bool sendChannelData(uint8_t index, uint16_t type, const uint8_t *bytes, size_t size) override
+    {
+        if (refuse || index != 1 || type != TUNNEL_DATA_TYPE || size > 165)
+            return false;
+        data.emplace_back(bytes, bytes + size);
+        return true;
+    }
     // What a radio may know about itself; nothing until a test sets it.
     uint16_t battery = 0;
     std::vector<HeardRadio> heard;
@@ -114,6 +124,21 @@ struct FakeMesh : MeshHost {
     int32_t latitude = 0, longitude = 0;
     std::vector<bool> gpsCalls;
     uint16_t batteryMilliVolts() override { return battery; }
+    // The buzzer and status light: -1 until set.
+    int sound = -1, light = -1;
+    bool hasAlerts = true;
+    bool setSound(bool on) override
+    {
+        if (hasAlerts)
+            sound = on;
+        return hasAlerts;
+    }
+    bool setLight(bool on) override
+    {
+        if (hasAlerts)
+            light = on;
+        return hasAlerts;
+    }
     size_t heardRadios(HeardRadio *out, size_t capacity) override
     {
         const size_t count = std::min(capacity, heard.size());
@@ -218,6 +243,31 @@ struct Phone {
     {
         return packet(2, {reinterpret_cast<const uint8_t *>(message.data()), message.size()});
     }
+    // A long message as the app sends it, compressed (here as stored DEFLATE blocks, which any inflater reads).
+    Frame sayCompressed(const std::string &message) const
+    {
+        std::vector<uint8_t> payload{uint8_t(message.size() >> 8), uint8_t(message.size())};
+        for (size_t at = 0; at < message.size() || at == 0;) {
+            const size_t n = std::min<size_t>(message.size() - at, 1000);
+            const bool last = at + n == message.size();
+            payload.insert(payload.end(), {uint8_t(last), uint8_t(n), uint8_t(n >> 8), uint8_t(~n), uint8_t(~n >> 8)});
+            payload.insert(payload.end(), message.begin() + at, message.begin() + at + n);
+            at += n;
+            if (last)
+                break;
+        }
+        Frame unsignedFrame, canonical, frame;
+        stamp = std::max(stamp + 1, nowUtc());
+        CHECK(encode(2, id, nullptr, stamp, 7, {payload.data(), payload.size()}, {}, unsignedFrame) == Result::Ok);
+        unsignedFrame.data[11] |= 4;
+        CHECK(signingBytes(unsignedFrame.bytes(), canonical) == Result::Ok);
+        std::array<uint8_t, 64> signature;
+        Ed25519::sign(signature.data(), signingKey.data(), signingPublic.data(), canonical.data.data(), canonical.size);
+        CHECK(encode(2, id, nullptr, stamp, 7, {payload.data(), payload.size()}, {signature.data(), signature.size()}, frame) ==
+              Result::Ok);
+        frame.data[11] |= 4;
+        return frame;
+    }
     void write(const Frame &frame) const
     {
         auto &c = server.service.characteristic;
@@ -276,6 +326,274 @@ static bool contains(const std::vector<std::string> &lines, const std::string &w
 static bool fromApp(const std::string &message, uint8_t channel = 1)
 {
     return bridge->onAppText(channel, message.data(), message.size());
+}
+static std::string token(const char *name)
+{
+    for (const auto &c : TOKENS)
+        if (std::string(c.name) == name)
+            return c.text;
+    CHECK(false);
+    return {};
+}
+static bool toBridge(const TunnelDatagram &d, uint8_t channel = 1)
+{
+    return bridge->onChannelData(channel, TUNNEL_DATA_TYPE, d.data.data(), d.size);
+}
+static bool toBridge(const std::vector<uint8_t> &d, uint8_t channel = 1)
+{
+    return bridge->onChannelData(channel, TUNNEL_DATA_TYPE, d.data(), d.size());
+}
+static constexpr uint32_t ANNOUNCE_WAIT = 45000;
+static bool frameEquals(const std::vector<uint8_t> &a, Bytes b)
+{
+    return a.size() == b.size && std::equal(a.begin(), a.end(), b.data);
+}
+
+// Cashu over LoRa: the payer's frames go whole to the other bridges, and come out whole there.
+static void cashuTunnel(const Phone &ana, const Phone &bia, const PeerId &bridgeId)
+{
+    const auto bridgeSaid = [&]() { return chat(bia.handle, &bridgeId); };
+    const auto lastSaid = [&]() {
+        const auto lines = bridgeSaid();
+        return lines.empty() ? std::string() : lines.back();
+    };
+    // A token locked to a key goes, on the public #bitchat channel too.
+    const std::string locked = token("B p2pk"), open = token("B plain");
+    mesh.radio.clear();
+    mesh.data.clear();
+    fakeSent.clear();
+    run(30000); // airtime for the parts
+    const Frame announce = ana.announce();
+    ana.write(announce);
+    run(200);
+    const Frame payment = ana.sayCompressed(locked);
+    ana.write(payment);
+    run(30000);
+    CHECK(mesh.radio.empty());
+    CHECK(lastSaid().rfind("[bridge] Levando 10 sat de ana pela LoRa (", 0) == 0);
+    // Bia got Ana's message as Ana sent it, as before.
+    size_t relayed = 0;
+    for (const auto &frame : received(bia.handle)) {
+        Packet p;
+        CHECK(decode({frame.data(), frame.size()}, p) == Result::Ok);
+        relayed += p.type == 2 && p.sender == ana.id && p.compressed();
+    }
+    CHECK(relayed == 1);
+    // The parts, put together by anyone, are exactly the two frames.
+    const size_t parts = tunnelParts(4 + announce.size + payment.size);
+    CHECK(mesh.data.size() == parts && parts > 1);
+    TunnelReceiver far;
+    TunnelHeard heard;
+    unsigned complete = 0;
+    for (const auto &d : mesh.data) {
+        CHECK(d.size() <= TUNNEL_DATAGRAM);
+        if (far.accept({d.data(), d.size()}, 0, heard) && heard.complete) {
+            ++complete;
+            CHECK(
+                frameEquals(std::vector<uint8_t>(announce.data.begin(), announce.data.begin() + announce.size), heard.announce));
+            CHECK(frameEquals(std::vector<uint8_t>(payment.data.begin(), payment.data.begin() + payment.size), heard.message));
+        }
+    }
+    CHECK(complete == 1);
+    // The other bridge's word comes back: the payer is told.
+    TunnelDatagram ack;
+    makeTunnelAck(heard.id, TunnelOutcome::Delivered, 2, 0xbeef1234, ack);
+    CHECK(toBridge(ack));
+    run(300);
+    CHECK(lastSaid() == "[bridge] ✓ 10 sat entregue à ponte beef (2 cel.). Confirme com quem recebe.");
+    // Other channel data is the app's.
+    const uint8_t other[4] = {1, 2, 3, 4};
+    CHECK(!bridge->onChannelData(1, 0x1234, other, sizeof(other)));
+    CHECK(!bridge->onChannelData(1, TUNNEL_DATA_TYPE, other, sizeof(other)));
+
+    // A token anyone may spend stays here: the channel's key is public.
+    mesh.data.clear();
+    fakeSent.clear();
+    ana.write(ana.announce());
+    run(200);
+    ana.write(ana.sayCompressed(open));
+    run(5000);
+    CHECK(mesh.data.empty() && mesh.radio.empty());
+    CHECK(lastSaid() == "[bridge] Token sem trava P2PK: num canal aberto outros poderiam gastá-lo. Não foi pela LoRa.");
+    // Uncompressed text naming a token is not text for LoRa either, nor a token cut short.
+    ana.write(ana.say("cashuB" + std::string(50, 'Q')));
+    run(5000);
+    CHECK(mesh.radio.empty() && mesh.data.empty());
+    CHECK(lastSaid() == "[bridge] Token Cashu ilegível: não foi levado pela LoRa.");
+
+    // No answer at all: the payer hears so, with what it means.
+    fakeSent.clear();
+    run(30000);
+    ana.write(ana.announce());
+    run(200);
+    ana.write(ana.sayCompressed(token("B p2pk refund")));
+    run(2000);
+    CHECK(lastSaid().rfind("[bridge] Levando 10 sat", 0) == 0);
+    // A second payment meanwhile waits its turn.
+    ana.write(ana.sayCompressed(token("B usd")));
+    run(1000);
+    CHECK(lastSaid() == "[bridge] A ponte já leva outro pagamento: reenvie em 2 min.");
+    run(TUNNEL_WAIT_MS);
+    CHECK(lastSaid() == "[bridge] ✗ 10 sat sem confirmação. Se não chegou, o token segue com você.");
+
+    // A refusal waits a little for another bridge, then is told.
+    fakeSent.clear();
+    mesh.data.clear();
+    run(30000);
+    ana.write(ana.announce());
+    run(200);
+    ana.write(ana.sayCompressed(locked));
+    run(30000);
+    CHECK(!mesh.data.empty());
+    {
+        TunnelReceiver r;
+        TunnelHeard h;
+        for (const auto &d : mesh.data)
+            r.accept({d.data(), d.size()}, 0, h);
+        makeTunnelAck(read32(mesh.data[0].data() + 3), TunnelOutcome::NoPhones, 0, 0x0a0b0000, ack);
+    }
+    CHECK(toBridge(ack));
+    run(5000);
+    CHECK(lastSaid().rfind("[bridge] Levando", 0) == 0);
+    run(11000);
+    CHECK(lastSaid() == "[bridge] ✗ 10 sat não entregue: ponte 0a0b sem celular perto. O token segue com você.");
+
+    // With Ana's last announce too old for the far phones, the payment waits for her next one.
+    fakeSent.clear();
+    mesh.data.clear();
+    run(30000);
+    ana.write(ana.announce());
+    run(31000);
+    ana.write(ana.sayCompressed(token("B usd")));
+    run(5000);
+    CHECK(mesh.data.empty() && bridgeSaid().empty());
+    const Frame fresh = ana.announce();
+    ana.write(fresh);
+    run(30000);
+    CHECK(lastSaid().rfind("[bridge] Levando 150 usd de ana pela LoRa (", 0) == 0 && !mesh.data.empty());
+    {
+        TunnelReceiver r;
+        TunnelHeard h;
+        bool whole = false;
+        for (const auto &part : mesh.data)
+            if (r.accept({part.data(), part.size()}, 0, h) && h.complete)
+                whole = frameEquals(std::vector<uint8_t>(fresh.data.begin(), fresh.data.begin() + fresh.size), h.announce);
+        CHECK(whole);
+    }
+    run(TUNNEL_WAIT_MS);
+    // And if it never comes, nothing goes and she is told.
+    fakeSent.clear();
+    mesh.data.clear();
+    run(31000);
+    ana.write(ana.sayCompressed(locked));
+    run(ANNOUNCE_WAIT + 1000);
+    CHECK(mesh.data.empty());
+    CHECK(lastSaid() == "[bridge] Seu celular não se anunciou a tempo: nada foi levado. Reenvie o token.");
+
+    // The other end: a payer this radio never met, heard only through LoRa.
+    Phone rui("rui", 9);
+    fakeSent.clear();
+    mesh.data.clear();
+    const Frame ruiAnnounce = rui.announce(), ruiPayment = rui.sayCompressed(locked);
+    TunnelSender sender;
+    CHECK(sender.start(0x55667788, ruiAnnounce.bytes(), ruiPayment.bytes(), 0));
+    std::vector<TunnelDatagram> ruiParts;
+    TunnelDatagram d;
+    while (sender.next(d))
+        ruiParts.push_back(d);
+    // Nothing shows while a part is missing.
+    for (size_t i = 1; i < ruiParts.size(); ++i)
+        CHECK(toBridge(ruiParts[i]));
+    run(1000);
+    for (const auto &frame : received(bia.handle)) {
+        Packet p;
+        CHECK(decode({frame.data(), frame.size()}, p) == Result::Ok && p.sender != rui.id);
+    }
+    // Quiet for a while, the bridge asks for what it lacks.
+    run(TUNNEL_QUIET_MS + 3000);
+    CHECK(!mesh.data.empty());
+    TunnelHeard want;
+    CHECK(readTunnelAnswer({mesh.data.back().data(), mesh.data.back().size()}, want) && want.kind == TunnelKind::Want &&
+          want.id == 0x55667788 && want.missing == 1);
+    mesh.data.clear();
+    CHECK(toBridge(ruiParts[0]));
+    run(3000);
+    std::vector<Packet> shown;
+    std::vector<std::vector<uint8_t>> frames = received(bia.handle);
+    for (const auto &frame : frames) {
+        Packet p;
+        CHECK(decode({frame.data(), frame.size()}, p) == Result::Ok);
+        if (p.sender == rui.id)
+            shown.push_back(p);
+    }
+    // The announce first, then the payment, as Rui signed them; one hop older.
+    CHECK(shown.size() == 2 && shown[0].type == 1 && shown[1].type == 2 && shown[1].compressed());
+    CHECK(shown[0].ttl == 6 && shown[1].ttl == 6 && shown[1].timestamp == read64(ruiPayment.data.data() + 3));
+    CHECK(lastSaid() == "[bridge] 10 sat de rui chegaram pela LoRa. Toque no token para resgatar.");
+    // And the payer's bridge is told.
+    CHECK(mesh.data.size() == 1);
+    TunnelHeard told;
+    CHECK(readTunnelAnswer({mesh.data[0].data(), mesh.data[0].size()}, told) && told.kind == TunnelKind::Ack &&
+          told.id == 0x55667788 && told.outcome == TunnelOutcome::Delivered && told.phones >= 2 && told.node == mesh.node);
+    // A copy of a part changes nothing; a phone relaying the payment back is a copy too.
+    fakeSent.clear();
+    mesh.data.clear();
+    CHECK(toBridge(ruiParts[2]));
+    Frame back = ruiPayment;
+    --back.data[2];
+    bia.write(back);
+    run(3000);
+    CHECK(bridgeSaid().empty() && mesh.data.empty() && mesh.radio.empty());
+
+    // Too late for the phones: refused, and the payer's bridge hears why.
+    Phone eva("eva", 10);
+    const Frame evaAnnounce = eva.announce(), evaPayment = eva.sayCompressed(locked);
+    run(125000);
+    TunnelSender late;
+    CHECK(late.start(0x11, evaAnnounce.bytes(), evaPayment.bytes(), 0));
+    mesh.data.clear();
+    fakeSent.clear();
+    while (late.next(d))
+        toBridge(d);
+    run(3000);
+    CHECK(bridgeSaid().empty() && mesh.data.size() == 1);
+    CHECK(readTunnelAnswer({mesh.data[0].data(), mesh.data[0].size()}, told) && told.outcome == TunnelOutcome::Late);
+    // Text that is no payment, or forged, is refused the same way.
+    Phone ivo("ivo", 11);
+    const Frame ivoAnnounce = ivo.announce(), ivoText = ivo.sayCompressed(std::string(300, 'x'));
+    Frame forged = ivo.sayCompressed(locked);
+    forged.data[forged.size - 1] ^= 1;
+    const Frame *refused[] = {&ivoText, &forged};
+    for (const Frame *message : refused) {
+        TunnelSender s;
+        CHECK(s.start(message == &ivoText ? 0x21 : 0x22, ivoAnnounce.bytes(), message->bytes(), 0));
+        mesh.data.clear();
+        fakeSent.clear();
+        while (s.next(d))
+            toBridge(d);
+        run(3000);
+        CHECK(bridgeSaid().empty() && mesh.data.size() == 1);
+        CHECK(readTunnelAnswer({mesh.data[0].data(), mesh.data[0].size()}, told) && told.outcome == TunnelOutcome::Invalid);
+    }
+    // On another channel the parts are hidden from the app but not taken.
+    mesh.data.clear();
+    CHECK(toBridge(ruiParts[0], 2));
+    run(1000);
+    CHECK(mesh.data.empty());
+    // A token typed in the MeshCore app is not sent to Bitchat as text.
+    mesh.app.clear();
+    fakeSent.clear();
+    CHECK(!fromApp(open));
+    run(1000);
+    CHECK(bridgeSaid().empty());
+    CHECK(mesh.app.size() == 1 &&
+          mesh.app[0].text == "bridge: Tokens Cashu vão pelo Bitchat (chat público), não pelo canal do MeshCore.");
+    mesh.app.clear();
+    fromLoRa("Jo\xc3\xa3o: " + open.substr(0, 120));
+    run(1000);
+    CHECK(bridgeSaid().empty());
+    mesh.radio.clear();
+    mesh.data.clear();
 }
 
 int main()
@@ -523,6 +841,13 @@ int main()
     }
     run(32000);
     CHECK(std::string(bridge->status()) == "Ready: Bitchat + LoRa");
+
+    // After the counts of people above: the payments bring people from afar.
+    {
+        const auto before = mesh.radio;
+        cashuTunnel(ana, bia, bridgeId);
+        mesh.radio = before;
+    }
 
     // Another channel is chosen by sending the command in it; the Public channel is refused.
     mesh.app.clear();
@@ -777,12 +1102,33 @@ int main()
     mesh.app.clear();
     CHECK(fromApp("!bridge help"));
     run(100);
-    CHECK(mesh.app.size() == 6 && mesh.app[1].text.find("economy on") != std::string::npos &&
+    CHECK(mesh.app.size() == 7 && mesh.app[1].text.find("economy on") != std::string::npos &&
           mesh.app[2].text.find("!ponte guia") != std::string::npos && mesh.app[3].text.find("sos <text>") != std::string::npos &&
           mesh.app[4].text.find("prefix on") != std::string::npos && mesh.app[4].text.find("position on") != std::string::npos &&
-          mesh.app[5].text.find("!ponte recado") != std::string::npos);
+          mesh.app[5].text.find("sound on/off, light on/off") != std::string::npos &&
+          mesh.app[6].text.find("!ponte recado") != std::string::npos && mesh.app[6].text.find("luz off") != std::string::npos);
     for (const auto &line : mesh.app)
         CHECK(line.text.back() == '.' && line.text.size() <= LORA_TEXT_LIMIT);
+    // The radio's buzzer and light are set from the app and kept by the radio; Bitchat only gets the state.
+    mesh.app.clear();
+    CHECK(fromApp("!ponte som off"));
+    run(100);
+    CHECK(fromApp("!bridge light off"));
+    run(100);
+    CHECK(mesh.sound == 0 && mesh.light == 0 && mesh.app.size() == 2);
+    CHECK(mesh.app[0].text == "bridge: Som desligado: o rádio não apita mais. Vale também depois de reiniciar.");
+    CHECK(mesh.app[1].text == "bridge: Light off: the status light stays dark. It stays so after a restart.");
+    mesh.app.clear();
+    CHECK(fromApp("!ponte luz on"));
+    run(100);
+    CHECK(mesh.light == 1 && mesh.app.size() == 1 && mesh.app[0].text == "bridge: Luz ligada: a luz de aviso pisca como de costume.");
+    mesh.hasAlerts = false;
+    mesh.app.clear();
+    CHECK(fromApp("!bridge sound on"));
+    run(100);
+    CHECK(mesh.sound == 0 && mesh.app.size() == 1 && mesh.app[0].text == "bridge: This radio has no buzzer.");
+    mesh.hasAlerts = true;
+    mesh.app.clear();
     // The guide in the app attached to the radio ends with the commands, in either language.
     mesh.app.clear();
     CHECK(fromApp("!bridge guide"));

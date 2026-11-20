@@ -869,9 +869,15 @@ void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_det
     }
   }
 
-  if (!hasConnection()) {
+  if (!hasConnection() && !MyMesh::sendingBridgeText()) {   // not for this radio's own bridge text
     notify(UIEventType::channelMessage);
   }
+}
+
+void UITask::onAlertsChanged() {
+#ifdef PIN_BUZZER
+  buzzer.quiet(_node_prefs->buzzer_quiet);
+#endif
 }
 
 void UITask::onQueueSizeChanged(int msgcount) {
@@ -897,6 +903,11 @@ void UITask::onControlDataRecv(const mesh::Packet* packet) {
 
 void UITask::userLedHandler() {
 #ifdef PIN_STATUS_LED
+  if (_node_prefs != NULL && _node_prefs->led_quiet) {   // the operator turned the light off
+    if (led_state) digitalWrite(PIN_STATUS_LED, !LED_STATE_ON);
+    led_state = 0;
+    return;
+  }
   int cur_time = millis();
   if (cur_time > next_led_change) {
     if (led_state == 0) {

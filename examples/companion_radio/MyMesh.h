@@ -112,6 +112,7 @@ public:
       virtual void onTraceRecv(mesh::Packet *pkt, uint32_t tag, uint32_t auth_code, uint8_t flags,
                                const uint8_t *path_snrs, const uint8_t *path_hashes, uint8_t path_len) { }
       virtual void onRawDataRecv(mesh::Packet *pkt) { }
+      virtual void onAlertsChanged() { }   // buzzer or status LED setting changed outside the UI
       virtual ~Listener() { }
   };
 
@@ -231,6 +232,9 @@ public:
   bool uiDiscoverRepeaters(uint32_t &tag);   // asks the repeaters in range to answer with their key
 #endif
 
+  // True while the bridge hands its own outgoing text to the UI: nothing to alert about.
+  static bool sendingBridgeText();
+
 #ifdef WITH_BITCHAT_BRIDGE
   // bitchat::MeshHost methods
   uint32_t clockSeconds() override;
@@ -242,6 +246,9 @@ public:
   bool radioBusy() override;
   bool sendChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override;
   void showChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override;
+  bool sendChannelData(uint8_t index, uint16_t dataType, const uint8_t *data, size_t size) override;
+  bool setSound(bool on) override;
+  bool setLight(bool on) override;
   uint16_t batteryMilliVolts() override;
   size_t heardRadios(HeardRadio *out, size_t capacity) override;
   bool position(int32_t &latitude, int32_t &longitude) override;

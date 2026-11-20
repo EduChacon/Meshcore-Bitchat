@@ -538,9 +538,15 @@ void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_det
     _next_refresh = 100;  // trigger refresh
     }
   }
-  if (!hasConnection()) {
+  if (!hasConnection() && !MyMesh::sendingBridgeText()) {   // not for this radio's own bridge text
     notify(UIEventType::channelMessage);
   }
+}
+
+void UITask::onAlertsChanged() {
+#ifdef PIN_BUZZER
+  buzzer.quiet(_node_prefs->buzzer_quiet);
+#endif
 }
 
 void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
@@ -551,6 +557,11 @@ void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
 
 void UITask::userLedHandler() {
 #ifdef PIN_STATUS_LED
+  if (_node_prefs != NULL && _node_prefs->led_quiet) {   // the operator turned the light off
+    if (led_state) digitalWrite(PIN_STATUS_LED, !LED_STATE_ON);
+    led_state = 0;
+    return;
+  }
   int cur_time = millis();
   if (cur_time > next_led_change) {
     if (led_state == 0) {

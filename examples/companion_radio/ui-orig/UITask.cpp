@@ -170,8 +170,9 @@ void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t t
 }
 
 void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) {
+  const bool own = MyMesh::sendingBridgeText();   // text this radio's bridge is sending
 #ifdef HAS_DRV2605
-  vibration.trigger();   // vibrate even while the app is connected (honors quiet + cooldown)
+  if (!own) vibration.trigger();   // vibrate even while the app is connected (honors quiet + cooldown)
 #endif
 
   uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
@@ -191,9 +192,15 @@ void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_det
       _need_refresh = true;
     }
   }
-  if (!hasConnection()) {
+  if (!hasConnection() && !own) {
     notify(UIEventType::channelMessage);
   }
+}
+
+void UITask::onAlertsChanged() {
+#ifdef PIN_BUZZER
+  buzzer.quiet(_node_prefs->buzzer_quiet);
+#endif
 }
 
 void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
@@ -335,6 +342,22 @@ static void statusLedWheel(uint8_t pos) {   // smooth hue sweep, 0..255
 #endif
 
 void UITask::userLedHandler() {
+#if defined(STATUS_LED_RGB) || defined(PIN_STATUS_LED)
+  // the operator turned the light off: it stays off, whatever happens
+  static bool was_quiet = false;
+  if (_node_prefs != NULL && _node_prefs->led_quiet) {
+    if (!was_quiet) {
+#ifdef STATUS_LED_RGB
+      statusLedWrite(0, 0, 0);
+#else
+      digitalWrite(PIN_STATUS_LED, !LED_STATE_ON);
+#endif
+      was_quiet = true;
+    }
+    return;
+  }
+  was_quiet = false;
+#endif
 #ifdef STATUS_LED_RGB
   static bool booted = false;
   static bool flourish_active = false;

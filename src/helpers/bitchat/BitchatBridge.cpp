@@ -576,7 +576,8 @@ void BitchatBridge::answerApp()
                    "battery, sos <text>, test.");
         replyToApp("Only here: !bridge radios (who was heard), prefix on/off (only !lora text to LoRa), position on/off "
                    "(SOS from Bitchat with position).");
-        replyToApp("In Portuguese: !ponte recado, bateria, radios, sos, teste, posicao on.");
+        replyToApp("Only here: !bridge sound on/off, light on/off (the radio's buzzer and status light).");
+        replyToApp("In Portuguese: !ponte recado, bateria, radios, sos, teste, posicao on, som off, luz off.");
         return;
     }
     if (command == Command::Guide || command == Command::GuidePt) {
@@ -596,6 +597,25 @@ void BitchatBridge::answerApp()
         else
             replyToApp(value ? "Prefix on: only #mesh text starting with !lora goes to LoRa; the rest stays in Bitchat."
                              : "Prefix off: all public #mesh text goes to LoRa.");
+        return;
+    }
+    if (command == Command::SoundOn || command == Command::SoundOff || command == Command::LightOn ||
+        command == Command::LightOff) {
+        const bool sound = command == Command::SoundOn || command == Command::SoundOff;
+        const bool value = command == Command::SoundOn || command == Command::LightOn;
+        if (!(sound ? host->setSound(value) : host->setLight(value)))
+            replyToApp(sound ? (portuguese ? "Este rádio não tem som." : "This radio has no buzzer.")
+                             : (portuguese ? "Este rádio não tem luz de aviso." : "This radio has no status light."));
+        else if (portuguese)
+            replyToApp(sound ? (value ? "Som ligado: o rádio apita com mensagens, quando o app MeshCore não está conectado."
+                                      : "Som desligado: o rádio não apita mais. Vale também depois de reiniciar.")
+                             : (value ? "Luz ligada: a luz de aviso pisca como de costume."
+                                      : "Luz desligada: a luz de aviso fica apagada. Vale também depois de reiniciar."));
+        else
+            replyToApp(sound ? (value ? "Sound on: the radio beeps for messages while the MeshCore app is not connected."
+                                      : "Sound off: the radio no longer beeps. It stays so after a restart.")
+                             : (value ? "Light on: the status light blinks as usual."
+                                      : "Light off: the status light stays dark. It stays so after a restart."));
         return;
     }
     if (command == Command::PositionOn || command == Command::PositionOff) {
@@ -1506,6 +1526,8 @@ bool BitchatBridge::handleFrame(Bytes frame, uint16_t source)
         if (bleBroadcast(runtime->working.bytes(), source))
             ++forwardedBle;
     }
+    if (packet.type == 1 && !peer->announcement.gateway)
+        rememberAnnounce(packet, frame);
     // A phone that arrives, announcing itself directly to this radio, is given the house note.
     if (packet.type == 1 && packet.ttl == 7 && note.text[0] && !peer->announcement.gateway)
         deliverNote(packet, source);
@@ -1517,6 +1539,9 @@ bool BitchatBridge::handleFrame(Bytes frame, uint16_t source)
         answerAsked(asked, *peer, packet.ttl == 7 && source != NO_LINK, now);
         return true;
     }
+    // A Cashu token travels whole by its own way, or not at all: never as text, never in pieces.
+    if (publicMessage && !peer->announcement.gateway && carryCashu(packet, frame, *peer, id))
+        return true;
     // Like any phone that stays in the house, the bridge keeps what it heard for whoever arrives later. The
     // newcomer shows a message only if it has met the author before: the app accepts a peer's announce for
     // fifteen minutes and then relies on the identities it remembers.
@@ -1662,6 +1687,11 @@ void BitchatBridge::channelText(uint8_t channel, const uint8_t *packetHash, cons
     if (!body.size || (parseBridgeCommand(body, heardCommand) && heardCommand.command != Command::Sos &&
                        heardCommand.command != Command::Note && heardCommand.command != Command::NoteOff))
         return;
+    // A token cut to fit LoRa text is useless and looks like money: tokens cross only by the tunnel.
+    if (mentionsCashu(body)) {
+        reject(Result::Policy);
+        return;
+    }
     std::array<uint8_t, 42> material{};
     material[0] = 'M';
     material[1] = 'C';
@@ -1697,6 +1727,11 @@ bool BitchatBridge::appText(uint8_t channel, const char *text, size_t size)
     if (!settings.enabled || !runtime || !wasActive || !storageReady || !identityReady || !utc())
         return false;
     refreshChannel();
+    if (textReady && channel == settings.channel && mentionsCashu(body)) {
+        appChannel = channel;
+        replyToApp("Tokens Cashu vão pelo Bitchat (chat público), não pelo canal do MeshCore.");
+        return false;
+    }
     if (textReady && !textConflict && !textGuard() && channel == settings.channel && (blePhones() || BITCHAT_HISTORY_ENTRIES) &&
         body.size) {
         const char *name = host->nodeName();
@@ -1708,8 +1743,11 @@ bool BitchatBridge::appText(uint8_t channel, const char *text, size_t size)
 void BitchatBridge::sendRadio()
 {
     auto *item = runtime->radioQueue.front();
-    if (!item)
+    if (!item) {
+        if (tunnelDue() && !host->radioBusy() && runtime->radioGate.admit(millis(), 1500))
+            sendTunnel();
         return;
+    }
     if (!Throttle::isWithinTimespanMsAt(item->queuedAt, RADIO_DEADLINE_MS, millis()) || !textReady || textConflict) {
         reject(Result::Expired);
         ++lost;
@@ -1887,6 +1925,7 @@ void BitchatBridge::work(uint32_t now)
                 break;
         }
     blePoll();
+    watchPayment(now);
     if (runtime->fragments) {
         runtime->fragments->expire(now);
         if (runtime->fragments->empty())

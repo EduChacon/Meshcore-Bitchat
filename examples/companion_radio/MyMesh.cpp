@@ -616,6 +616,10 @@ void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *
                        (uint32_t)data_len, (uint32_t)MAX_CHANNEL_DATA_LENGTH);
     return;
   }
+#ifdef WITH_BITCHAT_BRIDGE
+  // a part of a Cashu payment between bridges, or its confirmation: the bridge's own, not for the app
+  if (bitchat_bridge.onChannelData(findChannelIdx(channel), data_type, data, data_len)) return;
+#endif
 
   int i = 0;
   out_frame[i++] = RESP_CODE_CHANNEL_DATA_RECV;
@@ -2518,10 +2522,14 @@ bool MyMesh::hasPendingWork() const {
   return _mgr->getOutboundTotal() > 0 || dirty_contacts_expiry != 0;
 }
 
+static bool bridge_text_on_air = false;
+
+bool MyMesh::sendingBridgeText() {
+  return bridge_text_on_air;
+}
+
 #ifdef WITH_BITCHAT_BRIDGE
 // ---------- bitchat::MeshHost: what the Bitchat bridge asks of the companion
-
-static bool bridge_text_on_air = false;
 
 uint32_t MyMesh::clockSeconds() {
   return getRTCClock()->getCurrentTime();
@@ -2588,14 +2596,20 @@ bool MyMesh::sendChannelText(uint8_t index, uint32_t timestamp, const char *text
   auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, ch.channel, temp, 5 + size);
   if (pkt == NULL) return false;
 
+  bridge_text_on_air = true;   // the UI shows it, but neither beeps nor vibrates for this radio's own text
   if (_listener) {
     _listener->onChannelMessageRecv(pkt, ch, (const char *) &temp[5]);
   }
   sendFloodScoped(ch.channel, pkt);
-  bridge_text_on_air = true;
   showChannelText(index, timestamp, text, size);   // the app attached to this radio sees it as received
   bridge_text_on_air = false;
   return true;
+}
+
+bool MyMesh::sendChannelData(uint8_t index, uint16_t dataType, const uint8_t *data, size_t size) {
+  ChannelDetails ch;
+  if (size == 0 || size > MAX_GROUP_DATA_LENGTH || !getChannel(index, ch) || ch.name[0] == 0) return false;
+  return sendGroupData(ch.channel, NULL, OUT_PATH_UNKNOWN, dataType, data, (int)size);
 }
 
 void MyMesh::showChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) {
@@ -2632,6 +2646,30 @@ void MyMesh::showChannelText(uint8_t index, uint32_t timestamp, const char *text
   if (_listener) {
     _listener->onQueueSizeChanged(offline_queue_len);
   }
+}
+
+bool MyMesh::setSound(bool on) {
+#ifdef PIN_BUZZER
+  _prefs.buzzer_quiet = on ? 0 : 1;
+  savePrefs();
+  if (_listener) _listener->onAlertsChanged();
+  return true;
+#else
+  (void)on;
+  return false;
+#endif
+}
+
+bool MyMesh::setLight(bool on) {
+#if defined(PIN_STATUS_LED) || defined(PIN_STATUS_LED_R)
+  _prefs.led_quiet = on ? 0 : 1;
+  savePrefs();
+  if (_listener) _listener->onAlertsChanged();
+  return true;
+#else
+  (void)on;
+  return false;
+#endif
 }
 
 uint16_t MyMesh::batteryMilliVolts() {

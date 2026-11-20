@@ -1,10 +1,12 @@
 #pragma once
 #ifdef WITH_BITCHAT_BRIDGE
 #include "BridgeBle.h"
+#include "BridgeCashu.h"
 #include "BridgeCrypto.h"
 #include "BridgeHistory.h"
 #include "BridgeState.h"
 #include "BridgeText.h"
+#include "BridgeTunnel.h"
 #include <Preferences.h>
 #include <memory>
 
@@ -42,8 +44,29 @@ class MeshHost
     virtual bool sendChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) = 0;
     // Shows a line in the attached app only; nothing goes on the air.
     virtual void showChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) = 0;
+    // A datagram on the channel (MeshCore group data of this type), for the Cashu tunnel between bridges.
+    // The default says the firmware cannot send one.
+    virtual bool sendChannelData(uint8_t index, uint16_t dataType, const uint8_t *data, size_t size)
+    {
+        (void)index;
+        (void)dataType;
+        (void)data;
+        (void)size;
+        return false;
+    }
     // What a radio can tell about itself and its neighbours. The defaults say "not known".
     virtual uint16_t batteryMilliVolts() { return 0; }
+    // The radio's buzzer and status light, kept as the operator sets them. False when the radio has none.
+    virtual bool setSound(bool on)
+    {
+        (void)on;
+        return false;
+    }
+    virtual bool setLight(bool on)
+    {
+        (void)on;
+        return false;
+    }
     struct HeardRadio {
         char name[32];
         // -1 when the route is not known, 0 for a direct neighbour
@@ -90,6 +113,9 @@ class BitchatBridge
     // Channel text typed in the attached app. True when it was a bridge command, which is answered
     // locally and must not be transmitted.
     bool onAppText(uint8_t channel, const char *text, size_t size);
+    // Channel data heard on LoRa. True when it was the bridges' own (a part of a payment, a confirmation),
+    // which is not for the attached app.
+    bool onChannelData(uint8_t channel, uint16_t dataType, const uint8_t *data, size_t size);
 
     bool enabled() const { return settings.enabled; }
     uint8_t textChannel() const { return settings.channel; }
@@ -184,6 +210,19 @@ class BitchatBridge
         uint32_t answeredAt = 0;
         bool answered = false;
     } rangeTest;
+    // The payment this radio is taking over LoRa, for telling the payer how it went.
+    struct Payment {
+        uint32_t id = 0, at = 0, refusedAt = 0;
+        uint64_t amount = 0;
+        char unit[13]{};
+        char payer[bitchat::LABEL_LIMIT + 1]{};
+        bool waiting = false, refused = false, holding = false;
+        bitchat::TunnelOutcome outcome = bitchat::TunnelOutcome::Delivered;
+        uint32_t node = 0;
+        bitchat::PeerId sender{};
+        bitchat::Digest messageId{};
+    } payment;
+    bitchat::RateGate paymentReplies;
     // The GPS is turned on for a while when nothing else set the clock.
     uint32_t gpsAt = 0;
     bool gpsOn = false, gpsTried = false;
@@ -229,6 +268,20 @@ class BitchatBridge
         };
         std::array<Delivered, 8> delivered{};
         bitchat::BoundedQueue<RadioItem, RadioItem::QUEUE> radioQueue;
+        // The latest announce of a few phones, as they sent it: a payment carries its payer's along.
+        struct Announced {
+            bitchat::PeerId peer{};
+            uint16_t size = 0;
+            uint32_t at = 0;
+            std::array<uint8_t, 320> frame{};
+        };
+        std::array<Announced, 3> announced{};
+        std::unique_ptr<bitchat::TunnelSender> tunnelOut;
+        // A payment waiting for its payer's next announce.
+        std::unique_ptr<bitchat::Frame> held;
+        std::unique_ptr<bitchat::TunnelReceiver> tunnelIn;
+        // Confirmations and requests for missing parts, sent before anything else.
+        bitchat::BoundedQueue<bitchat::TunnelDatagram, 3> tunnelControl;
         bitchat::RateGate radioGate, cryptoGate;
         bitchat::BleInput input;
         bitchat::Frame assembled, working, canonical;
@@ -281,6 +334,22 @@ class BitchatBridge
     bool binding(uint8_t index, bitchat::Digest &out) const;
     void refreshChannel();
     bool handleFrame(bitchat::Bytes frame, uint16_t source);
+    void rememberAnnounce(const bitchat::Packet &packet, bitchat::Bytes frame);
+    // A public message holding a Cashu token: carried whole to the other bridges, or refused with a word
+    // to the payer. True when the message held one, so it is never taken as text.
+    bool carryCashu(const bitchat::Packet &packet, bitchat::Bytes frame, const bitchat::Peer &peer, const bitchat::Digest &id);
+    bool channelPrivate() const;
+    void channelData(uint8_t channel, bitchat::Bytes data);
+    void deliverPayment(const bitchat::TunnelHeard &heard);
+    bitchat::TunnelOutcome checkPayment(const bitchat::TunnelHeard &heard, uint64_t &amount, char *unit, size_t unitSize,
+                                        char *payer, size_t payerSize);
+    void startPayment(bitchat::Bytes announce, bitchat::Bytes message);
+    void paymentAnswered(const bitchat::TunnelHeard &heard, uint32_t now);
+    void watchPayment(uint32_t now);
+    void reportPayment(bool delivered, uint8_t phones);
+    bool sendTunnel();
+    bool tunnelDue() const;
+    void say(const char *text);
     void exportText(const bitchat::Packet &packet, bitchat::Peer &peer, const bitchat::Digest &id);
     void importText(bitchat::Bytes name, bitchat::Bytes body, const bitchat::Digest *id);
     bool textGuard() const;

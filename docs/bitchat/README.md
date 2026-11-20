@@ -34,8 +34,13 @@ e) **Sem configuração.** Na primeira partida a ponte liga sozinha e cria o can
 canal é do tipo "hashtag": a chave deriva do nome, de modo que qualquer pessoa entra nele pelo
 aplicativo MeshCore digitando `#bitchat`. **Não é um canal reservado.**
 
-Só texto público é levado de um lado ao outro. Mensagens privadas do Bitchat, arquivos, áudio e
-pagamentos não atravessam a ponte.
+f) **Pagamentos Cashu (experimental, a partir da `bitchat0.20`).** Um token Cashu colado no chat
+público do Bitchat vai, inteiro e assinado por quem paga, até as outras pontes do mesmo canal, que
+o entregam aos celulares perto delas; quem paga recebe a confirmação. Só tokens travados para a
+chave de quem recebe passam pelo canal `#bitchat`. Como usar e os limites: [pagamentos](CASHU.md).
+
+Fora os pagamentos Cashu, só texto público é levado de um lado ao outro. Mensagens privadas do
+Bitchat, arquivos e áudio não atravessam a ponte.
 
 ## Aparelhos
 
@@ -219,6 +224,8 @@ nesse aplicativo e **não são transmitidos**.
 | `!ponte sos <texto>`    | Pedido de socorro ao LoRa, com a posição do rádio, se ele a tiver                    |
 | `!ponte teste`          | Teste de alcance com as outras pontes (ver abaixo)                                   |
 | `!bridge position on`   | Socorro pedido pelo Bitchat leva a posição do rádio (trilha); `off` desliga (padrão) |
+| `!ponte som off`        | O rádio para de apitar (`on` volta); guardado no rádio (a partir da `bitchat0.20`)   |
+| `!ponte luz off`        | A luz de aviso fica apagada (`on` volta); guardado no rádio                          |
 | `!bridge help`          | Lista os comandos                                                                    |
 
 `!ponte` vale no lugar de `!bridge`, e a resposta sai em português quando se usa `!ponte` ou a
@@ -229,7 +236,7 @@ No Bitchat, escritos no `#mesh`, valem todos, menos os que mudam a configuraçã
 (`!bridge`), os nomes (`!ponte quem`), o guia (`!ponte guia`, no máximo uma vez a cada 30
 segundos), o recado, a bateria, os rádios, o socorro e o teste. As respostas vão a todos os
 telefones próximos, uma a cada cinco segundos. Os comandos que mudam a configuração (`on`, `off`,
-`local`, `lora`, `link`, `economy`, `prefix`, `reset`) só valem no aplicativo MeshCore; no Bitchat,
+`local`, `lora`, `link`, `economy`, `prefix`, `reset`, `som`, `luz`) só valem no aplicativo MeshCore; no Bitchat,
 recebem o estado como resposta. O guia diz se o texto está indo ao LoRa ou não.
 
 O `/who` do Bitchat só mostra quem está na malha Bluetooth; quem fala pelo LoRa não aparece ali.

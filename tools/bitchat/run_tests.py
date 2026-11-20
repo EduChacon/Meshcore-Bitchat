@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -17,14 +18,19 @@ TESTS = ROOT / "test/bitchat"
 BRIDGE = ROOT / "src/helpers/bitchat"
 CORE = ["BridgeCodec.cpp", "BridgeHistory.cpp", "BridgeState.cpp", "BridgeText.cpp"]
 ADAPTER = ["BridgeBle.cpp", "BridgeCodec.cpp", "BridgeDiagnostics.cpp"]
+CASHU = ["BridgeCashu.cpp", "BridgeCodec.cpp", "BridgeInflate.cpp", "BridgeTunnel.cpp"]
 FLOW = [
     "BitchatBridge.cpp",
     "BridgeBle.cpp",
+    "BridgeCashu.cpp",
     "BridgeCodec.cpp",
     "BridgeDiagnostics.cpp",
     "BridgeHistory.cpp",
+    "BridgeInflate.cpp",
+    "BridgePayments.cpp",
     "BridgeState.cpp",
     "BridgeText.cpp",
+    "BridgeTunnel.cpp",
 ]
 CRYPTO = ["Crypto", "Hash", "SHA256", "SHA512", "BigNumberUtil", "Curve25519", "Ed25519", "HKDF"]
 
@@ -46,7 +52,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--crypto-dir", type=Path, required=True)
     parser.add_argument("--no-sanitize", action="store_true")
-    parser.add_argument("suites", nargs="*", default=["core", "adapter", "flow"])
+    parser.add_argument("suites", nargs="*", default=["core", "cashu", "adapter", "flow"])
     args = parser.parse_args()
     crypto = args.crypto_dir.resolve()
     if json.loads((crypto / "library.json").read_text()).get("version") != "0.4.0":
@@ -70,11 +76,17 @@ def main():
     with tempfile.TemporaryDirectory(prefix="bitchat-tests-") as directory:
         build = Path(directory)
         vectors_header(build)
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import cashu_vectors
+
+        cashu_vectors.header(build / "cashu_vectors.h")
         suites = {
             "core": (["-I" + str(ROOT / "src"), "-I" + str(crypto), "-I" + str(build)], "test_main.cpp", CORE, crypto_sources),
+            "cashu": (["-I" + str(ROOT / "src"), "-I" + str(build)], "test_cashu.cpp", CASHU, []),
             "adapter": (["-I" + str(TESTS / "stubs"), "-I" + str(ROOT / "src")], "test_ble.cpp", ADAPTER, []),
             "flow": (
-                ["-I" + str(TESTS / "host"), "-I" + str(TESTS / "stubs"), "-I" + str(ROOT / "src"), "-I" + str(crypto)],
+                ["-I" + str(TESTS / "host"), "-I" + str(TESTS / "stubs"), "-I" + str(ROOT / "src"), "-I" + str(crypto),
+                 "-I" + str(build)],
                 "test_flow.cpp",
                 FLOW,
                 crypto_sources,
