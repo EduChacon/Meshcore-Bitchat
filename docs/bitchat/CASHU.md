@@ -28,7 +28,7 @@ d) A ponte responde no chat, em português:
 | `Levando 21 sat de Ana pela LoRa (9 partes)…`             | O token saiu; a resposta vem em até cerca de 2 min                                  |
 | `✓ 21 sat entregue à ponte Casa (2 cel.). Confirme com…`  | A ponte de destino, contato deste rádio, assinou: entregou aos celulares perto dela |
 | `✓? 21 sat entregue, diz a ponte 1a2b (não é contato)…`   | Uma ponte que este rádio não conhece diz ter entregue; confirme com quem recebe     |
-| `✗ 21 sat não entregue: ponte 1a2b sem celular perto…`    | Chegou inteiro, mas não havia ninguém com Bitchat lá; nada foi exibido              |
+| `✗ 21 sat: ponte 1a2b sem celular perto…`                 | Chegou inteiro, mas não havia ninguém com Bitchat lá; nada foi exibido              |
 | `✗ 21 sat chegou tarde à ponte 1a2b…`                     | Passou de 2 min: os celulares o recusariam; nada foi exibido                        |
 | `✗ A ponte 1a2b recusou 21 sat…`                          | Assinatura ou formato não conferiu; nada foi exibido                                |
 | `✗ 21 sat sem confirmação. Se não chegou, o token segue…` | Nenhuma ponte respondeu; pode não ter chegado, ou a resposta se perdeu              |
@@ -104,7 +104,10 @@ j) **A confirmação é assinada pelo rádio da ponte de destino** (a partir da 
 identidade MeshCore dele. A ponte de quem paga confere a assinatura com a chave que conhece pelos
 anúncios ("adverts") e só então mostra `✓` com o nome do contato. De uma ponte que não é contato
 chega `✓?`, com o número que ela diz ter, e quem paga deve confirmar com quem recebe. Uma
-confirmação que diz vir de um contato, mas cuja assinatura não confere, é descartada.
+confirmação que diz vir de um contato, mas cuja assinatura não confere, é descartada, e uma
+conferida vale mais que qualquer outra. A assinatura prova qual rádio respondeu, não que ele seja a
+ponte certa: qualquer rádio que mande um anúncio vira contato. Confira se o nome é o da ponte de
+quem recebe.
 
 k) **Uma menção a `cashuA`/`cashuB` que não seja um token legível também fica fora do LoRa**, com o
 aviso `Token Cashu ilegível`. Dois tokens na mesma mensagem não vão. Do LoRa para o Bitchat, não
@@ -150,7 +153,7 @@ c) O aplicativo MeshCore ligado a cada ponte, para os comandos e para conferir o
 6. **Resgate.** Em R, tocar no token e receber na carteira, primeiro sem internet (se a carteira
    permitir) e depois com internet. Anotar o que a carteira disse.
 7. **Ninguém do outro lado.** Fechar o Bitchat em R e repetir o passo 5 com outro token. Esperado:
-   `✗ … ponte … sem celular perto. O token segue com você.`
+   `✗ …: ponte … sem celular perto. O token segue com você.`
 8. **Ponte B desligada.** Desligar B e repetir. Esperado, depois de cerca de 100 s:
    `✗ … sem confirmação…`.
 9. **Nada como texto.** Num terceiro rádio MeshCore, ou no aplicativo da ponte A, olhar o canal

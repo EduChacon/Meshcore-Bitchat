@@ -537,7 +537,32 @@ static void cashuTunnel(const Phone &ana, const Phone &bia, const PeerId &bridge
     run(5000);
     CHECK(lastSaid().rfind("[bridge] Levando", 0) == 0);
     run(11000);
-    CHECK(lastSaid() == "[bridge] ✗ 10 sat não entregue: ponte 0a0b sem celular perto. O token segue com você.");
+    CHECK(lastSaid() == "[bridge] ✗ 10 sat: ponte 0a0b sem celular perto. O token segue com você.");
+    // A refusal the far radio signed is not undone by an unchecked "delivered" from anyone else.
+    fakeSent.clear();
+    mesh.data.clear();
+    run(30000);
+    ana.write(ana.announce());
+    run(200);
+    {
+        const Frame again = ana.sayCompressed(locked);
+        ana.write(again);
+        run(30000);
+        CHECK(!mesh.data.empty());
+        const uint32_t id = read32(mesh.data[0].data() + 3);
+        Digest h;
+        crypto.hash(again.bytes(), h);
+        uint8_t message[TUNNEL_ACK_SIGNED], signature[64];
+        tunnelAckSigned(id, TunnelOutcome::NoPhones, 0, farPublic.data(), h.data(), message);
+        Ed25519::sign(signature, farSecret.data(), farPublic.data(), message, sizeof(message));
+        makeTunnelAck(id, TunnelOutcome::NoPhones, 0, farPublic.data(), signature, ack);
+        CHECK(toBridge(ack));
+        makeTunnelAck(id, TunnelOutcome::Delivered, 3, stranger, nullptr, ack);
+        CHECK(toBridge(ack));
+        run(16000);
+        CHECK(lastSaid() ==
+              "[bridge] ✗ 10 sat: ponte Casa do Pai sem celular perto. O token segue com você.");
+    }
     // A delivery only a stranger claims is told as such, after the wait for a better answer.
     fakeSent.clear();
     mesh.data.clear();
@@ -682,6 +707,12 @@ static void cashuTunnel(const Phone &ana, const Phone &bia, const PeerId &bridge
         run(3000);
         CHECK(bridgeSaid().empty() && mesh.data.size() == 1);
         CHECK(readTunnelAnswer({mesh.data[0].data(), mesh.data[0].size()}, told) && told.outcome == TunnelOutcome::Invalid);
+        // A refusal is signed over the message as it came, so the payer's bridge can believe it.
+        Digest h;
+        crypto.hash(message->bytes(), h);
+        uint8_t signedBytes[TUNNEL_ACK_SIGNED];
+        tunnelAckSigned(told.id, told.outcome, told.phones, told.key.data(), h.data(), signedBytes);
+        CHECK(told.signedAck && Ed25519::verify(told.signature.data(), mesh.nodePublic.data(), signedBytes, sizeof(signedBytes)));
     }
     // On another channel the parts are hidden from the app but not taken.
     mesh.data.clear();

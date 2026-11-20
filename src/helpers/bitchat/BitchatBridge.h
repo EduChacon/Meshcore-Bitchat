@@ -245,7 +245,9 @@ class BitchatBridge
         bool waiting = false, answered = false, holding = false, trusted = false;
         // The best answer so far: a delivery a known radio signed ends the wait at once.
         bitchat::TunnelOutcome outcome = bitchat::TunnelOutcome::Delivered;
-        uint8_t phones = 0, rank = 0;
+        uint8_t phones = 0, rank = 0, channel = bitchat::NO_CHANNEL;
+        // The channel the parts go on: if it changes meanwhile, the rest is not sent.
+        bitchat::Digest binding{};
         uint32_t node = 0;
         char bridge[15]{};
         std::array<uint8_t, 8> messageHash{};

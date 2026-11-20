@@ -228,6 +228,8 @@ void BitchatBridge::startPayment(Bytes announce, Bytes message)
     // Remembered across a restart, so the same message is never carried twice.
     record(payment.messageId);
     payment.at = payment.signedAt;
+    payment.channel = settings.channel;
+    payment.binding = settings.binding;
     payment.waiting = true;
     char amount[32], line[160];
     amountText(payment.amount, payment.unit, amount, sizeof(amount));
@@ -256,7 +258,7 @@ void BitchatBridge::reportPayment()
     else if (payment.outcome == TunnelOutcome::Delivered)
         snprintf(line, sizeof(line), "✓? %s entregue, diz a ponte %s (não é contato). Confirme com quem recebe.", amount, who);
     else if (payment.outcome == TunnelOutcome::NoPhones)
-        snprintf(line, sizeof(line), "✗ %s não entregue: ponte %s sem celular perto. O token segue com você.", amount, who);
+        snprintf(line, sizeof(line), "✗ %s: ponte %s sem celular perto. O token segue com você.", amount, who);
     else if (payment.outcome == TunnelOutcome::Late)
         snprintf(line, sizeof(line), "✗ %s chegou tarde à ponte %s. O token segue com você.", amount, who);
     else
@@ -289,9 +291,10 @@ void BitchatBridge::paymentAnswered(const TunnelHeard &heard, uint32_t now)
         }
         trusted = check == MeshHost::NodeCheck::Valid;
     }
-    // Delivered beats refused, signed by a contact beats unsigned.
+    // A checked answer beats an unchecked one, which anyone on the channel could write; then delivered
+    // beats refused.
     const bool delivered = heard.outcome == TunnelOutcome::Delivered;
-    const uint8_t rank = uint8_t((delivered ? 2 : 0) + (trusted ? 1 : 0) + 1);
+    const uint8_t rank = uint8_t((trusted ? 2 : 0) + (delivered ? 1 : 0) + 1);
     if (rank > payment.rank) {
         payment.rank = rank;
         payment.outcome = heard.outcome;
@@ -336,6 +339,14 @@ void BitchatBridge::watchPayment(uint32_t now)
         return;
     if (!runtime || !runtime->tunnelOut || !runtime->tunnelOut->active()) {
         payment.waiting = false;
+        return;
+    }
+    // The bridge was moved to another channel, perhaps one anyone may read: what is left stays here.
+    if (runtime->tunnelOut->hasPending() &&
+        (settings.channel != payment.channel || settings.binding != payment.binding || !textReady)) {
+        runtime->tunnelOut->finish();
+        payment.waiting = false;
+        say("✗ O canal da ponte mudou: o pagamento não foi levado inteiro. O token segue com você.");
         return;
     }
     if ((payment.answered && !Throttle::isWithinTimespanMsAt(payment.answeredAt, REFUSAL_GRACE_MS, now)) ||
@@ -478,12 +489,12 @@ void BitchatBridge::deliverPayment(const TunnelHeard &heard)
             say(line);
         }
     }
-    // Parts that did not hold together may be someone else's: the true ones can still complete it.
-    if (outcome == TunnelOutcome::Invalid && runtime->tunnelIn)
-        runtime->tunnelIn->forget(heard.id);
     // Signed with the radio's own MeshCore identity: the payer's radio knows that key from its adverts.
     Digest hash;
     crypto.hash(heard.message, hash);
+    // Parts that did not hold together may be someone else's: the true ones can still complete it.
+    if (outcome == TunnelOutcome::Invalid && runtime->tunnelIn)
+        runtime->tunnelIn->forget(heard.id);
     uint8_t key[8], signature[64], signedBytes[TUNNEL_ACK_SIGNED];
     write32(key, host->nodeNumber());
     std::fill(key + 4, key + 8, 0);

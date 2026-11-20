@@ -13,8 +13,8 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
   pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
   `bitchat0.11` e as correções da `bitchat0.12`. Passou nos testes em computador e compila.
-- **Testes em computador desta versão:** 943 verificações do núcleo, 8108 dos pagamentos Cashu e
-  1680 do fluxo completo, com telefones e rádio simulados; compilados no computador o Heltec V3, o
+- **Testes em computador desta versão:** 943 verificações do núcleo, 8113 dos pagamentos Cashu e
+  1719 do fluxo completo, com telefones e rádio simulados; compilados no computador o Heltec V3, o
   T1000-E e o Cardputer ADV.
 - **T1000-E:** o autor gravou a `bitchat0.14`. O aplicativo MeshCore conectou, e a ponte ficou
   pronta para o LoRa, mas o Bitchat não a encontrava; a `bitchat0.17` corrige a causa achada.
@@ -36,6 +36,13 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   seguidos, sem espaço, fica de fora, porque pode ser o pedaço de um token cortado.
 - **Roteiro de ensaio dos pagamentos**, passo a passo, no
   [guia](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/CASHU.md#roteiro-de-ensaio).
+- **Segunda revisão independente do código**, já corrigida: uma recusa assinada era assinada sobre
+  bytes já apagados e seria descartada como falsa; uma resposta não conferida podia sobrepor-se a
+  uma conferida (agora a conferida vale mais); o filtro de pedaços de token barrava risadas
+  ("kkkk…"), linhas de traços e códigos hexadecimais (agora só barra sequências com maiúsculas,
+  minúsculas e números juntos); se o canal da ponte mudasse no meio de um pagamento, o resto seguiria
+  pelo canal novo (agora para, com aviso); um pagamento em curso não era esquecido quando a ponte se
+  desligava.
 - **Não foi ligado em aparelho.**
 
 ## O que veio na `bitchat0.20`

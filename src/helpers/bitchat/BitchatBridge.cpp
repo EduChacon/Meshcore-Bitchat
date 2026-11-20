@@ -414,6 +414,8 @@ void BitchatBridge::releaseRuntime()
 {
     bleReleaseBuffers();
     runtime.reset();
+    // A payment on its way goes with the runtime that carried it.
+    payment = {};
 }
 
 bool BitchatBridge::eligibleChannel(uint8_t index) const
