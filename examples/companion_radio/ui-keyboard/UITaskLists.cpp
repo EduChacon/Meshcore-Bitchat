@@ -50,7 +50,12 @@ const char* typeLabel(uint8_t type) {
 }
 
 int batteryPercent(uint16_t mv) {
-    int percent = ((int)mv - 3000) * 100 / (4200 - 3000);
+#ifdef WITH_BITCHAT_BRIDGE
+    // the lithium curve "!bridge battery" uses, not a straight line from 3.0 to 4.2 V
+    const int percent = bitchat::batteryPercent(mv);
+#else
+    const int percent = ((int)mv - 3000) * 100 / (4200 - 3000);
+#endif
     return percent < 0 ? 0 : percent > 100 ? 100 : percent;
 }
 

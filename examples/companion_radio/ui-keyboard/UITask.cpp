@@ -1078,9 +1078,14 @@ void UITask::renderSettingsMenu() {
         // Battery voltage and percentage
         uint16_t battery_mv = getBattMilliVolts();
         if (battery_mv > 0) {
+#ifdef WITH_BITCHAT_BRIDGE
+            // the lithium curve "!bridge battery" uses, not a straight line from 3.0 to 4.2 V
+            int battery_percent = bitchat::batteryPercent(battery_mv);
+#else
             const int minMilliVolts = 3000;
             const int maxMilliVolts = 4200;
             int battery_percent = ((battery_mv - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
+#endif
             if (battery_percent < 0) battery_percent = 0;
             if (battery_percent > 100) battery_percent = 100;
             

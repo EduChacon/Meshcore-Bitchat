@@ -136,7 +136,15 @@ class HomeScreen : public UIScreen {
 #endif
     const int minMilliVolts = BATT_MIN_MILLIVOLTS;
     const int maxMilliVolts = BATT_MAX_MILLIVOLTS;
+#ifdef WITH_BITCHAT_BRIDGE
+    // A lithium cell's charge is no straight line of its voltage: most of it lies between 4.0 and 3.6 V.
+    // The bridge's curve, the one "!bridge battery" answers with, ends at 0% where the radio shuts down.
+    (void)minMilliVolts;
+    (void)maxMilliVolts;
+    int batteryPercentage = bitchat::batteryPercent(batteryMilliVolts);
+#else
     int batteryPercentage = ((batteryMilliVolts - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
+#endif
     if (batteryPercentage < 0) batteryPercentage = 0; // Clamp to 0%
     if (batteryPercentage > 100) batteryPercentage = 100; // Clamp to 100%
 
@@ -1120,9 +1128,20 @@ void UITask::loop() {
       #define AUTO_SHUTDOWN_CONFIRM_CHECKS 1
     #endif
   #endif
+    // A cell at 3.4 V still holds a few percent; at 3.3 V, about none, and it is still safe for the cell.
+    // The bridge builds use the lower mark, with the two minutes of confirmation above.
+  #ifdef WITH_BITCHAT_BRIDGE
+    #ifndef BRIDGE_SHUTDOWN_MILLIVOLTS
+      #define BRIDGE_SHUTDOWN_MILLIVOLTS 3300
+    #endif
+    const uint16_t shutdown_mv = AUTO_SHUTDOWN_MILLIVOLTS < BRIDGE_SHUTDOWN_MILLIVOLTS ? AUTO_SHUTDOWN_MILLIVOLTS
+                                                                                     : BRIDGE_SHUTDOWN_MILLIVOLTS;
+  #else
+    const uint16_t shutdown_mv = AUTO_SHUTDOWN_MILLIVOLTS;
+  #endif
     static uint8_t low_checks = 0;
     uint16_t milliVolts = getBattMilliVolts();
-    if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS && !board.isExternalPowered()) {
+    if (milliVolts > 0 && milliVolts < shutdown_mv && !board.isExternalPowered()) {
       if (low_checks < 255) low_checks++;
     } else {
       low_checks = 0;
