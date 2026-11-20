@@ -441,6 +441,29 @@ struct PrivatePhone {
     NoiseSender send;
     NoiseReceiver receive;
     bool ready = false;
+    // As the iPhone app sends a packet larger than the link takes (a T1000-E link: 244 bytes per write): the padded
+    // packet cut into fragments of 202 bytes.
+    bool fragments = false;
+    void transmit(const Frame &frame) const
+    {
+        if (!fragments || frame.size <= 244) {
+            phone.write(frame);
+            return;
+        }
+        Packet whole;
+        CHECK(decode(frame.bytes(), whole) == Result::Ok);
+        const size_t chunk = 202, total = (frame.size + chunk - 1) / chunk;
+        for (size_t index = 0; index < total; ++index) {
+            std::vector<uint8_t> payload{9, 8, 7, 6, 5, 4, 3, 2, uint8_t(index >> 8), uint8_t(index), uint8_t(total >> 8),
+                                         uint8_t(total), whole.type};
+            const size_t start = index * chunk, size = std::min(chunk, frame.size - start);
+            payload.insert(payload.end(), frame.data.begin() + start, frame.data.begin() + start + size);
+            Frame part;
+            CHECK(encode(0x20, phone.id, &bridge, whole.timestamp, 7, {payload.data(), payload.size()}, {}, part) ==
+                  Result::Ok);
+            phone.write(part);
+        }
+    }
     // The message IDs of what read() returned, in the same order.
     std::vector<std::string> ids;
     // "delivered" for one of the bridge's messages, as the app sends it.
@@ -450,7 +473,7 @@ struct PrivatePhone {
         plain.insert(plain.end(), id.begin(), id.end());
         std::vector<uint8_t> sealed(plain.size() + NOISE_TRANSPORT_OVERHEAD);
         CHECK(noiseEncrypt(send, {plain.data(), plain.size()}, sealed.data()));
-        phone.write(directed(0x11, {sealed.data(), sealed.size()}));
+        transmit(directed(0x11, {sealed.data(), sealed.size()}));
     }
     Frame directed(uint8_t type, Bytes payload, bool signedFrame = false) const
     {
@@ -492,7 +515,7 @@ struct PrivatePhone {
         uint8_t m1[NOISE_MESSAGE1];
         CHECK(handshake.writeMessage1(m1));
         fakeSent.clear();
-        phone.write(directed(0x10, {m1, sizeof(m1)}, signedFrames));
+        transmit(directed(0x10, {m1, sizeof(m1)}, signedFrames));
         run(100);
         const auto answers = fromBridge(0x10);
         CHECK(answers.size() == 1 && answers[0].size() == NOISE_MESSAGE2);
@@ -502,7 +525,7 @@ struct PrivatePhone {
         CHECK(proved == bridge);
         uint8_t m3[NOISE_MESSAGE3];
         CHECK(handshake.writeMessage3(phone.noiseKey.data(), phone.noisePublic.data(), m3));
-        phone.write(directed(0x10, {m3, sizeof(m3)}, signedFrames));
+        transmit(directed(0x10, {m3, sizeof(m3)}, signedFrames));
         handshake.split(send, receive);
         ready = true;
         run(100);
@@ -515,7 +538,7 @@ struct PrivatePhone {
         plain.insert(plain.end(), content.begin(), content.end());
         std::vector<uint8_t> sealed(plain.size() + NOISE_TRANSPORT_OVERHEAD);
         CHECK(noiseEncrypt(send, {plain.data(), plain.size()}, sealed.data()));
-        phone.write(directed(0x11, {sealed.data(), sealed.size()}));
+        transmit(directed(0x11, {sealed.data(), sealed.size()}));
     }
     // What the bridge said in this chat since the last clear: delivered IDs, and the texts it sent.
     void read(std::vector<std::string> &delivered, std::vector<std::string> &said)
@@ -837,6 +860,21 @@ static void privateChat(const Phone &ana, const Phone &bia, const Phone &caio, c
         CHECK(chat(bia.handle, &bridgeId).size() == 0 || chat(bia.handle, &bridgeId).size() <= publicNow);
         for (const auto &line : chat(bia.handle, &bridgeId))
             CHECK(line.find("nenhuma outra ponte respondeu") == std::string::npos);
+    }
+    {
+        // An iPhone on a link that takes 244 bytes per write (a T1000-E) sends the padded handshake and messages in
+        // fragments.
+        PrivatePhone pieces{caio, bridgeId};
+        pieces.fragments = true;
+        pieces.open(30);
+        std::vector<std::string> delivered, said;
+        fakeSent.clear();
+        pieces.message("ID-F", "bateria");
+        run(200);
+        pieces.read(delivered, said);
+        CHECK(delivered == std::vector<std::string>{"ID-F"});
+        CHECK(said == std::vector<std::string>{"Bateria: 3,92 V, cerca de 69%."});
+        run(3000);
     }
 }
 
