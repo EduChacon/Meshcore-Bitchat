@@ -1,5 +1,9 @@
 # T-Deck e T-Deck Plus
 
+**Com tela de toque:** a partir da `bitchat0.23`, cada versão traz também o WadaMesh com a ponte,
+que usa a tela, o teclado e o trackball. Ver [WADAMESH.md](WADAMESH.md). Esta página trata do
+arquivo MeshCore comum.
+
 Arquivo `LilyGo_TDeck_companion_radio_ble_bitchat`, para o LilyGo T-Deck e o T-Deck Plus.
 
 **Estado em 2026-11-15: compila; nunca foi ligado em aparelho.**

@@ -5,7 +5,8 @@ final `_bitchat`. **Só o Heltec V3 foi ligado.** "Compila" quer dizer apenas qu
 gerado sem erro: nada garante que o rádio funcione com ele.
 
 **A partir da `bitchat0.19`, cada versão traz só os aparelhos de `tools/bitchat/main_targets.txt`**
-(Heltec V3, os quatro Heltec V4, T1000-E, Cardputer ADV e T-Deck). Os demais desta lista são
+(Heltec V3, os quatro Heltec V4, T1000-E, Cardputer ADV e T-Deck), mais o T-Deck com WadaMesh
+([guia](WADAMESH.md)), a partir da `bitchat0.23`. Os demais desta lista são
 compilados sob pedido (_Actions_ > _Bitchat bridge_ > _Run workflow_, _scope_ `all`).
 
 Os 42 primeiros ambientes foram compilados pela compilação automática do GitHub em 2026-11-15, para a

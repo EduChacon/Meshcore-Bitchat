@@ -1,7 +1,9 @@
 > **MeshCore + ponte Bitchat (experimental).** Este repositório é o MeshCore oficial com uma ponte
 > embutida para o aplicativo Bitchat no firmware _companion_. Funcionou no ensaio do autor com um
 > Heltec V3; os demais aparelhos só foram compilados.
-> Instruções e limites: [docs/bitchat/README.md](./docs/bitchat/README.md).
+> Instruções e limites: [docs/bitchat/README.md](./docs/bitchat/README.md). Inclui pagamentos Cashu
+> pelo LoRa ([guia](./docs/bitchat/CASHU.md)) e o T-Deck com o firmware de tela de toque WadaMesh
+> ([guia](./docs/bitchat/WADAMESH.md)).
 >
 > **MeshCore + Bitchat bridge (experimental).** This is upstream MeshCore with a Bitchat bridge built
 > into the companion firmware. It worked in the author's trial on a Heltec V3; other boards are

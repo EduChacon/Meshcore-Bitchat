@@ -5,7 +5,7 @@
 // bridge builds: the same Nordic UART service and PIN pairing for the MeshCore app, plus the open
 // Bitchat service on the same links.
 
-#include "../../BaseSerialInterface.h"
+#include <helpers/BaseSerialInterface.h>
 #include <NimBLEDevice.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -18,6 +18,8 @@ class SerialBLEInterface : public BaseSerialInterface, NimBLEServerCallbacks, Ni
   bool oldDeviceConnected;
   bool _isEnabled;
   volatile uint16_t app_conn;
+  uint8_t app_addr[6];
+  bool app_addr_valid;
   uint32_t _pin_code;
   unsigned long _last_write;
   char dev_name[32 + 16];
@@ -56,6 +58,7 @@ public:
     _isEnabled = false;
     _last_write = 0;
     app_conn = 0xFFFF;
+    app_addr_valid = false;
     _pin_code = 0;
     dev_name[0] = 0;
     recv_queue = xQueueCreateStatic(
@@ -88,6 +91,11 @@ public:
   bool isWriteBusy() const override;
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
+
+  // For firmware that drives the interface itself (WadaMesh): the next queued frame to the app, when
+  // its turn comes, and the address of the app's link.
+  void drainSendQueue();
+  bool getConnectedPeerAddress(char* buf, size_t len) const;
 };
 
 #if BLE_DEBUG_LOGGING && ARDUINO

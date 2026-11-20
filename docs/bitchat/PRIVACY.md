@@ -7,11 +7,11 @@ não medições.
 
 ## 1. O que é público hoje
 
-| Trecho                                  | Quem pode ler                                                     |
-| --------------------------------------- | ----------------------------------------------------------------- |
-| `#mesh` do Bitchat, perto de cada casa  | qualquer telefone com Bitchat ao alcance do Bluetooth             |
-| Canal `#bitchat` no LoRa (padrão)       | qualquer rádio MeshCore com o canal, cuja chave é pública         |
-| Mensagens privadas e grupos do Bitchat  | só os participantes; hoje **não atravessam** o LoRa               |
+| Trecho                                 | Quem pode ler                                             |
+| -------------------------------------- | --------------------------------------------------------- |
+| `#mesh` do Bitchat, perto de cada casa | qualquer telefone com Bitchat ao alcance do Bluetooth     |
+| Canal `#bitchat` no LoRa (padrão)      | qualquer rádio MeshCore com o canal, cuja chave é pública |
+| Mensagens privadas e grupos do Bitchat | só os participantes; hoje **não atravessam** o LoRa       |
 
 Quem escuta o rádio vê também quem fala e quando, mesmo quando não lê o conteúdo.
 
@@ -59,12 +59,12 @@ pacote do Bitchat vai em até 13 pedaços, com teto de 512 bytes; nunca foi ensa
 MeshCore (até 165 bytes úteis por transmissão). Custo estimado por mensagem privada, em cada
 salto:
 
-| Etapa                                   | Transmissões LoRa | Tempo no ar (estimado) |
-| --------------------------------------- | ----------------- | ---------------------- |
-| Anúncio de cada telefone (a cada 30 s)  | 2                 | cerca de 2,5 s         |
-| Aperto de mão Noise (uma vez por par)   | 3 a 4             | cerca de 5 s           |
-| Mensagem privada curta (256 bytes)      | 2                 | cerca de 3 s           |
-| Mensagem privada média (512 bytes)      | 4                 | cerca de 6,5 s         |
+| Etapa                                  | Transmissões LoRa | Tempo no ar (estimado) |
+| -------------------------------------- | ----------------- | ---------------------- |
+| Anúncio de cada telefone (a cada 30 s) | 2                 | cerca de 2,5 s         |
+| Aperto de mão Noise (uma vez por par)  | 3 a 4             | cerca de 5 s           |
+| Mensagem privada curta (256 bytes)     | 2                 | cerca de 3 s           |
+| Mensagem privada média (512 bytes)     | 4                 | cerca de 6,5 s         |
 
 Os anúncios a cada 30 s são o custo maior: com três telefones em cada casa, ocupariam o canal
 continuamente. Portar exigiria reduzir esse ritmo, e o efeito disso no aplicativo só se vê em
@@ -73,12 +73,12 @@ telefones.**
 
 ## 4. Pagamento (`/pay`)
 
-O Bitchat não guarda dinheiro: `/pay` envia um *token* Cashu, criado em uma carteira à parte,
-como texto da conversa. O *token* é ao portador (quem resgatar primeiro fica com o valor) e o
+O Bitchat não guarda dinheiro: `/pay` envia um _token_ Cashu, criado em uma carteira à parte,
+como texto da conversa. O _token_ é ao portador (quem resgatar primeiro fica com o valor) e o
 resgate exige internet.
 
 - **Pelo canal público da ponte: nunca.** Qualquer rádio com o canal leria e poderia resgatar.
-- **Pelo túnel privado:** um *token* tem centenas de caracteres; cifrado e com o preenchimento do
+- **Pelo túnel privado:** um _token_ tem centenas de caracteres; cifrado e com o preenchimento do
   Bitchat, passa de 512 bytes e excede o teto do túnel. Seria preciso aumentar o teto (mais
   pedaços, mais tempo no ar) e ensaiar.
 - **O que funciona hoje pelo LoRa:** mandar um endereço Lightning curto (`nome@carteira`), que é

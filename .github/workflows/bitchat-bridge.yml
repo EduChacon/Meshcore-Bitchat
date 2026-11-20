@@ -2,8 +2,9 @@ name: Bitchat bridge
 
 # Tests on every push that touches the bridge. On main, the boards of tools/bitchat/main_targets.txt
 # are built, each also with the Brasil radio; a manual run with scope "all" builds every bridge
-# environment and every country of tools/bitchat/regions.json. A release is published when the head
-# commit message contains [publish-release] or the manual run asks for it.
+# environment and every country of tools/bitchat/regions.json. The WadaMesh touch firmware for the
+# T-Deck is built with the bridge on every run, with the Brasil radio (integrations/wadamesh). A release
+# is published when the head commit message contains [publish-release] or the manual run asks for it.
 
 on:
   workflow_dispatch:
@@ -29,6 +30,7 @@ on:
       - 'variants/**'
       - 'test/bitchat/**'
       - 'tools/bitchat/**'
+      - 'integrations/**'
       - 'docs/bitchat/RELEASE.md'
       - 'platformio.ini'
       - '.github/workflows/bitchat-bridge.yml'
@@ -185,8 +187,52 @@ jobs:
           name: country-${{ matrix.environment }}
           path: countries/
 
+  # WadaMesh (GPL-3.0) at the commit pinned in integrations/wadamesh/wadamesh.json, with this bridge.
+  wadamesh:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Init Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-wadamesh
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+
+      - name: Build
+        run: |
+          set -o pipefail
+          python3 tools/bitchat/build_wadamesh.py --region brasil --out firmware 2>&1 | tee build.log | tail -30
+
+      - name: Summary
+        if: always()
+        run: |
+          grep -E "^RAM:|^Flash:" build.log | head -2 | while IFS= read -r line; do echo "::notice title=WadaMesh T-Deck::$line"; done
+          grep -E "error:|Error [0-9]|undefined reference" build.log | head -8 | while IFS= read -r line; do echo "::error title=WadaMesh T-Deck::$line"; done
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-wadamesh
+          path: firmware/
+
   release:
-    needs: [verify, build]
+    needs: [verify, build, wadamesh]
     # One board that fails to build does not hold back the others; its files are simply absent.
     if: >-
       !cancelled() && needs.verify.result == 'success' &&

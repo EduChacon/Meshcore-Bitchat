@@ -1,0 +1,237 @@
+diff --git a/platformio.ini b/platformio.ini
+index 75e3d7e..390033e 100644
+--- a/platformio.ini
++++ b/platformio.ini
+@@ -711,6 +711,27 @@ lib_deps =
+   densaugeo/base64 @ ~1.4.0
+   knolleary/PubSubClient @ ^2.8.0
+ 
++; ======================================================================
++; MeshCore-Bitchat: the T-Deck / T-Deck Plus with the Bitchat bridge. Prepared and built by
++; MeshCore-Bitchat's tools/bitchat/build_wadamesh.py, which copies the bridge into src/helpers/bitchat
++; and replaces the core's companion Bluetooth with the bridge's (same app, same PIN pairing).
++; ======================================================================
++[env:LilyGo_TDeck_companion_radio_touch_bitchat]
++extends = env:LilyGo_TDeck_companion_radio_touch
++build_unflags =
++  -std=gnu++11
++build_flags =
++  ${env:LilyGo_TDeck_companion_radio_touch.build_flags}
++  -std=gnu++17
++  -D WITH_BITCHAT_BRIDGE=1
++  -D ARDUINO_LOOP_STACK_SIZE=16384
++  -D CONFIG_BT_NIMBLE_MAX_CCCDS=20
++  -D BRIDGE_HEAP_CAPS=MALLOC_CAP_8BIT
++build_src_filter =
++  ${env:LilyGo_TDeck_companion_radio_touch.build_src_filter}
++  +<helpers/bitchat/*.cpp>
++  +<helpers/bitchat/esp32/*.cpp>
++
+ ; ======================================================================
+ ; LilyGo T-Deck Pro shared configuration. V1.0 and V1.1 have incompatible
+ ; touch-reset/e-paper/frontlight wiring, so only the explicit revision envs
+diff --git a/src/MyMesh.cpp b/src/MyMesh.cpp
+index 7951872..e6c21af 100644
+--- a/src/MyMesh.cpp
++++ b/src/MyMesh.cpp
+@@ -3470,6 +3470,18 @@ int MyMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel dest[],
+ 
+ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
+                                   const char *text) {
++#ifdef WITH_BITCHAT_BRIDGE
++  {
++    // MeshCore-Bitchat: channel text heard on LoRa goes on to the Bitchat phones nearby
++    uint8_t pkt_hash[MAX_HASH_SIZE];
++    pkt->calculatePacketHash(pkt_hash);
++    // the signal is of the last hop: for a relayed packet it says nothing about the sender
++    const float snr = pkt->getSNR();
++    const int16_t snr_tenths = pkt->getPathHashCount() > 0 ? bitchat::SNR_UNKNOWN
++                                                            : (int16_t)(snr * 10.0f + (snr < 0 ? -0.5f : 0.5f));
++    bitchat_bridge.onChannelText(findChannelIdx(channel), pkt_hash, text, snr_tenths);
++  }
++#endif
+   // Clock bootstrap from a channel peer's send-time (same sane-window + unset-only guard
+   // as queueMessage above) so a Wi-Fi/GPS-off node can still get time off public channels.
+   if (timestamp > 1700000000UL && timestamp < 2000000000UL &&
+@@ -3556,6 +3568,10 @@ void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *
+                        (uint32_t)data_len, (uint32_t)MAX_CHANNEL_DATA_LENGTH);
+     return;
+   }
++#ifdef WITH_BITCHAT_BRIDGE
++  // MeshCore-Bitchat: a part of a Cashu payment between bridges, or its confirmation; not for the apps
++  if (bitchat_bridge.onChannelData(findChannelIdx(channel), data_type, data, data_len)) return;
++#endif
+ 
+   int i = 0;
+   out_frame[i++] = RESP_CODE_CHANNEL_DATA_RECV;
+@@ -4587,6 +4603,10 @@ void MyMesh::handleCmdFrame(size_t len) {
+ 
+     if (txt_type != TXT_TYPE_PLAIN) {
+       writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
++#ifdef WITH_BITCHAT_BRIDGE
++    } else if (bitchat_bridge.onAppText(channel_idx, text, len - i)) {
++      writeOKFrame();   // MeshCore-Bitchat: a bridge command, answered in the app and never transmitted
++#endif
+     } else {
+       ChannelDetails channel;
+       // getChannel() succeeds for ANY in-range index, including a slot that was
+diff --git a/src/MyMesh.h b/src/MyMesh.h
+index eaa9077..97b842b 100644
+--- a/src/MyMesh.h
++++ b/src/MyMesh.h
+@@ -116,6 +116,9 @@
+ #include <helpers/BaseChatMesh.h>
+ #include <helpers/TransportKeyStore.h>
+ #include "RegionRegistry.h"
++#ifdef WITH_BITCHAT_BRIDGE
++#include <helpers/bitchat/BitchatBridge.h>   // MeshCore-Bitchat: the Bitchat bridge (BitchatHost.cpp)
++#endif
+ 
+ /* -------------------------------------------------------------------------------------- */
+ 
+@@ -141,8 +144,34 @@ struct RecentlyHeardName {
+   uint8_t type;
+ };
+ 
+-class MyMesh : public BaseChatMesh, public DataStoreHost {
++class MyMesh : public BaseChatMesh, public DataStoreHost
++#ifdef WITH_BITCHAT_BRIDGE
++  , public bitchat::MeshHost
++#endif
++{
+ public:
++#ifdef WITH_BITCHAT_BRIDGE
++  // bitchat::MeshHost: what the Bitchat bridge asks of the companion, in BitchatHost.cpp
++  uint32_t clockSeconds() override;
++  uint32_t nodeNumber() override;
++  const char *nodeName() override;
++  uint8_t provideChannel(const char *name, const uint8_t secret[32]) override;
++  bool readChannel(uint8_t index, char name[32], uint8_t secret[32]) override;
++  uint32_t airtimeMs(size_t textSize) override;
++  bool radioBusy() override;
++  bool sendChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override;
++  void showChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override;
++  bool sendChannelData(uint8_t index, uint16_t dataType, const uint8_t *data, size_t size) override;
++  bool nodeKeyPrefix(uint8_t keyPrefix[8]) override;
++  bool signAsNode(const uint8_t *data, size_t size, uint8_t signature[64]) override;
++  NodeCheck verifyNode(const uint8_t keyPrefix[8], const uint8_t *data, size_t size, const uint8_t signature[64],
++                       char name[32]) override;
++  uint16_t batteryMilliVolts() override;
++  size_t heardRadios(HeardRadio *out, size_t capacity) override;
++  bool position(int32_t &latitude, int32_t &longitude) override;
++  bool positionShared() override;
++  static bool sendingBridgeText();
++#endif
+   MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui=NULL);
+ 
+   void begin(bool has_display);
+diff --git a/src/helpers/esp32/MultiTransportCompanionInterface.cpp b/src/helpers/esp32/MultiTransportCompanionInterface.cpp
+index 0e9f030..3b07deb 100644
+--- a/src/helpers/esp32/MultiTransportCompanionInterface.cpp
++++ b/src/helpers/esp32/MultiTransportCompanionInterface.cpp
+@@ -9,6 +9,9 @@
+ #include <esp_heap_caps.h>
+ #include <string.h>
+ #include "../../ui-touch/BleKeyboard.h"   // stackGoingDown() before NimBLE teardown
++#ifdef WITH_BITCHAT_BRIDGE
++#include <helpers/bitchat/BridgeBle.h>   // MeshCore-Bitchat
++#endif
+ 
+ // USB Files (ui-touch/UsbFilesSession.h) owns the USB serial port while its app is
+ // open: the USB leg of the companion link neither reads nor writes meanwhile.
+@@ -232,7 +235,9 @@ void MultiTransportCompanionInterface::beginBle(const char* prefix, char* name,
+   // rather than in the core: that file is upstream MeshCore, this transport is
+   // vendored in our src/, and setMTU() is a public static, so no core change is
+   // needed. Verified on an M9: the app now negotiates ATT MTU 179 (was 176).
++#ifndef WITH_BITCHAT_BRIDGE   // MeshCore-Bitchat: the bridge's interface asks for 517, which also covers this
+   NimBLEDevice::setMTU(MAX_FRAME_SIZE + 3);
++#endif
+   _ble_begun = true;
+   _ble_enabled = true;
+   _ota_ble_released = false;
+@@ -296,7 +301,9 @@ void MultiTransportCompanionInterface::enableBle() {
+     strncpy(name, _ble_name, sizeof(name) - 1);
+     name[sizeof(name) - 1] = '\0';
+     _ble.begin(_ble_prefix, name, _ble_pin_code);
++#ifndef WITH_BITCHAT_BRIDGE
+     NimBLEDevice::setMTU(MAX_FRAME_SIZE + 3);   // see beginBle(): ATT payload is MTU-3
++#endif
+     _ble_begun = true;
+   }
+   _ble_enabled = true;
+@@ -357,6 +364,9 @@ void MultiTransportCompanionInterface::disableBle() {
+     bleDetachServerCallbacks();
+ #if CAP_BLE_KEYBOARD
+     BleKbd::stackGoingDown();
++#endif
++#ifdef WITH_BITCHAT_BRIDGE
++    bitchat::bleDetach();   // MeshCore-Bitchat: the bridge lets go of the server deinit() deletes
+ #endif
+     NimBLEDevice::deinit(true);
+     _ble_begun = false;
+@@ -484,6 +494,9 @@ void MultiTransportCompanionInterface::prepareForHttpOta() {
+     bleDetachServerCallbacks();
+ #if CAP_BLE_KEYBOARD
+     BleKbd::stackGoingDown();
++#endif
++#ifdef WITH_BITCHAT_BRIDGE
++    bitchat::bleDetach();   // MeshCore-Bitchat: the bridge lets go of the server deinit() deletes
+ #endif
+     NimBLEDevice::deinit(true);
+     _ble_begun = false;
+diff --git a/src/main.cpp b/src/main.cpp
+index f3d91ce..7395445 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -1790,6 +1790,9 @@ void setup() {
+   serial_interface.begin(Serial);
+ #endif
+   the_mesh.startInterface(serial_interface);
++#ifdef WITH_BITCHAT_BRIDGE
++  bitchat_bridge.begin(the_mesh);   // MeshCore-Bitchat
++#endif
+ #else
+   #error "need to define filesystem"
+ #endif
+@@ -2271,6 +2274,9 @@ void loop() {
+ #else
+   the_mesh.loop();
+ #endif
++#ifdef WITH_BITCHAT_BRIDGE
++  bitchat_bridge.loop();   // MeshCore-Bitchat
++#endif
+ #if defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION)
+ #ifdef DISPLAY_CLASS
+   STALL_SCOPE("mqtt", mqtt_bridge.loop());
+diff --git a/src/ui-touch/UITask.cpp b/src/ui-touch/UITask.cpp
+index 44cc3fc..48c64a1 100644
+--- a/src/ui-touch/UITask.cpp
++++ b/src/ui-touch/UITask.cpp
+@@ -27888,6 +27888,10 @@ static lv_obj_t* openFullscreenView(const char* title) {
+ // used to skip the scope, so a scoped channel went out on the default one (#614).
+ static bool sendGroupMessageScoped(int slot, ChannelDetails& cd, uint32_t ts, const char* sender,
+                                    const char* text) {
++#ifdef WITH_BITCHAT_BRIDGE
++  // MeshCore-Bitchat: the same as the composer's
++  if (slot >= 0 && bitchat_bridge.onAppText((uint8_t)slot, text, strlen(text))) return true;
++#endif
+   char chan_rgn[TOUCH_REGION_SCOPE_MAXLEN] = {0};
+   if (slot >= 0) touchPrefsGetChannelScope(slot, chan_rgn, sizeof(chan_rgn));
+   const bool pushed = the_mesh.pushChannelScope(chan_rgn);
+@@ -80072,6 +80076,16 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
+     }
+     // Per-channel region-scope override: if this channel has one set, tag the
+     // flood with it instead of the default scope (popped right after the send).
++#ifdef WITH_BITCHAT_BRIDGE
++    // MeshCore-Bitchat: "!ponte ..." is answered on this screen and never transmitted; any other text
++    // also reaches the Bitchat phones nearby (onAppText takes it there and returns false).
++    if (bitchat_bridge.onAppText((uint8_t)slot, truncated, strlen(truncated))) {
++      appendMessage(_ui_threads[_active_thread_idx].name, sender, truncated, true, true, false,
++                    0, DELIV_NONE, 0, 0, 0, 0, nullptr, 0, 0);
++      if (!override_text) resetComposer();
++      return true;
++    }
++#endif
+     char chan_rgn[TOUCH_REGION_SCOPE_MAXLEN] = {0};
+     touchPrefsGetChannelScope(slot, chan_rgn, sizeof(chan_rgn));
+     const bool scope_pushed = the_mesh.pushChannelScope(chan_rgn);

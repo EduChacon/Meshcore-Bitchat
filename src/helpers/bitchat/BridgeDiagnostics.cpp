@@ -5,7 +5,12 @@
 
 namespace bitchat
 {
-static constexpr uint32_t CAPS = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+// The memory the bridge's buffers come from. A board whose large allocations go to PSRAM (the T-Deck
+// under WadaMesh) counts that too.
+#ifndef BRIDGE_HEAP_CAPS
+#define BRIDGE_HEAP_CAPS (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
+#endif
+static constexpr uint32_t CAPS = BRIDGE_HEAP_CAPS;
 // Kept back for the Bluetooth stack. A platform whose stack has memory of its own names a smaller figure.
 #ifndef BRIDGE_HEAP_RESERVE
 #define BRIDGE_HEAP_RESERVE (24 * 1024)

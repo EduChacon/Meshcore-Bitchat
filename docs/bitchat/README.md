@@ -16,6 +16,23 @@ ligados. Trate como versão experimental.
 O que está pronto, o que vem em seguida e o que ainda é estudo: [roteiro](ROADMAP.md).
 O ensaio em aparelho combinado antes da versão 1.0: [roteiro de ensaio](TESTING.md).
 
+## Documentos
+
+| Documento                          | Assunto                                                  |
+| ---------------------------------- | -------------------------------------------------------- |
+| Este guia                          | O que a ponte faz, instalação, comandos, limites         |
+| [Aparelhos](DEVICES.md)            | Lista de arquivos por aparelho; Heltec V4: qual dos dois |
+| [Pagamentos Cashu](CASHU.md)       | Pagar pelo LoRa, garantias, limites e roteiro de ensaio  |
+| [T-Deck com WadaMesh](WADAMESH.md) | O firmware de tela de toque com a ponte                  |
+| [T-Deck](TDECK.md)                 | O arquivo MeshCore comum para o T-Deck                   |
+| [Cardputer ADV](CARDPUTER.md)      | Conversa no aparelho, teclado e diagnóstico              |
+| [T1000-E](T1000E.md)               | O nRF52 experimental, som e luz                          |
+| [Privacidade](PRIVACY.md)          | O que se vê no ar, canais com chave própria              |
+| [Roteiro](ROADMAP.md)              | Pronto, em seguida, fora do alcance                      |
+| [Roteiro de ensaio](TESTING.md)    | O ensaio em aparelho antes da 1.0                        |
+| [Versão atual](RELEASE.md)         | O que há de novo; é o texto da página de cada versão     |
+| [Histórico](HISTORY.md)            | Notas das versões anteriores                             |
+
 ## O que faz
 
 a) **Bitchat → MeshCore.** Texto público do `#mesh` do Bitchat sai no canal `#bitchat` do
@@ -52,12 +69,13 @@ Bitchat, arquivos e áudio não atravessam a ponte.
 | ESP32-C6                                                 | Fora: a biblioteca Bluetooth usada não os atende |
 | M5Stack Cardputer ADV com Cap LoRa-1262                  | Compila; não foi ligado. [Notas](CARDPUTER.md)   |
 | LilyGo T-Deck e T-Deck Plus (sem uso do teclado)         | Compila; não foi ligado. [Notas](TDECK.md)       |
+| T-Deck e T-Deck Plus com WadaMesh (tela de toque)        | Compila; não foi ligado. [Guia](WADAMESH.md)     |
 | SenseCAP T1000-E (nRF52)                                 | Experimental; não foi ligado. [Notas](T1000E.md) |
 | Outros nRF52 (RAK4631 etc.)                              | Fora por ora (ver "O que falta")                 |
 
 **Em cada versão (a partir da `bitchat0.19`) saem só os aparelhos principais:** Heltec V3, Heltec V4
 (os quatro arquivos: chip S3R2 ou S3R8, tela comum ou colorida), T1000-E, Cardputer ADV e T-Deck,
-com o pacote do Brasil. Os demais aparelhos da [lista](DEVICES.md) e os outros países são compilados
+com o pacote do Brasil, e o T-Deck com WadaMesh (a partir da `bitchat0.23`). Os demais aparelhos da [lista](DEVICES.md) e os outros países são compilados
 sob pedido, numa execução à parte (no GitHub, _Actions_ > _Bitchat bridge_ > _Run workflow_, com
 _scope_ `all`), e continuam nas versões anteriores. Assim cada versão sai em minutos, e não em meia
 hora.
@@ -433,17 +451,22 @@ ela se desliga e informa `Low memory: bridge OFF`. O consumo real não foi medid
 
 ## Para quem desenvolve
 
-| Onde                                  | O que há                                                       |
-| ------------------------------------- | -------------------------------------------------------------- |
-| `src/helpers/bitchat/`                | Núcleo da ponte (codec, assinaturas, estado, Bluetooth, texto) |
-| `src/helpers/bitchat/BitchatBridge.*` | Ligação com o MeshCore: canal, relógio, comandos, filas        |
-| `src/helpers/bitchat/esp32/`          | Interface Bluetooth do _companion_ sobre NimBLE                |
-| `examples/companion_radio/`           | Três pontos de contato, todos sob `WITH_BITCHAT_BRIDGE`        |
-| `variants/bitchat/platformio.ini`     | Ambientes de compilação                                        |
-| `test/bitchat/`, `tools/bitchat/`     | Testes em computador e scripts                                 |
+| Onde                                                          | O que há                                                        |
+| ------------------------------------------------------------- | --------------------------------------------------------------- |
+| `src/helpers/bitchat/`                                        | Núcleo da ponte (codec, assinaturas, estado, Bluetooth, texto)  |
+| `src/helpers/bitchat/BitchatBridge.*`                         | Ligação com o MeshCore: canal, relógio, comandos, filas         |
+| `src/helpers/bitchat/Bridge{Cashu,Inflate,Tunnel,Payments}.*` | Pagamentos Cashu pelo LoRa                                      |
+| `src/helpers/bitchat/esp32/`, `nrf52/`                        | Interface Bluetooth do _companion_ (NimBLE; Bluefruit no nRF52) |
+| `examples/companion_radio/`                                   | Pontos de contato com a ponte e ajustes de bipe e luz           |
+| `variants/bitchat/platformio.ini`                             | Ambientes de compilação (gerados)                               |
+| `integrations/wadamesh/`                                      | Encaixe da ponte no WadaMesh ([guia](WADAMESH.md))              |
+| `test/bitchat/`                                               | Testes em computador                                            |
+| `tools/bitchat/`                                              | Scripts ([lista](../../tools/bitchat/README.md))                |
+| `.github/workflows/bitchat-bridge.yml`                        | Compilação e publicação no GitHub                               |
 
-Os arquivos originais do MeshCore só mudam em `MyMesh.h`, `MyMesh.cpp` e `main.cpp`, em blocos
-`#ifdef WITH_BITCHAT_BRIDGE`. Sem essa opção, o firmware compila como o original.
+Os arquivos originais do MeshCore mudam em `MyMesh.h`, `MyMesh.cpp`, `main.cpp`, `NodePrefs.h` e nas
+interfaces de tela (`ui-*`), em blocos `#ifdef WITH_BITCHAT_BRIDGE` ou em ajustes que valem também
+sem ponte (bipe e luz). Sem essa opção, o firmware compila como o original.
 
 Compilar:
 

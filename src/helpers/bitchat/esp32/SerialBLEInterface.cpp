@@ -100,6 +100,7 @@ void SerialBLEInterface::onDisconnect(NimBLEServer* server, ble_gap_conn_desc* d
   if (desc->conn_handle == app_conn) {
     app_conn = NO_CONN;
     deviceConnected = false;
+    app_addr_valid = false;
   }
   if (_isEnabled) {
     adv_restart_time = millis() + ADVERT_RESTART_DELAY;
@@ -112,6 +113,8 @@ void SerialBLEInterface::onAuthenticationComplete(ble_gap_conn_desc* desc) {
     if (!deviceConnected) {
       app_conn = desc->conn_handle;
       deviceConnected = true;
+      memcpy(app_addr, desc->peer_ota_addr.val, 6);
+      app_addr_valid = true;
     }
   } else {
     BLE_DEBUG_PRINTLN(" - Authentication Failure*");
@@ -229,7 +232,7 @@ bool SerialBLEInterface::isWriteBusy() const {
   return millis() < _last_write + BLE_WRITE_MIN_INTERVAL;   // still too soon to start another write?
 }
 
-size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
+void SerialBLEInterface::drainSendQueue() {
   if (send_queue_len > 0   // first, check send queue
     && millis() >= _last_write + BLE_WRITE_MIN_INTERVAL    // space the writes apart
   ) {
@@ -245,6 +248,20 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
       send_queue[i] = send_queue[i + 1];
     }
   }
+}
+
+bool SerialBLEInterface::getConnectedPeerAddress(char* buf, size_t len) const {
+  if (!buf || len == 0) return false;
+  buf[0] = '\0';
+  if (!app_addr_valid || !deviceConnected || len < 18) return false;
+  // NimBLE keeps the address little-endian; shown most significant byte first
+  snprintf(buf, len, "%02X:%02X:%02X:%02X:%02X:%02X", app_addr[5], app_addr[4], app_addr[3], app_addr[2], app_addr[1],
+           app_addr[0]);
+  return true;
+}
+
+size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
+  drainSendQueue();
 
   Frame frame;
   if (xQueueReceive(recv_queue, &frame, 0) == pdTRUE) {
