@@ -26,13 +26,32 @@ size_t tunnelParts(size_t bundleSize)
     return (bundleSize + TUNNEL_CHUNK - 1) / TUNNEL_CHUNK;
 }
 
-bool makeTunnelAck(uint32_t id, TunnelOutcome outcome, uint8_t phones, uint32_t node, TunnelDatagram &out)
+void tunnelAckSigned(uint32_t id, TunnelOutcome outcome, uint8_t phones, const uint8_t key[8], const uint8_t messageHash[8],
+                     uint8_t (&out)[TUNNEL_ACK_SIGNED])
+{
+    out[0] = 'B';
+    out[1] = 'C';
+    out[2] = 'A';
+    write32(out + 3, id);
+    out[7] = uint8_t(outcome);
+    out[8] = phones;
+    memcpy(out + 9, key, 8);
+    memcpy(out + 17, messageHash, 8);
+}
+
+bool makeTunnelAck(uint32_t id, TunnelOutcome outcome, uint8_t phones, const uint8_t key[8], const uint8_t *signature,
+                   TunnelDatagram &out)
 {
     header(TunnelKind::Ack, id, out);
     out.data[7] = uint8_t(outcome);
     out.data[8] = phones;
-    write32(out.data.data() + 9, node);
+    // An older bridge reads the first four bytes of the key as the node number, which they are.
+    memcpy(out.data.data() + 9, key, signature ? 8 : 4);
     out.size = 13;
+    if (signature) {
+        memcpy(out.data.data() + 17, signature, 64);
+        out.size = TUNNEL_ACK_SIZE;
+    }
     return true;
 }
 
@@ -100,6 +119,13 @@ bool readTunnelAnswer(Bytes data, TunnelHeard &out)
         out.outcome = TunnelOutcome(data.data[7]);
         out.phones = data.data[8];
         out.node = read32(data.data + 9);
+        if (data.size >= TUNNEL_ACK_SIZE) {
+            memcpy(out.key.data(), data.data + 9, 8);
+            memcpy(out.signature.data(), data.data + 17, 64);
+            out.signedAck = true;
+        } else {
+            memcpy(out.key.data(), data.data + 9, 4);
+        }
         return true;
     }
     if (out.kind == TunnelKind::Want && data.size >= 9) {

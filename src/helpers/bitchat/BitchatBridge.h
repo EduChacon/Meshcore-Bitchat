@@ -56,6 +56,32 @@ class MeshHost
     }
     // What a radio can tell about itself and its neighbours. The defaults say "not known".
     virtual uint16_t batteryMilliVolts() { return 0; }
+    // The first 8 bytes of the radio's MeshCore public key, and a signature with that identity.
+    virtual bool nodeKeyPrefix(uint8_t keyPrefix[8])
+    {
+        (void)keyPrefix;
+        return false;
+    }
+    virtual bool signAsNode(const uint8_t *data, size_t size, uint8_t signature[64])
+    {
+        (void)data;
+        (void)size;
+        (void)signature;
+        return false;
+    }
+    enum class NodeCheck : uint8_t { Unknown, Valid, Invalid };
+    // Checks a signature by a radio this one has as a contact (its key came in an advert); `name` gets the
+    // contact's name. Unknown when no contact has that key.
+    virtual NodeCheck verifyNode(const uint8_t keyPrefix[8], const uint8_t *data, size_t size, const uint8_t signature[64],
+                                 char name[32])
+    {
+        (void)keyPrefix;
+        (void)data;
+        (void)size;
+        (void)signature;
+        (void)name;
+        return NodeCheck::Unknown;
+    }
     // The radio's buzzer and status light, kept as the operator sets them. False when the radio has none.
     virtual bool setSound(bool on)
     {
@@ -212,13 +238,17 @@ class BitchatBridge
     } rangeTest;
     // The payment this radio is taking over LoRa, for telling the payer how it went.
     struct Payment {
-        uint32_t id = 0, at = 0, refusedAt = 0, signedAt = 0, heldAt = 0;
+        uint32_t id = 0, at = 0, answeredAt = 0, signedAt = 0, heldAt = 0;
         uint64_t amount = 0;
         char unit[13]{};
         char payer[bitchat::LABEL_LIMIT + 1]{};
-        bool waiting = false, refused = false, holding = false;
+        bool waiting = false, answered = false, holding = false, trusted = false;
+        // The best answer so far: a delivery a known radio signed ends the wait at once.
         bitchat::TunnelOutcome outcome = bitchat::TunnelOutcome::Delivered;
+        uint8_t phones = 0, rank = 0;
         uint32_t node = 0;
+        char bridge[15]{};
+        std::array<uint8_t, 8> messageHash{};
         bitchat::PeerId sender{};
         bitchat::Digest messageId{};
     } payment;
@@ -346,7 +376,7 @@ class BitchatBridge
     void startPayment(bitchat::Bytes announce, bitchat::Bytes message);
     void paymentAnswered(const bitchat::TunnelHeard &heard, uint32_t now);
     void watchPayment(uint32_t now);
-    void reportPayment(bool delivered, uint8_t phones);
+    void reportPayment();
     bool sendTunnel();
     bool tunnelDue() const;
     void say(const char *text);

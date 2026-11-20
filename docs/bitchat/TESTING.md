@@ -5,6 +5,8 @@ para o MeshCore e, com os nomes de comando iguais, para o Saitama (T-Deck Plus e
 O roteiro do Meshtastic está no
 [repositório dele](https://github.com/EduChacon/meshtastic-bitchat/blob/main/docs/bridge/TESTING.md).
 
+Os pagamentos Cashu têm roteiro próprio, no [guia dos pagamentos](CASHU.md#roteiro-de-ensaio).
+
 ## Material
 
 a) Dois rádios com a ponte, de preferência um Heltec V3 e um T1000-E (ou T-Deck Plus).

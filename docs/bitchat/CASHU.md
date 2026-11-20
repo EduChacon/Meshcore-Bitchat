@@ -23,14 +23,15 @@ ponte.
 
 d) A ponte responde no chat, em português:
 
-| Mensagem                                                  | O que quer dizer                                                       |
-| --------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `Levando 21 sat de Ana pela LoRa (9 partes)…`             | O token saiu; a resposta vem em até cerca de 2 min                     |
-| `✓ 21 sat entregue à ponte 1a2b (2 cel.). Confirme com…`  | A ponte de destino recebeu tudo e entregou aos celulares perto dela    |
-| `✗ 21 sat não entregue: ponte 1a2b sem celular perto…`    | Chegou inteiro, mas não havia ninguém com Bitchat lá; nada foi exibido |
-| `✗ 21 sat chegou tarde à ponte 1a2b…`                     | Passou de 2 min: os celulares o recusariam; nada foi exibido           |
-| `✗ A ponte 1a2b recusou 21 sat…`                          | Assinatura ou formato não conferiu; nada foi exibido                   |
-| `✗ 21 sat sem confirmação. Se não chegou, o token segue…` | Nenhuma ponte respondeu; pode não ter chegado, ou a resposta se perdeu |
+| Mensagem                                                  | O que quer dizer                                                                    |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `Levando 21 sat de Ana pela LoRa (9 partes)…`             | O token saiu; a resposta vem em até cerca de 2 min                                  |
+| `✓ 21 sat entregue à ponte Casa (2 cel.). Confirme com…`  | A ponte de destino, contato deste rádio, assinou: entregou aos celulares perto dela |
+| `✓? 21 sat entregue, diz a ponte 1a2b (não é contato)…`   | Uma ponte que este rádio não conhece diz ter entregue; confirme com quem recebe     |
+| `✗ 21 sat não entregue: ponte 1a2b sem celular perto…`    | Chegou inteiro, mas não havia ninguém com Bitchat lá; nada foi exibido              |
+| `✗ 21 sat chegou tarde à ponte 1a2b…`                     | Passou de 2 min: os celulares o recusariam; nada foi exibido                        |
+| `✗ A ponte 1a2b recusou 21 sat…`                          | Assinatura ou formato não conferiu; nada foi exibido                                |
+| `✗ 21 sat sem confirmação. Se não chegou, o token segue…` | Nenhuma ponte respondeu; pode não ter chegado, ou a resposta se perdeu              |
 
 e) **Do outro lado**, quem recebe vê a mensagem de quem pagou, com o token, e a nota
 `21 sat de Ana chegaram pela LoRa. Toque no token para resgatar.` Ao tocar no token, o Bitchat
@@ -99,12 +100,70 @@ própria recompressão. A entrega do outro lado se comporta como a de um celular
 perto do pagador; se o próprio Bitchat não se entender entre iOS e Android com uma mensagem
 longa, a ponte não muda isso.
 
-j) **A confirmação não é assinada.** Num canal de chave pública, quem tiver a chave do canal pode
-forjar um `✓` ou atrapalhar a montagem das partes. Não pode criar nem gastar o token travado, mas
-pode enganar quem paga sobre a entrega. Por isso a mensagem diz "Confirme com quem recebe".
+j) **A confirmação é assinada pelo rádio da ponte de destino** (a partir da `bitchat0.21`), com a
+identidade MeshCore dele. A ponte de quem paga confere a assinatura com a chave que conhece pelos
+anúncios ("adverts") e só então mostra `✓` com o nome do contato. De uma ponte que não é contato
+chega `✓?`, com o número que ela diz ter, e quem paga deve confirmar com quem recebe. Uma
+confirmação que diz vir de um contato, mas cuja assinatura não confere, é descartada.
 
 k) **Uma menção a `cashuA`/`cashuB` que não seja um token legível também fica fora do LoRa**, com o
-aviso `Token Cashu ilegível`. Dois tokens na mesma mensagem não vão.
+aviso `Token Cashu ilegível`. Dois tokens na mesma mensagem não vão. Do LoRa para o Bitchat, não
+passa texto que nomeie um token nem que tenha 40 ou mais letras e números seguidos, sem espaço (um
+pedaço de token cortado); um código longo colado no canal fica de fora pelo mesmo motivo.
+
+## Roteiro de ensaio
+
+Ainda não houve ensaio em aparelho. Este é o mínimo para saber se funciona. Use um valor pequeno
+(por exemplo, 21 sat) numa casa da moeda conhecida.
+
+### Material
+
+a) Duas pontes com a `bitchat0.21` ou mais nova: **A**, perto de quem paga, e **B**, perto de quem
+recebe, no mesmo canal (o `#bitchat` padrão serve).
+
+b) Dois celulares com o Bitchat e uma carteira Cashu que trave tokens (P2PK): **P**, de quem paga,
+e **R**, de quem recebe. **Os dois celulares não podem estar ao alcance do Bluetooth um do outro**
+(algumas dezenas de metros, ou paredes no caminho); senão o Bitchat entrega o token diretamente, e o
+ensaio não mostra nada. Duas casas são o ideal.
+
+c) O aplicativo MeshCore ligado a cada ponte, para os comandos e para conferir o canal.
+
+### Preparação
+
+1. Gravar a mesma versão nas duas pontes. Em cada uma, `!ponte` no aplicativo MeshCore deve
+   responder `Ready: Bitchat + LoRa`.
+2. **Uma ponte tem de conhecer a outra.** No aplicativo MeshCore de cada ponte, mandar um anúncio
+   ("Advert", por inundação) e conferir se a outra aparece na lista de contatos. Sem isso, a
+   confirmação chega como `✓?` (ponte que não é contato).
+3. Em R, copiar na carteira a chave pública para receber travado e enviá-la a quem paga, por
+   qualquer meio. Em P, com internet, criar um token travado para essa chave. Os nomes dos menus
+   variam de carteira para carteira.
+
+### Ensaio
+
+4. **Token sem trava (deve ser recusado).** Em P, colar no chat público um token sem trava de
+   1 sat. Esperado: `[bridge] Token sem trava P2PK…` e nada em R.
+5. **Pagamento.** Em P, colar o token travado no chat público (ou `/pay <token>`). Esperado, em P:
+   `Levando 21 sat de … pela LoRa (n partes)…` e, em até 2 minutos,
+   `✓ 21 sat entregue à ponte <nome da B> (1 cel.)…`. Em R: a mensagem de P com o token e
+   `21 sat de … chegaram pela LoRa. Toque no token para resgatar.`
+6. **Resgate.** Em R, tocar no token e receber na carteira, primeiro sem internet (se a carteira
+   permitir) e depois com internet. Anotar o que a carteira disse.
+7. **Ninguém do outro lado.** Fechar o Bitchat em R e repetir o passo 5 com outro token. Esperado:
+   `✗ … ponte … sem celular perto. O token segue com você.`
+8. **Ponte B desligada.** Desligar B e repetir. Esperado, depois de cerca de 100 s:
+   `✗ … sem confirmação…`.
+9. **Nada como texto.** Num terceiro rádio MeshCore, ou no aplicativo da ponte A, olhar o canal
+   `#bitchat` durante os passos 4 a 8. Esperado: nenhum pedaço de token aparece como mensagem.
+10. **Som e luz (T1000-E).** `!ponte som off` e `!ponte luz off`; mandar mensagens do Bitchat e do
+    LoRa; reiniciar o rádio. Esperado: nenhum bipe e luz apagada, também depois de reiniciar. Depois,
+    `!ponte som on` e `!ponte luz on`.
+
+### O que anotar
+
+Para cada passo: o que apareceu em P e em R (captura de tela), o tempo entre colar o token e a
+resposta da ponte, e a resposta de `!ponte` nas duas pontes no fim. Se algo falhar, a captura da
+mensagem da ponte basta para localizar a causa na maioria dos casos.
 
 ## Para quem desenvolve
 

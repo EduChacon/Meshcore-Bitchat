@@ -10,7 +10,8 @@
 //
 // Datagram: 'B' 'C', version (high nibble) and kind (low nibble), bundle id (4 bytes), then per kind
 //   data  index, count, chunk
-//   ack   outcome, phones, node number of the receiving bridge (4 bytes)
+//   ack   outcome, phones, first 8 bytes of the receiving radio's MeshCore public key, then its
+//         MeshCore signature (64 bytes) over tunnelAckSigned(); an ack of 13 bytes is unsigned
 //   want  missing parts as a 16-bit mask
 // Bundle: announce size (2 bytes, big endian), announce, message size (2 bytes), message.
 
@@ -56,7 +57,10 @@ struct TunnelHeard {
     // ack
     TunnelOutcome outcome = TunnelOutcome::Delivered;
     uint8_t phones = 0;
-    uint32_t node = 0;
+    uint32_t node = 0; // the first 4 bytes of the key, as MeshCore shows a node
+    std::array<uint8_t, 8> key{};
+    bool signedAck = false;
+    std::array<uint8_t, 64> signature{};
     // want
     uint16_t missing = 0;
 };
@@ -65,7 +69,15 @@ bool tunnelDatagram(Bytes data);
 // An ack or a want; false for data and anything malformed.
 bool readTunnelAnswer(Bytes data, TunnelHeard &out);
 size_t tunnelParts(size_t bundleSize);
-bool makeTunnelAck(uint32_t id, TunnelOutcome outcome, uint8_t phones, uint32_t node, TunnelDatagram &out);
+constexpr size_t TUNNEL_ACK_SIGNED = 25;
+constexpr size_t TUNNEL_ACK_SIZE = 17 + 64;
+// What the receiving radio signs: "BCA", bundle id, outcome, phones, its key prefix, and the first 8
+// bytes of the SHA-256 of the message frame it got, so an ack fits one payment only.
+void tunnelAckSigned(uint32_t id, TunnelOutcome outcome, uint8_t phones, const uint8_t key[8], const uint8_t messageHash[8],
+                     uint8_t (&out)[TUNNEL_ACK_SIGNED]);
+// `signature` may be null for an unsigned ack.
+bool makeTunnelAck(uint32_t id, TunnelOutcome outcome, uint8_t phones, const uint8_t key[8], const uint8_t *signature,
+                   TunnelDatagram &out);
 bool makeTunnelWant(uint32_t id, uint16_t missing, TunnelDatagram &out);
 
 // One payment on its way out.

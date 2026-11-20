@@ -150,6 +150,11 @@ static void tokens()
         CashuToken token;
         findCashu(utf8(text.c_str()), scratch, token);
     }
+    // Pieces of a token without its name, and text that is no token.
+    CHECK(tokenLike(utf8("ab3Fg-_9ab3Fg-_9ab3Fg-_9ab3Fg-_9ab3Fg-_9")));
+    CHECK(!tokenLike(utf8("ab3Fg-_9ab3Fg-_9ab3Fg-_9ab3Fg-_9ab3Fg-_ e mais")));
+    CHECK(!tokenLike(utf8("https://exemplo.com.br/caminho/longo/de/verdade?x=1&y=2")));
+    CHECK(tokenLike(utf8("veja cashuB")));
     // Secrets read by themselves.
     CHECK(!lockedSecret(utf8("abc")));
     CHECK(!lockedSecret(utf8("[\"P2PK\",{\"data\":\"02aa\"}]")));
@@ -299,12 +304,23 @@ static void tunnel()
     }
     // Acks.
     {
-        CHECK(makeTunnelAck(77, TunnelOutcome::NoPhones, 3, 0xa1b2c3d4, d));
+        const uint8_t key[8] = {0xa1, 0xb2, 0xc3, 0xd4, 5, 6, 7, 8};
+        CHECK(makeTunnelAck(77, TunnelOutcome::NoPhones, 3, key, nullptr, d) && d.size == 13);
         TunnelReceiver receiver;
         TunnelHeard heard;
         CHECK(receiver.accept(d.bytes(), 0, heard));
         CHECK(heard.kind == TunnelKind::Ack && heard.id == 77 && heard.outcome == TunnelOutcome::NoPhones && heard.phones == 3 &&
-              heard.node == 0xa1b2c3d4);
+              heard.node == 0xa1b2c3d4 && !heard.signedAck);
+        uint8_t signature[64];
+        for (int i = 0; i < 64; ++i)
+            signature[i] = uint8_t(i);
+        CHECK(makeTunnelAck(78, TunnelOutcome::Delivered, 1, key, signature, d) && d.size == TUNNEL_ACK_SIZE &&
+              d.size <= TUNNEL_DATAGRAM);
+        CHECK(readTunnelAnswer(d.bytes(), heard) && heard.signedAck && heard.node == 0xa1b2c3d4 && heard.key[7] == 8 &&
+              heard.signature[63] == 63);
+        uint8_t signedBytes[TUNNEL_ACK_SIGNED], hash[8] = {9, 9, 9, 9, 9, 9, 9, 9};
+        tunnelAckSigned(78, TunnelOutcome::Delivered, 1, key, hash, signedBytes);
+        CHECK(signedBytes[0] == 'B' && signedBytes[2] == 'A' && signedBytes[7] == 0 && signedBytes[24] == 9);
         d.data[7] = 9;
         CHECK(!receiver.accept(d.bytes(), 0, heard));
     }

@@ -1690,8 +1690,9 @@ void BitchatBridge::channelText(uint8_t channel, const uint8_t *packetHash, cons
     if (!body.size || (parseBridgeCommand(body, heardCommand) && heardCommand.command != Command::Sos &&
                        heardCommand.command != Command::Note && heardCommand.command != Command::NoteOff))
         return;
-    // A token cut to fit LoRa text is useless and looks like money: tokens cross only by the tunnel.
-    if (mentionsCashu(body)) {
+    // A token cut to fit LoRa text is useless and looks like money, and its later pieces no longer
+    // carry its name: tokens cross only whole, by the tunnel.
+    if (tokenLike(body)) {
         reject(Result::Policy);
         return;
     }

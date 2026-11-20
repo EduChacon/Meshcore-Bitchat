@@ -597,6 +597,21 @@ bool mentionsCashu(Bytes text)
     return false;
 }
 
+bool tokenLike(Bytes text)
+{
+    if (mentionsCashu(text))
+        return true;
+    size_t run = 0;
+    for (size_t i = 0; i < text.size; ++i) {
+        const uint8_t c = text.data[i];
+        const bool b64 = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_';
+        run = b64 ? run + 1 : 0;
+        if (run >= 40)
+            return true;
+    }
+    return false;
+}
+
 CashuFound findCashu(Bytes text, uint8_t (&scratch)[CASHU_SCRATCH], CashuToken &out)
 {
     out = {};

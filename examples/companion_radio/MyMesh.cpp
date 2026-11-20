@@ -2648,6 +2648,26 @@ void MyMesh::showChannelText(uint8_t index, uint32_t timestamp, const char *text
   }
 }
 
+bool MyMesh::nodeKeyPrefix(uint8_t keyPrefix[8]) {
+  memcpy(keyPrefix, self_id.pub_key, 8);
+  return true;
+}
+
+bool MyMesh::signAsNode(const uint8_t *data, size_t size, uint8_t signature[64]) {
+  self_id.sign(signature, data, (int)size);
+  return true;
+}
+
+// A radio heard in an advert is a contact with its whole public key: that key checks the signature.
+bitchat::MeshHost::NodeCheck MyMesh::verifyNode(const uint8_t keyPrefix[8], const uint8_t *data, size_t size,
+                                                const uint8_t signature[64], char name[32]) {
+  ContactInfo *contact = lookupContactByPubKey(keyPrefix, 8);
+  if (contact == NULL) return NodeCheck::Unknown;
+  if (!contact->id.verify(signature, data, (int)size)) return NodeCheck::Invalid;
+  StrHelper::strncpy(name, contact->name, 32);
+  return NodeCheck::Valid;
+}
+
 bool MyMesh::setSound(bool on) {
 #ifdef PIN_BUZZER
   _prefs.buzzer_quiet = on ? 0 : 1;

@@ -32,6 +32,9 @@ struct CashuToken {
 
 // Whether the text names a token at all ("cashuA"/"cashuB"), read or not.
 bool mentionsCashu(Bytes text);
+// Whether text could be a token or a piece of one: it names one, or holds 40 or more base64url
+// characters in a row (a token cut where the name was left in another message).
+bool tokenLike(Bytes text);
 CashuFound findCashu(Bytes text, uint8_t (&scratch)[CASHU_SCRATCH], CashuToken &out);
 
 // The secret of one proof: whether it is P2PK and stays locked after any locktime.

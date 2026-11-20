@@ -247,6 +247,10 @@ public:
   bool sendChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override;
   void showChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override;
   bool sendChannelData(uint8_t index, uint16_t dataType, const uint8_t *data, size_t size) override;
+  bool nodeKeyPrefix(uint8_t keyPrefix[8]) override;
+  bool signAsNode(const uint8_t *data, size_t size, uint8_t signature[64]) override;
+  NodeCheck verifyNode(const uint8_t keyPrefix[8], const uint8_t *data, size_t size, const uint8_t signature[64],
+                       char name[32]) override;
   bool setSound(bool on) override;
   bool setLight(bool on) override;
   uint16_t batteryMilliVolts() override;

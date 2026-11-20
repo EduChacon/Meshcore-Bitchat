@@ -124,6 +124,38 @@ struct FakeMesh : MeshHost {
     int32_t latitude = 0, longitude = 0;
     std::vector<bool> gpsCalls;
     uint16_t batteryMilliVolts() override { return battery; }
+    // The radio's MeshCore identity, and the radios it knows as contacts (key prefix, public key, name).
+    std::array<uint8_t, 32> nodeSecret{}, nodePublic{};
+    bool identity = false;
+    struct Contact {
+        std::array<uint8_t, 32> key;
+        std::string name;
+    };
+    std::vector<Contact> contacts;
+    bool nodeKeyPrefix(uint8_t prefix[8]) override
+    {
+        if (identity)
+            std::copy_n(nodePublic.begin(), 8, prefix);
+        return identity;
+    }
+    bool signAsNode(const uint8_t *data, size_t size, uint8_t signature[64]) override
+    {
+        if (identity)
+            Ed25519::sign(signature, nodeSecret.data(), nodePublic.data(), data, size);
+        return identity;
+    }
+    NodeCheck verifyNode(const uint8_t prefix[8], const uint8_t *data, size_t size, const uint8_t signature[64],
+                         char label[32]) override
+    {
+        for (const auto &c : contacts)
+            if (std::equal(c.key.begin(), c.key.begin() + 8, prefix)) {
+                if (!Ed25519::verify(signature, c.key.data(), data, size))
+                    return NodeCheck::Invalid;
+                snprintf(label, 32, "%s", c.name.c_str());
+                return NodeCheck::Valid;
+            }
+        return NodeCheck::Unknown;
+    }
     // The buzzer and status light: -1 until set.
     int sound = -1, light = -1;
     bool hasAlerts = true;
@@ -357,6 +389,10 @@ static void cashuTunnel(const Phone &ana, const Phone &bia, const PeerId &bridge
         const auto lines = bridgeSaid();
         return lines.empty() ? std::string() : lines.back();
     };
+    for (size_t i = 0; i < 32; ++i)
+        mesh.nodeSecret[i] = uint8_t(5 + 3 * i);
+    Ed25519::derivePublicKey(mesh.nodePublic.data(), mesh.nodeSecret.data());
+    mesh.identity = true;
     // A token locked to a key goes, on the public #bitchat channel too.
     const std::string locked = token("B p2pk"), open = token("B plain");
     mesh.radio.clear();
@@ -395,12 +431,35 @@ static void cashuTunnel(const Phone &ana, const Phone &bia, const PeerId &bridge
         }
     }
     CHECK(complete == 1);
-    // The other bridge's word comes back: the payer is told.
+    // The other bridge's word comes back. Its radio is a contact here and signed it: the payer is told at once,
+    // with the contact's name. A forged answer with that radio's key, or one from a stranger, does not win.
+    std::array<uint8_t, 32> farSecret{}, farPublic{};
+    for (size_t i = 0; i < 32; ++i)
+        farSecret[i] = uint8_t(77 + i);
+    Ed25519::derivePublicKey(farPublic.data(), farSecret.data());
+    mesh.contacts.push_back({farPublic, "Casa do Pai"});
+    Digest messageHash;
+    crypto.hash(payment.bytes(), messageHash);
+    const auto signedAck = [&](uint32_t id, TunnelOutcome outcome, uint8_t phones, const uint8_t *key, const uint8_t *secret,
+                               const uint8_t *pub, TunnelDatagram &out) {
+        uint8_t message[TUNNEL_ACK_SIGNED], signature[64];
+        tunnelAckSigned(id, outcome, phones, key, messageHash.data(), message);
+        Ed25519::sign(signature, secret, pub, message, sizeof(message));
+        makeTunnelAck(id, outcome, phones, key, signature, out);
+    };
     TunnelDatagram ack;
-    makeTunnelAck(heard.id, TunnelOutcome::Delivered, 2, 0xbeef1234, ack);
+    const uint8_t stranger[8] = {0xbe, 0xef, 0x12, 0x34, 1, 2, 3, 4};
+    makeTunnelAck(heard.id, TunnelOutcome::Delivered, 9, stranger, nullptr, ack);
     CHECK(toBridge(ack));
+    signedAck(heard.id, TunnelOutcome::Delivered, 9, farPublic.data(), farSecret.data(), farPublic.data(), ack);
+    ack.data[8] = 7; // altered after signing
+    CHECK(toBridge(ack));
+    run(3000);
+    CHECK(lastSaid().rfind("[bridge] Levando", 0) == 0);
+    signedAck(heard.id, TunnelOutcome::Delivered, 2, farPublic.data(), farSecret.data(), farPublic.data(), ack);
+    CHECK(ack.size == TUNNEL_ACK_SIZE && toBridge(ack));
     run(300);
-    CHECK(lastSaid() == "[bridge] ✓ 10 sat entregue à ponte beef (2 cel.). Confirme com quem recebe.");
+    CHECK(lastSaid() == "[bridge] ✓ 10 sat entregue à ponte Casa do Pai (2 cel.). Confirme com quem recebe.");
     // Other channel data is the app's.
     const uint8_t other[4] = {1, 2, 3, 4};
     CHECK(!bridge->onChannelData(1, 0x1234, other, sizeof(other)));
@@ -471,13 +530,32 @@ static void cashuTunnel(const Phone &ana, const Phone &bia, const PeerId &bridge
         TunnelHeard h;
         for (const auto &d : mesh.data)
             r.accept({d.data(), d.size()}, 0, h);
-        makeTunnelAck(read32(mesh.data[0].data() + 3), TunnelOutcome::NoPhones, 0, 0x0a0b0000, ack);
+        const uint8_t old[8] = {0x0a, 0x0b, 0, 0};
+        makeTunnelAck(read32(mesh.data[0].data() + 3), TunnelOutcome::NoPhones, 0, old, nullptr, ack);
     }
     CHECK(toBridge(ack));
     run(5000);
     CHECK(lastSaid().rfind("[bridge] Levando", 0) == 0);
     run(11000);
     CHECK(lastSaid() == "[bridge] ✗ 10 sat não entregue: ponte 0a0b sem celular perto. O token segue com você.");
+    // A delivery only a stranger claims is told as such, after the wait for a better answer.
+    fakeSent.clear();
+    mesh.data.clear();
+    run(30000);
+    ana.write(ana.announce());
+    run(200);
+    {
+        const Frame again = ana.sayCompressed(locked);
+        ana.write(again);
+        run(30000);
+        CHECK(!mesh.data.empty());
+        makeTunnelAck(read32(mesh.data[0].data() + 3), TunnelOutcome::Delivered, 1, stranger, nullptr, ack);
+        CHECK(toBridge(ack));
+        run(5000);
+        CHECK(lastSaid().rfind("[bridge] Levando", 0) == 0);
+        run(11000);
+        CHECK(lastSaid() == "[bridge] ✓? 10 sat entregue, diz a ponte beef (não é contato). Confirme com quem recebe.");
+    }
 
     // With Ana's last announce too old for the far phones, the payment waits for her next one.
     fakeSent.clear();
@@ -555,7 +633,16 @@ static void cashuTunnel(const Phone &ana, const Phone &bia, const PeerId &bridge
     CHECK(mesh.data.size() == 1);
     TunnelHeard told;
     CHECK(readTunnelAnswer({mesh.data[0].data(), mesh.data[0].size()}, told) && told.kind == TunnelKind::Ack &&
-          told.id == 0x55667788 && told.outcome == TunnelOutcome::Delivered && told.phones >= 2 && told.node == mesh.node);
+          told.id == 0x55667788 && told.outcome == TunnelOutcome::Delivered && told.phones >= 2 && told.signedAck &&
+          std::equal(told.key.begin(), told.key.end(), mesh.nodePublic.begin()));
+    {
+        // Signed with this radio's MeshCore identity, over the message Rui's bridge sent.
+        Digest h;
+        crypto.hash(ruiPayment.bytes(), h);
+        uint8_t message[TUNNEL_ACK_SIGNED];
+        tunnelAckSigned(told.id, told.outcome, told.phones, told.key.data(), h.data(), message);
+        CHECK(Ed25519::verify(told.signature.data(), mesh.nodePublic.data(), message, sizeof(message)));
+    }
     // A copy of a part changes nothing; a phone relaying the payment back is a copy too.
     fakeSent.clear();
     mesh.data.clear();
@@ -613,6 +700,15 @@ static void cashuTunnel(const Phone &ana, const Phone &bia, const PeerId &bridge
     fromLoRa("Jo\xc3\xa3o: " + open.substr(0, 120));
     run(1000);
     CHECK(bridgeSaid().empty());
+    // A later piece of a token cut to fit LoRa text no longer names it: still kept out.
+    fromLoRa("Jo\xc3\xa3o (2/3): " + open.substr(120, 150));
+    run(1000);
+    CHECK(bridgeSaid().empty());
+    // Ordinary text with short words still goes through.
+    fromLoRa("Jo\xc3\xa3o: chego em 10 min, https://exemplo.com.br/rota?id=12");
+    run(1000);
+    CHECK(bridgeSaid() == std::vector<std::string>{"[MC Jo\xc3\xa3o] chego em 10 min, https://exemplo.com.br/rota?id=12"});
+    fakeSent.clear();
     mesh.radio.clear();
     mesh.data.clear();
 }
