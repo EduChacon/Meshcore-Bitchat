@@ -158,22 +158,37 @@ static void identitiesAndText()
     CHECK(bridgeCommand(utf8("!bridge guides")) == Command::None);
     CHECK(bridgeCommand(utf8("!bridge who")) == Command::Who && bridgeCommand(utf8("!Ponte Quem ")) == Command::WhoPt &&
           bridgeCommand(utf8("!bridge whom")) == Command::None);
-    // Every guide line fits a signed Bitchat message after the reply prefix, in both languages and for both readers.
-    for (int variant = 0; variant < 12; ++variant) {
-        const auto mode = static_cast<GuideMode>(variant / 4);
+    // Every guide line fits a signed Bitchat message after the reply prefix, in both languages, for both readers,
+    // with the tunnel on and off.
+    for (int variant = 0; variant < 24; ++variant) {
+        const auto mode = static_cast<GuideMode>(variant / 8 % 3);
+        const bool tunnel = variant & 4;
         for (size_t line = 0; line < GUIDE_LINES; ++line) {
-            const char *text = guideLine(variant & 1, variant & 2, mode, line);
+            const char *text = guideLine(variant & 1, variant & 2, mode, tunnel, line);
             CHECK(text && std::strlen(text) + std::strlen(REPLY_PREFIX) <= BITCHAT_TEXT_LIMIT);
             CHECK(std::string(text).find(std::to_string(line + 1) + "/4: ") != std::string::npos);
         }
-        CHECK(!guideLine(variant & 1, variant & 2, mode, GUIDE_LINES));
+        CHECK(!guideLine(variant & 1, variant & 2, mode, tunnel, GUIDE_LINES));
     }
-    CHECK(std::string(guideLine(false, false, GuideMode::NoLora, 0)).find("LoRa is off") != std::string::npos &&
-          std::string(guideLine(true, true, GuideMode::AllText, 3)).find("!bridge help o resto") != std::string::npos &&
-          std::string(guideLine(true, false, GuideMode::AllText, 3)).find("!ponte quem") != std::string::npos);
-    CHECK(std::string(guideLine(false, false, GuideMode::OnlyPrefixed, 0)).find("!lora") != std::string::npos &&
-          std::string(guideLine(true, true, GuideMode::OnlyPrefixed, 0)).find("!lora") != std::string::npos &&
-          std::string(guideLine(false, false, GuideMode::AllText, 3)).find("sos") != std::string::npos);
+    CHECK(std::string(guideLine(false, false, GuideMode::NoLora, true, 0)).find("LoRa is off") != std::string::npos &&
+          std::string(guideLine(true, true, GuideMode::AllText, true, 3)).find("!ponte ajuda") != std::string::npos &&
+          std::string(guideLine(true, false, GuideMode::AllText, true, 3)).find("!ponte quem") != std::string::npos);
+    CHECK(std::string(guideLine(false, false, GuideMode::OnlyPrefixed, true, 0)).find("!lora") != std::string::npos &&
+          std::string(guideLine(true, true, GuideMode::OnlyPrefixed, true, 0)).find("!lora") != std::string::npos &&
+          std::string(guideLine(false, false, GuideMode::AllText, true, 3)).find("sos") != std::string::npos);
+    // The tunnel line says what this bridge does: phones from elsewhere show here and this phone shows there.
+    CHECK(std::string(guideLine(true, false, GuideMode::AllText, true, 2)).find("túnel ligado") != std::string::npos &&
+          std::string(guideLine(false, false, GuideMode::AllText, false, 2)).find("tunnel off") != std::string::npos);
+    // The new Portuguese words.
+    CHECK(bridgeCommand(utf8("!ponte ajuda")) == Command::Help && bridgeCommand(utf8("!bridge ajuda")) == Command::Help &&
+          bridgeCommand(utf8("!ponte economia on")) == Command::EconomyOn &&
+          bridgeCommand(utf8("!ponte prefixo off")) == Command::PrefixOff);
+    {
+        BridgeRequest request;
+        CHECK(parseBridgeCommand(utf8("!bridge ajuda"), request) && request.portuguese);
+        CHECK(parseBridgeCommand(utf8("!bridge help"), request) && !request.portuguese);
+        CHECK(parseBridgeCommand(utf8("!ponte help"), request) && request.portuguese);
+    }
     {
         // Commands with text after them keep it, in its own letter case; the language follows the words used.
         BridgeRequest request;

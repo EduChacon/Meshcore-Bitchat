@@ -157,7 +157,9 @@ void BitchatBridge::adoptPeerClock(Bytes frame, const Packet &packet)
     // A phone next to the radio moves the time only forward. A time from LoRa adverts it may also put back, by
     // up to a quarter of an hour: an old announce heard again cannot take the bridge further into the past.
     static constexpr uint64_t PHONE_BACK_MS = 15ULL * 60 * 1000;
-    if (current && (peerClockFromRadio ? packet.timestamp + PHONE_BACK_MS < current : packet.timestamp <= current + FRESHNESS_MS))
+    // A time from a single radio is the weakest: a phone replaces it either way.
+    if (current && !(peerClockFromRadio && peerClockSingle) &&
+        (peerClockFromRadio ? packet.timestamp + PHONE_BACK_MS < current : packet.timestamp <= current + FRESHNESS_MS))
         return;
     Peer *peer = nullptr;
     if (runtime->peers->announce(crypto, frame, packet.timestamp, millis(), peer) != Result::Ok)
@@ -165,14 +167,16 @@ void BitchatBridge::adoptPeerClock(Bytes frame, const Packet &packet)
     peerClockUtc = packet.timestamp;
     peerClockAt = millis();
     peerClockFromRadio = false;
+    peerClockSingle = false;
     announcedAt = peerClockAt - 60000;
 }
 
 // Adverts are signed with the time their radio keeps. One radio may be wrong, and one transmitter may sign with
 // several keys, so the time comes from the largest group of radios agreeing within a minute, the earliest of the
-// group so a fast clock does not lead. An advert no newer than the last one of its radio is a replay and counts
-// for nothing. The LoRa time changes only when a larger group disagrees with it; it never goes below the last
-// trusted time, and the firmware clock is left alone.
+// group so a fast clock does not lead. Two radios heard within half an hour are rare in some places, so when the
+// bridge has no time at all one radio is enough, as a weak time: any phone, or two radios that agree, replace it. An advert no
+// newer than the last one of its radio is a replay and counts for nothing. The LoRa time changes only when a larger group
+// disagrees with it; it never goes below the last trusted time, and the firmware clock is left alone.
 void BitchatBridge::onRadioTime(const uint8_t keyPrefix[4], uint32_t seconds)
 {
     static constexpr uint32_t KEEP_MS = 30UL * 60 * 1000;
@@ -229,22 +233,29 @@ void BitchatBridge::onRadioTime(const uint8_t keyPrefix[4], uint32_t seconds)
             best = earliest;
         }
     }
-    if (bestCount < 2)
-        return;
     const uint64_t current = utc();
     if (current) {
         // A phone's own time stands.
-        if (!peerClockFromRadio || near(best, current))
+        if (!peerClockFromRadio)
             return;
-        size_t support = 0;
-        for (const auto &entry : radioTimes)
-            support += entry.used && near(carried(entry), current);
-        if (bestCount <= support)
-            return;
+        if (peerClockSingle) {
+            // One radio does not replace another; two that agree do.
+            if (bestCount < 2)
+                return;
+        } else {
+            if (bestCount < 2 || near(best, current))
+                return;
+            size_t support = 0;
+            for (const auto &entry : radioTimes)
+                support += entry.used && near(carried(entry), current);
+            if (bestCount <= support)
+                return;
+        }
     }
     peerClockUtc = best;
     peerClockAt = now;
     peerClockFromRadio = true;
+    peerClockSingle = bestCount < 2;
     announcedAt = now - 60000;
 }
 
@@ -702,23 +713,34 @@ void BitchatBridge::answerApp()
         return;
     }
     if (command == Command::Help) {
-        replyToApp("!bridge shows the state. Also: !bridge on, off, local (Bluetooth only), lora (Bitchat + LoRa on the "
-                   "channel where you send it), reset.");
-        replyToApp("Options: !bridge link on, link off (text from Meshtastic bridges); economy on, economy off (slower "
-                   "Bluetooth while no Bitchat phone is near).");
-        replyToApp("!bridge guide explains the bridge and !bridge who lists who was heard on LoRa, here or in Bitchat. In "
-                   "Portuguese: !ponte guia, !ponte quem.");
-        replyToApp("Here or in Bitchat: !bridge note <text> (a note for each phone that arrives; note off clears it), "
-                   "battery, sos <text>, test.");
-        replyToApp("Only here: !bridge radios (who was heard), prefix on/off (only !lora text to LoRa), position on/off "
-                   "(SOS from Bitchat with position).");
-        replyToApp("Only here: !bridge sound on/off, light on/off (the radio's buzzer and status light).");
-        replyToApp("In Portuguese: !ponte recado, bateria, radios, sos, teste, posicao on, som off, luz off.");
+        // The owner's commands, in the language of the word used ("!ponte" or "ajuda": Portuguese).
+        static const char *const english[] = {
+            "Help 1/5: !bridge shows the state; !bridge guide explains the bridge; !bridge who, battery, radios and test "
+            "answer here.",
+            "2/5: !bridge on, off; lora (Bitchat + LoRa on the channel where you send it); local (Bluetooth only); reset "
+            "(restarts Bluetooth).",
+            "3/5: tunnel on/off: private chat with phones near other bridges (on by default). dm on/off: @contact text from "
+            "Bitchat to the radio's favourites.",
+            "4/5: note <text> (note off clears it); sos <text>; economy on/off; prefix on/off (only !lora text to LoRa); "
+            "position on/off (SOS with position).",
+            "5/5: link on/off (text from Meshtastic bridges); sound on/off; light on/off. Em português: !ponte ajuda."};
+        static const char *const portugueseLines[] = {
+            "Ajuda 1/5: !ponte mostra o estado; !ponte guia explica a ponte; !ponte quem, bateria, radios e teste "
+            "respondem aqui.",
+            "2/5: !ponte on, off; lora (Bitchat + LoRa no canal em que for enviado); local (só Bluetooth); reset "
+            "(reinicia o Bluetooth).",
+            "3/5: túnel on/off: conversa privada com celulares perto de outras pontes (vem ligado). privado on/off: "
+            "@contato texto do Bitchat aos favoritos.",
+            "4/5: recado <texto> (recado off apaga); sos <texto>; economia on/off; prefixo on/off (só !lora ao LoRa); "
+            "posicao on/off (SOS com posição).",
+            "5/5: link on/off (texto das pontes Meshtastic); som on/off; luz on/off. In English: !bridge help."};
+        for (const char *line : appPortuguese ? portugueseLines : english)
+            replyToApp(line);
         return;
     }
     if (command == Command::Guide || command == Command::GuidePt) {
         for (size_t line = 0; line < GUIDE_LINES; ++line)
-            replyToApp(guideLine(command == Command::GuidePt, true, guideMode(), line));
+            replyToApp(guideLine(command == Command::GuidePt, true, guideMode(), tunnelOn, line));
         return;
     }
     const bool portuguese = appPortuguese;
@@ -728,13 +750,13 @@ void BitchatBridge::answerApp()
         if (!setTunnel(value))
             replyToApp(portuguese ? "Não mudou: erro de memória" : "Not changed: Storage error");
         else if (portuguese)
-            replyToApp(value ? "Túnel ligado: os celulares perto de outra ponte com túnel aparecem no Bitchat e conversam no "
-                               "privado pelo LoRa."
+            replyToApp(value ? "Túnel ligado: celulares perto de outras pontes com túnel aparecem no Bitchat, e os "
+                               "apelidos dos daqui vão para lá."
                              : "Túnel desligado: conversas privadas só entre celulares perto deste rádio.");
         else
-            replyToApp(value
-                           ? "Tunnel on: phones near another bridge with the tunnel show in Bitchat and chat privately over LoRa."
-                           : "Tunnel off: private chats only between phones near this radio.");
+            replyToApp(value ? "Tunnel on: phones near other bridges with the tunnel show in Bitchat, and the nicknames of "
+                               "the phones here go there."
+                             : "Tunnel off: private chats only between phones near this radio.");
         return;
     }
     if (command == Command::DmOn || command == Command::DmOff) {
@@ -842,7 +864,11 @@ void BitchatBridge::answerApp()
     if (command == Command::EconomyOn || command == Command::EconomyOff) {
         const bool value = command == Command::EconomyOn;
         if (!setSaving(value))
-            replyToApp("Not changed: Storage error");
+            replyToApp(portuguese ? "Não mudou: erro de memória" : "Not changed: Storage error");
+        else if (portuguese)
+            replyToApp(value ? "Economia ligada: depois de 3 min sem celular com Bitchat, o rádio se anuncia uma vez por "
+                               "segundo. Os aplicativos podem demorar mais para achá-lo."
+                             : "Economia desligada: o rádio se anuncia sempre na velocidade normal.");
         else
             replyToApp(value ? "Economy on: after 3 min with no Bitchat phone the radio announces itself once a second. "
                                "Apps may take longer to find it."
@@ -852,7 +878,10 @@ void BitchatBridge::answerApp()
     if (command == Command::LinkOn || command == Command::LinkOff) {
         const bool value = command == Command::LinkOn;
         if (!setLink(value))
-            replyToApp("Not changed: Storage error");
+            replyToApp(portuguese ? "Não mudou: erro de memória" : "Not changed: Storage error");
+        else if (portuguese)
+            replyToApp(value ? "Link ligado: o texto que uma ponte Meshtastic leva ao Bitchat também vem a este canal."
+                             : "Link desligado: o texto das pontes Meshtastic fica no Bitchat.");
         else
             replyToApp(value ? "Link on: text a Meshtastic bridge brings to Bitchat also goes to this channel."
                              : "Link off: text from Meshtastic bridges stays in Bitchat.");
@@ -892,9 +921,15 @@ void BitchatBridge::answerApp()
     displayCount(submittedRadio, tx);
     displayCount(importedRadio, rx);
     displayCount(drops(), missed);
-    snprintf(text, sizeof(text), "%s. Bluetooth %u, Bitchat %u, people %u. LoRa %.16s%s out %s in %s lost %s. Link %s. Economy %s. Kept %u",
-             status(), unsigned(bleConnections()), phones, people, name, prefixOnly ? " (!lora)" : "", tx, rx, missed,
-             link ? "on" : "off", !saver ? "off" : economy ? "active" : "on", unsigned(kept()));
+    snprintf(
+        text, sizeof(text),
+        "%s. Bluetooth %u, Bitchat %u, people %u. LoRa %.16s%s out %s in %s lost %s. Link %s. Economy %s. Tunnel %s. Kept %u",
+        status(), unsigned(bleConnections()), phones, people, name, prefixOnly ? " (!lora)" : "", tx, rx, missed,
+        link ? "on" : "off",
+        !saver    ? "off"
+        : economy ? "active"
+                  : "on",
+        tunnelOn ? "on" : "off", unsigned(kept()));
     replyToApp(text);
     diagnostics(text, sizeof(text));
     replyToApp(text);
@@ -947,7 +982,8 @@ void BitchatBridge::guideBitchat(bool portuguese)
         announce();
     for (size_t line = 0; line < GUIDE_LINES; ++line) {
         char text[BITCHAT_TEXT_LIMIT + 1];
-        const int size = snprintf(text, sizeof(text), "%s%s", REPLY_PREFIX, guideLine(portuguese, false, guideMode(), line));
+        const int size =
+            snprintf(text, sizeof(text), "%s%s", REPLY_PREFIX, guideLine(portuguese, false, guideMode(), tunnelOn, line));
         if (privateReply)
             replyPrivately(text, std::min<size_t>(size, BITCHAT_TEXT_LIMIT));
         else

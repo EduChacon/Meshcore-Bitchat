@@ -101,7 +101,7 @@ size_t formatTenths(int16_t tenths, char *out, size_t capacity, bool comma);
 // message after REPLY_PREFIX.
 constexpr size_t GUIDE_LINES = 4;
 enum class GuideMode : uint8_t { AllText, OnlyPrefixed, NoLora };
-const char *guideLine(bool portuguese, bool forApp, GuideMode mode, size_t index);
+const char *guideLine(bool portuguese, bool forApp, GuideMode mode, bool tunnel, size_t index);
 Result publicTextForLoRa(const Packet &packet, Bytes &body);
 // "MT " or "MC " opens the label of text that already went from one LoRa network to the other.
 bool networkTag(Bytes text);

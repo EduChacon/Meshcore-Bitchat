@@ -170,16 +170,21 @@ bool parseBridgeCommand(Bytes text, BridgeRequest &out)
                    {"local", Command::Local, false},
                    {"lora", Command::Lora, false},
                    {"help", Command::Help, false},
+                   {"ajuda", Command::Help, true},
                    {"link on", Command::LinkOn, false},
                    {"link off", Command::LinkOff, false},
                    {"economy on", Command::EconomyOn, false},
                    {"economy off", Command::EconomyOff, false},
+                   {"economia on", Command::EconomyOn, true},
+                   {"economia off", Command::EconomyOff, true},
                    {"guide", Command::Guide, false},
                    {"guia", Command::GuidePt, true},
                    {"who", Command::Who, false},
                    {"quem", Command::WhoPt, true},
                    {"prefix on", Command::PrefixOn, false},
                    {"prefix off", Command::PrefixOff, false},
+                   {"prefixo on", Command::PrefixOn, true},
+                   {"prefixo off", Command::PrefixOff, true},
                    {"battery", Command::Battery, false},
                    {"bateria", Command::Battery, true},
                    {"radios", Command::Radios, false},
@@ -329,28 +334,34 @@ size_t formatTenths(int16_t tenths, char *out, size_t capacity, bool comma)
     return size_t(snprintf(out, capacity, "%s%d%c%d", tenths < 0 ? "-" : "", magnitude / 10, comma ? ',' : '.', magnitude % 10));
 }
 
-const char *guideLine(bool portuguese, bool forApp, GuideMode mode, size_t index)
+const char *guideLine(bool portuguese, bool forApp, GuideMode mode, bool tunnel, size_t index)
 {
-    // First line per mode, then lines 2 and 3, then the last line in Bitchat and in the app.
+    // Four lines, so a phone's queue of six takes them with the bridge's announce: the first per mode, the LoRa
+    // line, the tunnel (on, off), and the last line in Bitchat and in the app.
     static const char *const english[] = {
-        "Guide 1/4: this radio takes the public text of #mesh to a LoRa channel and back.",
-        "Guide 1/4: this radio takes #mesh text starting with !lora to a LoRa channel and back.",
+        "Guide 1/4: this radio takes the public text of #mesh to LoRa and back.",
+        "Guide 1/4: only #mesh text starting with !lora goes to LoRa; LoRa text comes here.",
         "Guide 1/4: right now this radio only relays Bitchat between phones; LoRa is off.",
-        "2/4: text from LoRa shows as [MC name]. Private messages do not cross.",
-        "3/4: LoRa is slow and public. Keep texts short; anyone with the channel can read.",
-        "4/4: here also: !bridge who, note, battery, test, and sos <text> for help.",
-        "4/4: !bridge shows the state, !bridge who the names from LoRa, !bridge help the rest."};
+        "2/4: text from LoRa shows as [MC name]. LoRa is slow and public: keep it short.",
+        "3/4: tunnel on: phones near other bridges show here, and you show there.",
+        "3/4: tunnel off: private chats only with phones near this radio.",
+        "4/4: in a private chat with me, write help. In #mesh: !bridge who, battery, test, sos.",
+        "4/4: !bridge shows the state, !bridge help the commands."};
     static const char *const portugueseLines[] = {
-        "Guia 1/4: este rádio leva o texto público do #mesh a um canal LoRa e traz o de lá.",
-        "Guia 1/4: este rádio leva ao LoRa o texto do #mesh iniciado por !lora e traz o de lá.",
-        "Guia 1/4: agora este rádio só repassa o Bitchat entre telefones, sem usar o LoRa.",
-        "2/4: o que vem do LoRa aparece como [MC nome]. Mensagens privadas não atravessam.",
-        "3/4: o LoRa é lento e público. Escreva pouco; quem tem o canal lê tudo.",
-        "4/4: aqui também: !ponte quem, recado, bateria, teste e sos <texto> (socorro).",
-        "4/4: !bridge mostra o estado, !ponte quem os nomes do LoRa, !bridge help o resto."};
+        "Guia 1/4: este rádio leva o texto público do #mesh ao LoRa e traz o de lá.",
+        "Guia 1/4: só o texto do #mesh iniciado por !lora vai ao LoRa; o de lá chega aqui.",
+        "Guia 1/4: agora este rádio só repassa o Bitchat entre celulares, sem LoRa.",
+        "2/4: o que vem do LoRa aparece como [MC nome]. O LoRa é lento e público: seja breve.",
+        "3/4: túnel ligado: quem está perto de outras pontes aparece aqui, e você lá.",
+        "3/4: túnel desligado: conversa privada só com quem está perto deste rádio.",
+        "4/4: no privado comigo, escreva ajuda. No #mesh: !ponte quem, bateria, teste, sos.",
+        "4/4: !ponte mostra o estado, !ponte ajuda os comandos."};
     if (index >= GUIDE_LINES)
         return nullptr;
-    const size_t entry = index == 0 ? static_cast<size_t>(mode) : index == GUIDE_LINES - 1 ? (forApp ? 6 : 5) : index + 2;
+    const size_t entry = index == 0   ? static_cast<size_t>(mode)
+                         : index == 1 ? 3
+                         : index == 2 ? (tunnel ? 4 : 5)
+                                      : (forApp ? 7 : 6);
     return (portuguese ? portugueseLines : english)[entry];
 }
 

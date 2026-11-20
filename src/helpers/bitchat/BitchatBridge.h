@@ -305,7 +305,8 @@ class BitchatBridge
     bool dmEnabled = true;
     // The operator's choice, off unless asked for: private chats between phones near different bridges, over the
     // LoRa channel (BridgeRemote.cpp). Costs airtime on the channel. Own stored entry.
-    bool tunnelOn = false;
+    // On by default since bridge 1.0; the owner turns it off with "!ponte túnel off".
+    bool tunnelOn = true;
     // The house note, given once every 12 hours to each phone that arrives. Kept in its own stored entry.
     struct Note {
         uint8_t portuguese = 0;
@@ -363,6 +364,8 @@ class BitchatBridge
     bool clockSaved = false, clockSampled = false, clockTrusted = false;
     // The time came from LoRa adverts: a phone's own time, when one announces itself, replaces it.
     bool peerClockFromRadio = false;
+    // The LoRa time came from one radio alone: any phone, or two radios that agree, replace it.
+    bool peerClockSingle = false;
     struct RadioTime {
         std::array<uint8_t, 4> key{};
         uint64_t utc = 0;

@@ -605,7 +605,7 @@ static void privateChat(const Phone &ana, const Phone &bia, const Phone &caio, c
         run(200);
         std::vector<std::string> d, said;
         chatAna.read(d, said);
-        CHECK(said.size() == 1 && said[0].rfind("Isso só o dono muda", 0) == 0);
+        CHECK(said.size() == 1 && said[0].rfind("Isso só o dono do rádio muda", 0) == 0);
         CHECK(bridge->tunnel() == tunnelBefore);
         for (const auto &frame : received(ana.handle)) {
             Packet p;
@@ -648,9 +648,9 @@ static void privateChat(const Phone &ana, const Phone &bia, const Phone &caio, c
     CHECK(said.size() == 3 + GUIDE_LINES);
     CHECK(said[0] == "Battery: 3.92 V, about 69%.");
     CHECK(said[1].rfind("Ready: Bitchat + LoRa. Phones ", 0) == 0);
-    CHECK(said[2].rfind("Ponte LoRa. Escreva: ponte (estado), bateria", 0) == 0);
+    CHECK(said[2].rfind("Ponte LoRa, conversa privada. Escreva: ponte (estado), bateria", 0) == 0);
     for (size_t i = 0; i < GUIDE_LINES; ++i)
-        CHECK(said[3 + i] == guideLine(true, false, GuideMode::AllText, i));
+        CHECK(said[3 + i] == guideLine(true, false, GuideMode::AllText, bridge->tunnel(), i));
     // Asked twice at once: both answered.
     delivered.clear();
     said.clear();
@@ -1714,6 +1714,9 @@ int main()
     bleName("MeshCore-1A2B3C4D");
     bridge = new BitchatBridge;
     bridge->begin(mesh);
+    // The tunnel is on by default; most of this test runs without it, and the tunnel's own part turns it on.
+    CHECK(bridge->tunnel());
+    CHECK(bridge->setTunnel(false) && !bridge->tunnel());
     CHECK(Preferences::space == "bc-meshcore");
     // Nothing happens before the companion's Bluetooth is up.
     run(3000);
@@ -1745,17 +1748,26 @@ int main()
         CHECK(line.text.size() <= LORA_TEXT_LIMIT && line.text.rfind("bridge: ", 0) == 0);
     mesh.app.clear();
 
-    // LoRa adverts: one radio alone is not believed, nor two that disagree; two that agree within a minute give the
-    // time, the earlier of the two.
+    // LoRa adverts: with no time at all, one radio gives a weak time; another radio alone that disagrees does not
+    // move it; two that agree within a minute replace it with the earlier of the two.
     {
         const uint8_t sul[4] = {1, 2, 3, 4}, norte[4] = {5, 6, 7, 8}, torto[4] = {9, 9, 9, 9};
         const uint32_t real = uint32_t(nowUtc() / 1000);
         char diag[200];
         bridge->onRadioTime(sul, real - 3);
         bridge->onRadioTime(sul, real);
-        bridge->onRadioTime(torto, real + 3600);
         run(100);
-        CHECK(std::string(bridge->status()) == "Clock not set");
+        CHECK(std::string(bridge->status()) != "Clock not set");
+        {
+            // The first advert set it; the same radio again does not move a time it gave.
+            const uint32_t first = real - 3;
+            char single[40];
+            snprintf(single, sizeof(single), "UTC %02u:%02u:%02u lora", unsigned(first / 3600 % 24), unsigned(first / 60 % 60),
+                     unsigned(first % 60));
+            bridge->onRadioTime(torto, real + 3600);
+            bridge->diagnostics(diag, sizeof(diag));
+            CHECK(std::string(diag).rfind(single, 0) == 0);
+        }
         bridge->onRadioTime(norte, real - 30);
         run(100);
         CHECK(std::string(bridge->status()) != "Clock not set");
@@ -1927,7 +1939,7 @@ int main()
     {
         const auto guide = chat(bia.handle, &bridgeId);
         CHECK(guide.size() == GUIDE_LINES && guide[0].rfind("[bridge] Guia 1/4:", 0) == 0 &&
-              guide[3].rfind("[bridge] 4/4: aqui também: !ponte quem", 0) == 0);
+              guide[3].rfind("[bridge] 4/4: no privado comigo, escreva ajuda. No #mesh: !ponte quem", 0) == 0);
         for (const auto &line : guide)
             CHECK(line.size() <= BITCHAT_TEXT_LIMIT);
         CHECK(mesh.radio.empty());
@@ -2256,17 +2268,27 @@ int main()
     CHECK(fakeAdvertisingInterval == 244);
     run(200000);
     CHECK(fakeAdvertisingInterval == 244);
-    // Help fits in five whole messages and names the options, the guide and the newer commands.
-    mesh.app.clear();
-    CHECK(fromApp("!bridge help"));
-    run(100);
-    CHECK(mesh.app.size() == 7 && mesh.app[1].text.find("economy on") != std::string::npos &&
-          mesh.app[2].text.find("!ponte guia") != std::string::npos && mesh.app[3].text.find("sos <text>") != std::string::npos &&
-          mesh.app[4].text.find("prefix on") != std::string::npos && mesh.app[4].text.find("position on") != std::string::npos &&
-          mesh.app[5].text.find("sound on/off, light on/off") != std::string::npos &&
-          mesh.app[6].text.find("!ponte recado") != std::string::npos && mesh.app[6].text.find("luz off") != std::string::npos);
-    for (const auto &line : mesh.app)
-        CHECK(line.text.back() == '.' && line.text.size() <= LORA_TEXT_LIMIT);
+    // Help: five whole messages in the language asked for, naming every command once.
+    for (const bool portuguese : {false, true}) {
+        mesh.app.clear();
+        CHECK(fromApp(portuguese ? "!ponte ajuda" : "!bridge help"));
+        run(100);
+        CHECK(mesh.app.size() == 5);
+        std::string all;
+        for (const auto &line : mesh.app) {
+            CHECK(line.text.back() == '.' && line.text.size() <= LORA_TEXT_LIMIT);
+            all += line.text + "\n";
+        }
+        CHECK(mesh.app[0].text.rfind(portuguese ? "bridge: Ajuda 1/5:" : "bridge: Help 1/5:", 0) == 0);
+        for (const char *word :
+             portuguese ? std::vector<const char *>{"!ponte guia", "quem", "túnel on/off", "privado on/off", "recado <texto>",
+                                                    "economia on/off", "prefixo on/off", "posicao on/off", "link on/off",
+                                                    "som on/off", "luz on/off", "!bridge help"}
+                        : std::vector<const char *>{"!bridge guide", "who", "tunnel on/off", "dm on/off", "note <text>",
+                                                    "economy on/off", "prefix on/off", "position on/off", "link on/off",
+                                                    "sound on/off", "light on/off", "!ponte ajuda"})
+            CHECK(all.find(word) != std::string::npos);
+    }
     // The radio's buzzer and light are set from the app and kept by the radio; Bitchat only gets the state.
     mesh.app.clear();
     CHECK(fromApp("!ponte som off"));
@@ -2297,7 +2319,7 @@ int main()
     CHECK(fromApp("!Ponte Guia"));
     run(100);
     CHECK(mesh.app.size() == GUIDE_LINES && mesh.app[0].text.rfind("bridge: Guia 1/4:", 0) == 0 &&
-          mesh.app[3].text.find("!bridge help o resto") != std::string::npos);
+          mesh.app[3].text.find("!ponte ajuda") != std::string::npos);
     for (const auto &line : mesh.app)
         CHECK(line.text.size() <= 160);
 
@@ -2872,6 +2894,30 @@ int main()
     run(1500);
     CHECK(mesh.gpsCalls == std::vector<bool>{true});
 
+    // A time from one radio alone is replaced by a phone's, even an earlier one.
+    delete bridge;
+    mesh.gpsCalls.clear();
+    bridge = new BitchatBridge;
+    bridge->begin(mesh);
+    {
+        const uint8_t lone[4] = {2, 7, 1, 8};
+        // Later than any time this test stored as trusted, so the floor refuses neither the radio nor the phone.
+        const uint32_t base = uint32_t(nowUtc() / 1000) + 40 * 86400;
+        bridge->onRadioTime(lone, base + 2 * 86400);
+        char diag[200];
+        bridge->diagnostics(diag, sizeof(diag));
+        CHECK(std::string(diag).find(" lora.") != std::string::npos);
+        // The bridge starts its Bluetooth side about half a minute after begin().
+        Phone dora("dora", 9, 19);
+        run(32000);
+        dora.connect();
+        run(100);
+        stamp = uint64_t(base) * 1000;
+        dora.write(dora.announce());
+        run(400);
+        bridge->diagnostics(diag, sizeof(diag));
+        CHECK(std::string(diag).find(" phone.") != std::string::npos);
+    }
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;
 }

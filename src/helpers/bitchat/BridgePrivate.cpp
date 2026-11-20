@@ -406,22 +406,28 @@ void BitchatBridge::privateRequest(PrivateSession &session, const Peer &peer, By
         }
     }
     privateReply = &session;
-    // The radio's settings are its owner's: changed in the MeshCore app, never from a phone in Bitchat.
+    // The radio's settings are its owner's: changed on the radio or in the MeshCore app, never from Bitchat.
     if (ownerCommand(asked.command)) {
-        char text[200];
-        const int size =
-            snprintf(text, sizeof(text), "%s",
-                     asked.portuguese ? "Isso só o dono muda: no aplicativo MeshCore ligado ao rádio, canal #bitchat, "
-                                        "mande !ponte e o comando. / Only the radio's owner changes this, in the "
-                                        "MeshCore app."
-                                      : "Only the radio's owner changes this: in the MeshCore app connected to the "
-                                        "radio, channel #bitchat, send !bridge and the command.");
-        replyPrivately(text, size_t(size));
+        static constexpr char OWNER_PT[] =
+            "Isso só o dono do rádio muda, no próprio rádio ou no aplicativo MeshCore ligado a ele.";
+        static constexpr char OWNER_EN[] =
+            "Only the radio's owner changes this, on the radio or in the MeshCore app connected to it.";
+        if (asked.portuguese)
+            replyPrivately(OWNER_PT, sizeof(OWNER_PT) - 1);
+        else
+            replyPrivately(OWNER_EN, sizeof(OWNER_EN) - 1);
     } else if (asked.command == Command::None || asked.command == Command::Help) {
-        static constexpr char HELP[] =
-            "Ponte LoRa. Escreva: ponte (estado), bateria, quem, guia, teste, recado <texto>, sos <texto>, ou "
-            "@contato texto para mandar pelo LoRa. In English: bridge, battery, who, guide, test, note, sos, @contact.";
-        replyPrivately(HELP, sizeof(HELP) - 1);
+        // In the language of the word used; a word the bridge does not know gets the Portuguese one.
+        static constexpr char HELP_PT[] =
+            "Ponte LoRa, conversa privada. Escreva: ponte (estado), bateria, quem (nomes no LoRa), guia, teste (alcance), "
+            "recado <texto>, sos <texto>, ou @contato texto (a um favorito do rádio; a ponte lê). In English: help.";
+        static constexpr char HELP_EN[] =
+            "LoRa bridge, private chat. Write: bridge (state), battery, who (names on LoRa), guide, test (range), note "
+            "<text>, sos <text>, or @contact text (to a favourite of the radio; the bridge reads it). Em português: ajuda.";
+        if (asked.command == Command::Help && !asked.portuguese)
+            replyPrivately(HELP_EN, sizeof(HELP_EN) - 1);
+        else
+            replyPrivately(HELP_PT, sizeof(HELP_PT) - 1);
     } else {
         answerAsked(asked, peer, direct, now);
     }
