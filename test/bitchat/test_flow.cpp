@@ -454,13 +454,12 @@ struct PrivatePhone {
         CHECK(decode(frame.bytes(), whole) == Result::Ok);
         const size_t chunk = 202, total = (frame.size + chunk - 1) / chunk;
         for (size_t index = 0; index < total; ++index) {
-            std::vector<uint8_t> payload{9, 8, 7, 6, 5, 4, 3, 2, uint8_t(index >> 8), uint8_t(index), uint8_t(total >> 8),
-                                         uint8_t(total), whole.type};
+            std::vector<uint8_t> payload{
+                9, 8, 7, 6, 5, 4, 3, 2, uint8_t(index >> 8), uint8_t(index), uint8_t(total >> 8), uint8_t(total), whole.type};
             const size_t start = index * chunk, size = std::min(chunk, frame.size - start);
             payload.insert(payload.end(), frame.data.begin() + start, frame.data.begin() + start + size);
             Frame part;
-            CHECK(encode(0x20, phone.id, &bridge, whole.timestamp, 7, {payload.data(), payload.size()}, {}, part) ==
-                  Result::Ok);
+            CHECK(encode(0x20, phone.id, &bridge, whole.timestamp, 7, {payload.data(), payload.size()}, {}, part) == Result::Ok);
             phone.write(part);
         }
     }
