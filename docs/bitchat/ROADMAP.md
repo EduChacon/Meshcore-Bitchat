@@ -41,10 +41,19 @@ Saitama (T-Deck Plus e Cardputer ADV), o menu de ajustes tem as linhas **Bitchat
 
 ## Em seguida
 
-1. **Ensaio em aparelho** do que está pronto, a começar pelo histórico e pela ligação entre casas.
+1. **Ensaio em aparelho** do que está pronto, a começar pelo histórico, pela ligação entre casas e
+   pelos [pagamentos Cashu](CASHU.md#roteiro-de-ensaio) (prontos desde a `bitchat0.20`, com o
+   próprio túnel; nas pontes Meshtastic, desde a `1.0.0-beta.16`).
 2. **Túnel privado do Meshtastic**, que já existe em laboratório: ensaiar com dois rádios e dois
-   telefones. Dele dependem as mensagens privadas e o pagamento pelo LoRa.
+   telefones. Dele dependem as mensagens privadas.
 3. **Porte do túnel para o MeshCore**, só depois do item 2.
+4. **Token na tela, por QR code (estudo, sem código).** A ponte de destino com tela (T-Deck,
+   Cardputer) mostraria o token como QR, para quem recebe sem o Bitchat. Achados: um token de até 2
+   provas cabe, em geral, num QR comum; acima disso a especificação Cashu prevê QR animado (NUT-16,
+   opcional, protocolo UR da Blockchain Commons, sem tamanho de quadro definido). Minibits e Cashu.me
+   mostram QR animado; **não está confirmado que as carteiras o leiam**. A tela do Cardputer (240 ×
+   135) é pequena para um QR comum desse tamanho; a do T-Deck (320 × 240), no limite. Antes de
+   programar, conferir com uma carteira se ela lê um QR animado na tela do T-Deck.
 
 O estudo completo, com tamanhos e tempos de transmissão, está em
 [PRIVACY.md](PRIVACY.md). A "ponte mesh" nativa do Bitchat foi estudada e descartada para o LoRa:

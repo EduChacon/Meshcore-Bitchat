@@ -1,4 +1,4 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.20
+# MeshCore + Bitchat v1.18.0-bitchat0.21
 
 Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
 **Versão experimental.**
@@ -13,9 +13,9 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
   ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
   pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
   `bitchat0.11` e as correções da `bitchat0.12`. Passou nos testes em computador e compila.
-- **Testes em computador desta versão:** 943 verificações do núcleo, 8101 dos pagamentos Cashu e
-  1604 do fluxo completo, com telefones e rádio simulados; compilados no computador o Heltec V3, o
-  T1000-E, o Cardputer ADV e o T-Deck.
+- **Testes em computador desta versão:** 943 verificações do núcleo, 8108 dos pagamentos Cashu e
+  1680 do fluxo completo, com telefones e rádio simulados; compilados no computador o Heltec V3, o
+  T1000-E e o Cardputer ADV.
 - **T1000-E:** o autor gravou a `bitchat0.14`. O aplicativo MeshCore conectou, e a ponte ficou
   pronta para o LoRa, mas o Bitchat não a encontrava; a `bitchat0.17` corrige a causa achada.
 - **Cardputer ADV:** o autor gravou a `bitchat0.13` e a `0.14`. Com a `0.14`, relatou melhora,
@@ -24,7 +24,21 @@ Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bit
 - **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
   só compilados; nenhum foi ligado.
 
-## O que há de novo na `bitchat0.20`
+## O que há de novo na `bitchat0.21`
+
+- **Confirmação assinada.** A ponte de destino assina a confirmação de um pagamento com a identidade
+  MeshCore do próprio rádio, e a ponte de quem paga a confere com a chave que conhece pelos anúncios
+  ("adverts"). Só então mostra `✓ … entregue à ponte <nome do contato>`. De uma ponte que não é
+  contato chega `✓? … (não é contato)`, e uma confirmação com a chave de um contato, mas com
+  assinatura que não confere, é descartada. Para isso, as duas pontes precisam ser contatos uma da
+  outra: mande um anúncio de cada uma.
+- **Nenhum pedaço de token do LoRa chega ao Bitchat.** Texto do LoRa com 40 ou mais letras e números
+  seguidos, sem espaço, fica de fora, porque pode ser o pedaço de um token cortado.
+- **Roteiro de ensaio dos pagamentos**, passo a passo, no
+  [guia](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/CASHU.md#roteiro-de-ensaio).
+- **Não foi ligado em aparelho.**
+
+## O que veio na `bitchat0.20`
 
 - **Pagamentos Cashu pelo LoRa.** Um token Cashu colado no chat público do Bitchat é levado pela
   ponte, inteiro, até as outras pontes do mesmo canal, que o entregam aos celulares perto delas. Vão
