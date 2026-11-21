@@ -4,7 +4,9 @@ Firmware _companion_ do MeshCore 1.18.0 com uma ponte embutida para o aplicativo
 com o Bitchat conversam com a malha MeshCore, e entre si, pelo LoRa, sem internet.
 
 A `bitchat1.2` deixa o túnel utilizável no dia a dia: a pessoa da outra casa fica na lista do
-Bitchat enquanto as duas casas estão com ele aberto, e a conversa privada abre sem esperar minutos.
+Bitchat enquanto as duas casas estão com ele aberto (com o canal pouco movimentado), e a conversa
+privada abre sem esperar minutos. Traz também as correções de segurança de uma revisão geral do
+projeto (abaixo).
 
 ## Estado
 
@@ -20,7 +22,7 @@ Bitchat enquanto as duas casas estão com ele aberto, e a conversa privada abre 
   [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md). Não há
   medições de alcance, consumo ou duração.
 - **Testes no computador:** 1056 verificações do núcleo, 223 da criptografia das conversas privadas
-  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3269 do fluxo
+  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3648 do fluxo
   completo, com celulares e rádio simulados. Compilados no GitHub os 27 aparelhos da versão e o
   WadaMesh.
 
@@ -50,14 +52,32 @@ Bitchat enquanto as duas casas estão com ele aberto, e a conversa privada abre 
   cada 3 minutos, e só quando o próprio celular se anunciava. Agora, enquanto houver celular perto
   das duas pontes, a própria ponte manda a presença a cada 40 segundos, com o anúncio mais recente
   do celular: um celular por ponte na configuração de rádio brasileira, até dois nas mais rápidas,
-  conforme o tempo de ar. Sem ninguém do outro lado, volta ao ritmo lento, e sem celular por perto
+  conforme o tempo de ar (nas configurações mais lentas, com cada pedaço mais de 2 segundos no ar, como SF11 a 125 kHz ou
+  SF10 a 62,5 kHz, não há ritmo rápido).
+  Sem ninguém do outro lado, volta ao ritmo lento, e sem celular por perto
   nada vai.
-- **Custo:** cerca de 5% do tempo do canal por celular no ritmo rápido (estimativa), repetido por
-  cada repetidor que encaminha. A presença tem a menor prioridade, só começa com folga para todos os
+- **Custo:** de 5% a 8% do tempo do canal por celular no ritmo rápido, na configuração brasileira
+  (estimativa), repetido por cada repetidor que encaminha. Com texto público mais de uma vez por
+  minuto, o texto tem a vez e a presença pode atrasar. A presença tem a menor prioridade, só começa com folga para todos os
   seus pedaços no limite de rádio da ponte (10% em média), guardando reserva para as conversas e para a
   abertura delas, e não segura o texto público enquanto espera.
-- **Revisões independentes** do código novo antes da publicação; os problemas apontados foram
-  corrigidos e os principais ganharam testes.
+- **Conversa em andamento primeiro:** quem tem conversa privada pelo túnel nos últimos 5 minutos vai
+  antes, no ritmo de 40 segundos, dos demais celulares da casa.
+- **Segurança (revisão geral do projeto):**
+  - **Bluetooth:** quem pareava sem o PIN ("Just Works"), ao lado do aplicativo MeshCore, recebia
+    tudo o que o aplicativo recebia, inclusive canais e suas chaves. Agora os dados do aplicativo só
+    vão à conexão pareada com o PIN, e um aparelho pareado sem ele é desconectado (ESP32 e nRF52).
+  - **Hora:** um anúncio com data adiantada, vindo de um aparelho só, travava a ponte até reiniciar;
+    e anúncios falsos do LoRa impediam o celular de corrigir a hora. Agora vale um voto por conexão
+    Bluetooth, e o celular corrige a hora do LoRa nos dois sentidos.
+  - **Espera falsa:** no `#bitchat`, qualquer um podia pôr a ponte em espera e calá-la; agora a
+    espera só se mantém se o texto aparecer no LoRa em até um minuto.
+  - **Lista de celulares:** pagamentos vindos do LoRa não a enchem mais, e um celular retoma o
+    próprio lugar quando outro aparelho anuncia a identidade dele.
+  - **nRF52 (T1000-E, RAK):** a gravação dos ajustes e da identidade da ponte passou a ser atômica;
+    uma queda de energia no meio não apaga mais a identidade.
+- **Revisões independentes** do código antes da publicação; os problemas apontados foram corrigidos
+  e ganharam testes, conferidos por mutação (cada teste falha quando a correção é desfeita).
 
 ## O que veio na `bitchat1.1`
 

@@ -347,7 +347,10 @@ h) **Hora pelos anúncios do LoRa.** Cada rádio MeshCore manda anúncios ("adve
 hora do próprio relógio. Sem outra fonte de hora (aplicativo, GPS ou telefone), a ponte adota a
 hora do primeiro anúncio que ouvir, como hora provisória. Outro rádio sozinho, discordando, não a
 muda; **dois rádios** que concordam com diferença de até um minuto a substituem (a mais cedo das
-duas), e um telefone com Bitchat a substitui sempre. A hora nunca fica antes da data em que o
+duas), e um telefone com Bitchat a substitui sempre, para a frente ou para trás. Entre telefones, vale
+um voto por conexão Bluetooth (por 5 minutos): a hora só muda quando mais conexões concordam com outra
+hora do que com a atual, de modo que um aparelho só não a leva para longe da dos telefones que estão
+perto. A hora nunca fica antes da data em que o
 firmware foi compilado nem da última hora confiável guardada, e o relógio do rádio não é alterado.
 No diagnóstico do `!bridge` aparece como `lora`. Com o aplicativo MeshCore conectado, a hora dele vale
 mais, e a do LoRa não é usada.
@@ -463,21 +466,25 @@ continua como antes. O anúncio, que mantém a pessoa na lista do Bitchat do out
   mandou algo nos últimos 3 minutos): o Bitchat tira da lista, 60 segundos depois, quem chega
   retransmitido, e não manda nada a quem não está na lista. Vale para um celular por ponte na
   configuração de rádio brasileira, e até dois nas configurações mais rápidas, conforme o tempo de ar;
-- a cada 3 minutos para os demais celulares, ou quando a outra ponte foi ouvida na última meia hora;
+- a cada 3 minutos para os demais celulares, enquanto a outra ponte tiver sido ouvida na última meia
+  hora (quem está numa conversa pelo túnel vai antes, no ritmo de 40 segundos);
 - a cada 30 minutos quando nenhuma outra ponte com túnel foi ouvida;
 - nunca, se não houver celular perto da ponte.
 
 c) **Custa tempo de rádio no canal**, que é compartilhado, mas só quando há celular por perto: sem
-celular, o túnel não transmite nada. No ritmo de 40 segundos, cada celular ocupa cerca de 5% do tempo
-do canal (estimativa, não medição), repetido por cada repetidor que encaminha. Em média, a ponte não
+celular, o túnel não transmite nada. No ritmo de 40 segundos, cada celular ocupa de 5% a 8% do tempo
+do canal na configuração brasileira, conforme o tamanho do anúncio (estimativa, não medição),
+repetido por cada repetidor que encaminha. Com o canal movimentado (texto público mais de uma vez
+por minuto), o texto tem a vez e a presença pode atrasar além dos 60 segundos do Bitchat. Em média, a ponte não
 passa de 10% do tempo de rádio (pode usar mais por alguns segundos, quando estava parada), e o anúncio só sai quando sobra folga para as conversas e para a abertura
 delas. A ponte reveza os pacotes do túnel com o texto público, para um
 não segurar o outro. Pontes anteriores à `bitchat0.24` ignoram esses pacotes. Só texto: fotos e áudio
 não passam.
 
-d) **Proteções:** no máximo seis celulares de fora ocupam lugar na lista da ponte, sem nunca tirar o
-lugar dos celulares da casa; um pacote que chega pelo LoRa em nome de um celular da casa é
-descartado.
+d) **Proteções:** no máximo seis celulares de fora (do túnel ou de pagamentos) ocupam lugar na lista
+da ponte, sem nunca tirar o lugar dos celulares da casa; um pacote que chega pelo LoRa em nome de um
+celular da casa é descartado; um celular que se anuncia pela própria conexão retoma o lugar que outro
+aparelho tomou com a identidade dele.
 
 e) **Sem garantia de entrega:** o próprio Bitchat confirma as mensagens e reenvia o que não foi
 confirmado. Com o LoRa congestionado, ou com vários repetidores no caminho, abrir a conversa pode
@@ -587,7 +594,9 @@ d) A ponte se limita, em média, a 10% do tempo de transmissão, além dos limit
 rádio ocupado, o texto espera até dois minutos e depois é descartado e contado em `lost`.
 
 e) Duas pontes que se ouvem por Bluetooth e usam o mesmo canal: a de número maior fica em espera,
-para não duplicar texto. Duas pontes que não se ouvem por Bluetooth podem levar o mesmo texto do
+para não duplicar texto. Num canal de chave pública (como o `#bitchat`), qualquer um calcula a prova
+de ponte; por isso a espera só se mantém se o texto de um celular daqui aparecer no LoRa em até um
+minuto. Se não aparecer, a ponte retoma o texto e ignora novas provas por meia hora. Duas pontes que não se ouvem por Bluetooth podem levar o mesmo texto do
 Bitchat duas vezes ao LoRa.
 
 f) O nome anunciado no Bluetooth é abreviado para 11 caracteres enquanto a ponte está ligada
@@ -610,7 +619,8 @@ a) **Pilha Bluetooth.** O original usa a pilha Bluedroid; este usa a NimBLE (bib
 NimBLE-Arduino 1.4.3), que permite ao rádio ler o serviço que o aplicativo Bitchat publica no
 telefone. Esse é o caminho que funcionou com o Bitchat do iPhone na ponte para Meshtastic do
 mesmo autor. O serviço do aplicativo MeshCore (Nordic UART) e o pareamento por PIN são os
-mesmos.
+mesmos. Como a ponte aceita outras conexões ao mesmo tempo, os dados do aplicativo só vão à conexão
+pareada com o PIN; um aparelho que pareia sem o PIN ("Just Works") é desconectado.
 
 b) **Anúncio.** Com a ponte ligada, o rádio continua visível enquanto houver conexão livre, com o
 serviço do Bitchat no anúncio e o do MeshCore na resposta de varredura. O original deixa de se
