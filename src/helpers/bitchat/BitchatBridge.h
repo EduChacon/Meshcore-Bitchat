@@ -456,6 +456,11 @@ class BitchatBridge
                 uint32_t queuedAt = 0;
                 // A phone's routine presence: it leaves room in the airtime budget for the chats themselves.
                 bool presence = false;
+                // A part of a phone's announce (whose phone, which part of how many): the phone counts as
+                // announced on the other side only once the last part went.
+                bool announce = false;
+                bitchat::PeerId peer{};
+                uint8_t index = 0, count = 1;
             };
             // Handshake parts first: they must cross within seconds. Then announces and messages; the phones'
             // routine presence last.
@@ -588,6 +593,12 @@ class BitchatBridge
     void tunnelOut(const bitchat::Packet &packet, bitchat::Peer &peer, bitchat::Bytes relayed, uint16_t source, uint32_t now);
     void tunnelIn(bitchat::Bytes data, uint32_t now);
     bool fastPresence(const bitchat::Peer &peer, uint32_t now) const;
+    static bool relayedCopy(const Runtime::Announced &kept, std::array<uint8_t, sizeof(Runtime::Announced::frame)> &out);
+    bool partnerActive(uint32_t now) const;
+    void tunnelPresence(uint32_t now);
+    size_t fastSlots() const;
+    void announceDone(const bitchat::PeerId &id, bool sent, uint32_t now);
+    bool frameReady(uint32_t now);
     bool queueFrame(bitchat::Bytes frame, uint32_t now, bool urgent = false, bool presence = false);
     bool sendFrame();
     void expireHandshake(bitchat::PrivateSession &session, uint32_t now);

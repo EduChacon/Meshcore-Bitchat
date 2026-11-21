@@ -458,17 +458,19 @@ públicas, legíveis por quem tem a chave do canal) e os pacotes privados entre 
 de lá, só do próprio celular, pelo enlace Bluetooth em que ele se apresentou. O texto público
 continua como antes. O anúncio, que mantém a pessoa na lista do Bitchat do outro lado, vai:
 
-- **a cada 50 segundos** enquanto houver celular perto das duas pontes (a outra mandou algo nos
-  últimos 3 minutos), para os dois primeiros celulares de cada ponte: o Bitchat tira da lista, 60
-  segundos depois, quem chega retransmitido, e não manda nada a quem não está na lista;
+- **a cada 40 segundos**, pela própria ponte, enquanto houver celular perto das duas pontes (a outra
+  mandou algo nos últimos 3 minutos): o Bitchat tira da lista, 60 segundos depois, quem chega
+  retransmitido, e não manda nada a quem não está na lista. Vale para um celular por ponte na
+  configuração de rádio brasileira, e até dois nas configurações mais rápidas, conforme o tempo de ar;
 - a cada 3 minutos para os demais celulares, ou quando a outra ponte foi ouvida na última meia hora;
 - a cada 30 minutos quando nenhuma outra ponte com túnel foi ouvida;
 - nunca, se não houver celular perto da ponte.
 
 c) **Custa tempo de rádio no canal**, que é compartilhado, mas só quando há celular por perto: sem
-celular, o túnel não transmite nada. No ritmo de 50 segundos, cada celular ocupa cerca de 5% do tempo
+celular, o túnel não transmite nada. No ritmo de 40 segundos, cada celular ocupa cerca de 5% do tempo
 do canal (estimativa, não medição), repetido por cada repetidor que encaminha. A ponte nunca passa
-de 10% do tempo de rádio, e o anúncio só sai quando sobra folga para as conversas. A ponte reveza os pacotes do túnel com o texto público, para um
+de 10% do tempo de rádio, e o anúncio só sai quando sobra folga para as conversas e para a abertura
+delas. A ponte reveza os pacotes do túnel com o texto público, para um
 não segurar o outro. Pontes anteriores à `bitchat0.24` ignoram esses pacotes. Só texto: fotos e áudio
 não passam.
 

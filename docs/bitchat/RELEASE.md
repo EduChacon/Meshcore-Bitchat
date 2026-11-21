@@ -20,7 +20,7 @@ Bitchat enquanto as duas casas estão com ele aberto, e a conversa privada abre 
   [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md). Não há
   medições de alcance, consumo ou duração.
 - **Testes no computador:** 1056 verificações do núcleo, 223 da criptografia das conversas privadas
-  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3104 do fluxo
+  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3269 do fluxo
   completo, com celulares e rádio simulados. Compilados no GitHub os 27 aparelhos da versão e o
   WadaMesh.
 
@@ -47,12 +47,17 @@ Bitchat enquanto as duas casas estão com ele aberto, e a conversa privada abre 
 - **Túnel: a pessoa do outro lado fica na lista.** O Bitchat tira da lista, 60 segundos depois, quem
   chega retransmitido, e não manda mensagem privada a quem não está na lista: a mensagem ficava na
   fila, e a abertura da conversa podia parar no meio. O túnel repetia a presença de cada celular só a
-  cada 3 minutos. Agora, enquanto houver celular perto das duas pontes, a presença vai a cada 50
-  segundos, para os dois primeiros celulares de cada ponte; sem ninguém do outro lado, volta ao ritmo
-  lento, e sem celular por perto nada vai.
+  cada 3 minutos, e só quando o próprio celular se anunciava. Agora, enquanto houver celular perto
+  das duas pontes, a própria ponte manda a presença a cada 40 segundos, com o anúncio mais recente
+  do celular: um celular por ponte na configuração de rádio brasileira, até dois nas mais rápidas,
+  conforme o tempo de ar. Sem ninguém do outro lado, volta ao ritmo lento, e sem celular por perto
+  nada vai.
 - **Custo:** cerca de 5% do tempo do canal por celular no ritmo rápido (estimativa), repetido por
-  cada repetidor que encaminha. A presença tem a menor prioridade e só sai quando sobra folga no
-  limite de 10% de rádio da ponte, guardando reserva para as conversas e para a abertura delas.
+  cada repetidor que encaminha. A presença tem a menor prioridade, só começa com folga para todos os
+  seus pedaços no limite de 10% de rádio da ponte, guardando reserva para as conversas e para a
+  abertura delas, e não segura o texto público enquanto espera.
+- **Revisão independente** do código novo antes da publicação, com o que achou corrigido e coberto
+  por testes.
 
 ## O que veio na `bitchat1.1`
 

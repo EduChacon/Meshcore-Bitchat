@@ -128,6 +128,8 @@ struct Peer {
     bool remote = false;
     // When it last announced itself directly to this radio, and when that announce last went over LoRa.
     uint32_t localAt = 0, tunneledAt = 0;
+    // Its announce waits to go over LoRa: as a routine presence, or urgently ahead of its private packets.
+    bool presenceQueued = false, announceQueued = false;
     // The Bluetooth link it announced itself on directly: only its own packets from there go over LoRa.
     uint16_t link = 0xffff;
     // Its private packets over LoRa: a burst, then one every two seconds.

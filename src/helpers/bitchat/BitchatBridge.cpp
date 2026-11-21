@@ -2024,8 +2024,8 @@ void BitchatBridge::sendRadio()
         return;
     }
     // Then the phones' private chats, taking turns with the public text so neither waits for the other.
-    if (runtime->frames && (runtime->frames->urgent.size() || runtime->frames->out.size() || runtime->frames->presence.size()) &&
-        (!item || runtime->frames->turn)) {
+    // A part that cannot go now (a presence waiting for room in the budget) does not take the turn or the spacing.
+    if (frameReady(millis()) && (!item || runtime->frames->turn)) {
         // The opening of a private chat races the app's ten seconds: its parts do not wait for the spacing
         // between sends, only for the radio.
         const bool urgent = runtime->frames->urgent.size() != 0;
@@ -2244,6 +2244,7 @@ void BitchatBridge::work(uint32_t now)
         if (runtime->fragments->empty())
             runtime->fragments.reset();
     }
+    tunnelPresence(now);
     sendRadio();
 }
 #endif

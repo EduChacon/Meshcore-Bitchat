@@ -30,7 +30,7 @@ Funções que expõem dados, e os limites postos a elas:
 - **Estado (`!bridge` no Bitchat):** número de telefones e de pessoas conhecidas, e contadores do
   LoRa; dá uma ideia de quantas pessoas estão perto do rádio.
 - **Túnel (vem ligado):** o apelido e as chaves públicas de cada celular ligado direto à ponte vão
-  pelo LoRa: a cada 50 segundos enquanto houver celular perto das duas pontes (até dois por ponte),
+  pelo LoRa: a cada 40 segundos enquanto houver celular perto das duas pontes (um ou dois por ponte),
   a cada 3 minutos para os demais e a cada 30 minutos sem outra ponte no ar; sem celular por perto,
   nada vai. Quem escuta o canal sabe que aquele apelido está perto daquela
   ponte, e a chave fixa do Bitchat permite reconhecê-lo em outro dia. O conteúdo das conversas não
@@ -65,7 +65,7 @@ por salto:
 
 | Etapa                                         | Transmissões LoRa | Tempo no ar (estimado) |
 | --------------------------------------------- | ----------------- | ---------------------- |
-| Anúncio de cada celular (50 s, 3 ou 30 min)   | 1 a 2             | 1,5 a 3 s              |
+| Anúncio de cada celular (40 s, 3 ou 30 min)   | 1 a 2             | 1,5 a 3 s              |
 | Abertura da conversa (uma vez por par)        | 3                 | cerca de 5 s           |
 | Mensagem privada curta (256 bytes no Bitchat) | 1 a 2             | 1,5 a 3 s              |
 

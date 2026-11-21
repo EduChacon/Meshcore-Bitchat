@@ -95,7 +95,8 @@ struct FakeMesh : MeshHost {
         std::copy(channels[index].secret.begin(), channels[index].secret.end(), secret);
         return true;
     }
-    uint32_t airtimeMs(size_t) override { return 1000; }
+    uint32_t airtime = 1000;
+    uint32_t airtimeMs(size_t) override { return airtime; }
     bool radioBusy() override { return busy; }
     bool sendChannelText(uint8_t index, uint32_t timestamp, const char *text, size_t size) override
     {
@@ -1176,37 +1177,69 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
     }
     CHECK(listed);
 
-    // With someone near the other bridge, presence goes every 50 s (the app forgets a relayed phone 60 s after its
-    // last announce), for the first two phones here by ID; the third keeps three minutes.
+    // With someone near the other bridge, the bridge sends the latest announce of its first phone by ID every
+    // 40 s (the app forgets a relayed phone 60 s after its last announce); here, at one second of airtime per part,
+    // the budget carries one phone at that rhythm, and the others keep three minutes.
     {
-        const auto presences = [&]() {
+        const auto presences = [&](const Phone &phone) {
             size_t count = 0;
             for (const auto &frame : tunneled()) {
                 Packet p;
                 CHECK(decode({frame.data(), frame.size()}, p) == Result::Ok);
-                count += p.type == 1;
+                count += p.type == 1 && p.sender == phone.id;
             }
             return count;
         };
-        // Bia and Caio, here too, are announced once.
+        // (The tests above spent the airtime budget; two minutes give it back.)
+        run(120000);
+        // Bia and Caio, here too, go once on their first announce.
         mesh.data.clear();
         bia.write(bia.announce());
         caio.write(caio.announce());
-        run(6000);
-        CHECK(presences() == 2);
-        run(30000);
+        run(25000);
+        CHECK(presences(bia) == 1 && presences(caio) == 1);
+        const Phone *first = &ana;
+        for (const auto *phone : {&bia, &caio})
+            if (phone->id < first->id)
+                first = phone;
+        // Three minutes less a few seconds, the phones announcing every 20 s and Rui every 30 s.
         mesh.data.clear();
-        ana.write(ana.announce());
-        run(1000);
-        CHECK(presences() == 0);
-        run(20000);
+        for (int second = 0; second < 170; second += 10) {
+            if (second % 20 == 0)
+                for (const auto *phone : {&ana, &bia, &caio})
+                    phone->write(phone->announce());
+            if (second % 30 == 0)
+                fromOtherBridge(rui.announce({}, 6).bytes());
+            run(10000);
+        }
+        CHECK(presences(*first) >= 3);
+        for (const auto *phone : {&ana, &bia, &caio})
+            if (phone != first)
+                CHECK(presences(*phone) <= 1);
+        // Phones gone quiet (no announce for 90 s) give their fast place away; nothing fast goes for them.
+        mesh.data.clear();
+        run(100000);
+        CHECK(presences(*first) <= 1);
+        // A presence waiting for room in the budget (here it never fits: nine seconds a part, with the reserve)
+        // does not hold back the public text.
+        mesh.airtime = 9000;
+        run(120000);
+        fromOtherBridge(rui.announce({}, 6).bytes());
+        first->write(first->announce());
+        run(45000);
+        fromOtherBridge(rui.announce({}, 6).bytes());
+        first->write(first->announce());
+        run(2000);
+        mesh.data.clear();
+        const auto before = mesh.radio.size();
+        ana.write(ana.say("texto com presença na fila"));
+        run(3000);
+        CHECK(mesh.radio.size() == before + 1 && presences(*first) == 0);
+        // (Back to one second a part; two minutes give the budget back.)
+        mesh.airtime = 1000;
+        run(120000);
         fromOtherBridge(rui.announce({}, 6).bytes());
         run(200);
-        mesh.data.clear();
-        for (const auto *phone : {&ana, &bia, &caio})
-            phone->write(phone->announce());
-        run(6000);
-        CHECK(presences() == 2);
     }
 
     // Ana opens a private chat with Rui: the handshake crosses both ways, and so do the messages; the bridges only
@@ -1234,6 +1267,12 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
     ana.write(directedFrame(ana, rui.id, 0x10, {m1, sizeof(m1)}));
     run(300);
     out = tunneled();
+    // Ana's announce may go first (when hers has not gone in the last minutes), in the same moment.
+    if (out.size() == 2) {
+        Packet p;
+        CHECK(decode({out[0].data(), out[0].size()}, p) == Result::Ok && p.type == 1 && p.sender == ana.id);
+        out.erase(out.begin());
+    }
     CHECK(out.size() == 1);
     {
         Packet p;
