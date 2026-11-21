@@ -368,6 +368,8 @@ class BitchatBridge
     bool peerClockFromRadio = false;
     // The LoRa time came from one radio alone: any phone, or two radios that agree, replace it.
     bool peerClockSingle = false;
+    // Tunnel parts sent over LoRa and packets from the tunnel given to the phones here (the !bridge report).
+    uint32_t tunnelSent = 0, tunnelReceived = 0;
     struct RadioTime {
         std::array<uint8_t, 4> key{};
         uint64_t utc = 0;

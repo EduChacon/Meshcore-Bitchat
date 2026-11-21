@@ -943,6 +943,16 @@ void BitchatBridge::answerApp()
         replyToApp(line);
         line = end ? end + 1 : nullptr;
     }
+    if (tunnelOn) {
+        // What crossed the tunnel: parts sent over LoRa, packets from there given to the phones here, and the
+        // phones from there that this bridge knows now.
+        char out[8], in[8];
+        displayCount(tunnelSent, out);
+        displayCount(tunnelReceived, in);
+        snprintf(text, sizeof(text), "Tunnel: out %s, in %s, far phones %u", out, in,
+                 unsigned(runtime && runtime->peers ? runtime->peers->remoteCount() : 0));
+        replyToApp(text);
+    }
     if (hint()[0])
         snprintf(text, sizeof(text), "%s", hint());
     else if (!wasActive)
@@ -2007,7 +2017,10 @@ void BitchatBridge::sendRadio()
     }
     // Then the phones' private chats, taking turns with the public text so neither waits for the other.
     if (runtime->frames && (runtime->frames->urgent.size() || runtime->frames->out.size()) && (!item || runtime->frames->turn)) {
-        if (!host->radioBusy() && runtime->radioGate.admit(millis(), 1500) && sendFrame())
+        // The opening of a private chat races the app's ten seconds: its parts do not wait for the spacing
+        // between sends, only for the radio.
+        const bool urgent = runtime->frames->urgent.size() != 0;
+        if (!host->radioBusy() && (urgent || runtime->radioGate.admit(millis(), 1500)) && sendFrame())
             runtime->frames->turn = false;
         else if (item)
             runtime->frames->turn = false;

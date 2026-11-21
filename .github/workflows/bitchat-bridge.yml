@@ -276,5 +276,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${{ needs.verify.outputs.version }}"
-          gh release create "$version" published/* --target "$GITHUB_SHA" --prerelease \
+          gh release create "$version" published/* --target "$GITHUB_SHA" --latest \
             --title "MeshCore + Bitchat $version" --notes-file docs/bitchat/RELEASE.md

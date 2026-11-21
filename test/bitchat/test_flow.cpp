@@ -1188,9 +1188,18 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const PeerId &bridgeI
     ruiSide.start(false, e2);
     uint8_t m1[NOISE_MESSAGE1], m2[NOISE_MESSAGE2], m3[NOISE_MESSAGE3];
     CHECK(anaSide.writeMessage1(m1));
+    // The opening does not wait for the spacing between sends: just after a public text went on air, it goes
+    // as soon as the radio is free (the app gives up after ten seconds).
+    {
+        const auto before = mesh.radio.size();
+        ana.write(ana.say("antes do privado"));
+        for (int i = 0; i < 100 && mesh.radio.size() == before; ++i)
+            run(20);
+        CHECK(mesh.radio.size() == before + 1);
+    }
     mesh.data.clear();
     ana.write(directedFrame(ana, rui.id, 0x10, {m1, sizeof(m1)}));
-    run(3000);
+    run(300);
     out = tunneled();
     CHECK(out.size() == 1);
     {
@@ -1325,6 +1334,16 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const PeerId &bridgeI
     run(300);
     // Nothing of it on the LoRa text channel.
     CHECK(mesh.radio.size() == radioBefore);
+    // The report in the app counts what crossed the tunnel.
+    mesh.app.clear();
+    CHECK(fromApp("!bridge"));
+    run(100);
+    {
+        bool counted = false;
+        for (const auto &line : mesh.app)
+            counted |= line.text.rfind("bridge: Tunnel: out ", 0) == 0 && line.text.find(", far phones ") != std::string::npos;
+        CHECK(counted);
+    }
     // Another bridge heard over Bluetooth, with a lower node number, puts this one on standby for the public text
     // (both would relay it). The tunnel goes on: its frames are each phone's own, and the two sides of a chat
     // need both bridges.

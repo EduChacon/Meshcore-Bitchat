@@ -20,6 +20,9 @@ static constexpr uint32_t PRESENCE_MS = 3UL * 60 * 1000;
 static constexpr uint32_t PRESENCE_ALONE_MS = 30UL * 60 * 1000;
 static constexpr uint32_t PARTNER_MS = 30UL * 60 * 1000;
 static constexpr uint32_t LOCAL_MS = 3UL * 60 * 1000;
+// A phone's announce goes again before its private packets only when the other side may have dropped it (its
+// table forgets a phone after five minutes): an extra part costs seconds the app's handshake does not have.
+static constexpr uint32_t ANNOUNCE_AGAIN_MS = 4UL * 60 * 1000;
 static constexpr uint32_t REMOTE_DEDUP_MS = 125000;
 // Phones known through the tunnel take at most this many places in the table of phones.
 static constexpr size_t REMOTE_PEERS = 6;
@@ -58,7 +61,7 @@ void BitchatBridge::tunnelOut(const Packet &packet, Peer &peer, Bytes relayed, u
     }
     runtime->frames->budget.admit(now, 12, 3000);
     // The other side drops what comes from a phone it does not know: the announce goes first when it is due.
-    if (!peer.tunneledAt || !Throttle::isWithinTimespanMsAt(peer.tunneledAt, PRESENCE_MS, now)) {
+    if (!peer.tunneledAt || !Throttle::isWithinTimespanMsAt(peer.tunneledAt, ANNOUNCE_AGAIN_MS, now)) {
         for (const auto &kept : runtime->announced)
             if (kept.size && kept.size <= kept.frame.size() && kept.peer == peer.id) {
                 std::array<uint8_t, sizeof(kept.frame)> announce;
@@ -136,6 +139,7 @@ bool BitchatBridge::sendFrame()
     tokens -= cost;
     queue.pop();
     ++submittedRadio;
+    ++tunnelSent;
     return true;
 }
 
@@ -206,6 +210,7 @@ void BitchatBridge::tunnelIn(Bytes data, uint32_t now)
         if (!peer->remote || !to || to->remote || packet.recipient == ownId)
             return;
     }
+    ++tunnelReceived;
     if (bleBroadcast(full.bytes()))
         ++forwardedBle;
 }
