@@ -14,8 +14,14 @@
 
 using namespace bitchat;
 
-// A phone's presence on the other side: every 3 minutes while another tunnel bridge was heard in the last half hour,
-// else every 30 minutes, so two bridges find each other without the channel paying for it all day.
+// A phone's presence on the other side. The Bitchat app drops a relayed phone from its list 60 s after its last
+// announce, and sends nothing to a phone it does not list: while phones are near both bridges (the other one sent
+// something in the last 3 minutes), the first two phones here go every 50 seconds. Otherwise every 3 minutes while
+// another tunnel bridge was heard in the last half hour, else every 30 minutes, so two bridges find each other
+// without the channel paying for it all day. With no phone near, nothing goes.
+static constexpr uint32_t FAST_PRESENCE_MS = 50000;
+static constexpr uint32_t ACTIVE_PARTNER_MS = 3UL * 60 * 1000;
+static constexpr size_t FAST_PHONES = 2;
 static constexpr uint32_t PRESENCE_MS = 3UL * 60 * 1000;
 static constexpr uint32_t PRESENCE_ALONE_MS = 30UL * 60 * 1000;
 static constexpr uint32_t PARTNER_MS = 30UL * 60 * 1000;
@@ -33,12 +39,16 @@ void BitchatBridge::tunnelOut(const Packet &packet, Peer &peer, Bytes relayed, u
     // bridges to carry its side.
     if (!tunnelOn || !textReady || !runtime || peer.announcement.gateway || peer.remote)
         return;
-    const bool partner =
-        runtime->frames && runtime->frames->heardAt && Throttle::isWithinTimespanMsAt(runtime->frames->heardAt, PARTNER_MS, now);
+    const uint32_t heardAt = runtime->frames ? runtime->frames->heardAt : 0;
+    const bool partner = heardAt && Throttle::isWithinTimespanMsAt(heardAt, PARTNER_MS, now);
     if (packet.type == 1) {
         // A phone here, announcing itself to this radio: its presence on the other side.
-        if (packet.ttl != 7 ||
-            (peer.tunneledAt && Throttle::isWithinTimespanMsAt(peer.tunneledAt, partner ? PRESENCE_MS : PRESENCE_ALONE_MS, now)))
+        if (packet.ttl != 7)
+            return;
+        uint32_t every = partner ? PRESENCE_MS : PRESENCE_ALONE_MS;
+        if (heardAt && Throttle::isWithinTimespanMsAt(heardAt, ACTIVE_PARTNER_MS, now) && fastPresence(peer, now))
+            every = FAST_PRESENCE_MS;
+        if (peer.tunneledAt && Throttle::isWithinTimespanMsAt(peer.tunneledAt, every, now))
             return;
         if (queueFrame(relayed, now))
             peer.tunneledAt = now ? now : 1;
@@ -76,6 +86,22 @@ void BitchatBridge::tunnelOut(const Packet &packet, Peer &peer, Bytes relayed, u
             }
     }
     queueFrame(relayed, now, packet.type == 0x10);
+}
+
+// One of the first phones here, by ID, among those connected to this bridge now: the few whose presence goes at
+// the fast rhythm, so a full house does not take the channel.
+bool BitchatBridge::fastPresence(const Peer &peer, uint32_t now) const
+{
+    size_t before = 0;
+    for (size_t i = 0; i < PeerTable::CAPACITY; ++i) {
+        const Peer &other = runtime->peers->slot(i);
+        if (!other.used || &other == &peer || other.remote || other.announcement.gateway || other.link == NO_LINK ||
+            !other.localAt || !Throttle::isWithinTimespanMsAt(other.localAt, LOCAL_MS, now))
+            continue;
+        if (std::lexicographical_compare(other.id.begin(), other.id.end(), peer.id.begin(), peer.id.end()))
+            ++before;
+    }
+    return before < FAST_PHONES;
 }
 
 bool BitchatBridge::queueFrame(Bytes frame, uint32_t now, bool urgent)

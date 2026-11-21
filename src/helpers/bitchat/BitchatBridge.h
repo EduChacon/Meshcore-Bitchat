@@ -584,6 +584,7 @@ class BitchatBridge
     // Private chats between phones near different bridges (BridgeRemote.cpp).
     void tunnelOut(const bitchat::Packet &packet, bitchat::Peer &peer, bitchat::Bytes relayed, uint16_t source, uint32_t now);
     void tunnelIn(bitchat::Bytes data, uint32_t now);
+    bool fastPresence(const bitchat::Peer &peer, uint32_t now) const;
     bool queueFrame(bitchat::Bytes frame, uint32_t now, bool urgent = false);
     bool sendFrame();
     void expireHandshake(bitchat::PrivateSession &session, uint32_t now);
