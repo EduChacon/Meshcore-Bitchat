@@ -2724,11 +2724,18 @@ int main()
             CHECK(fromApp("!ponte posi\xc3\xa7\xc3\xa3o on"));
             run(100);
             CHECK(bridge->sosPositioned() && mesh.app.size() == 1 && mesh.app[0].text.rfind("bridge: Posi\xc3\xa7\xc3\xa3o ligada", 0) == 0);
-            // from Bitchat the setting is not changed, only the state is answered
+            // from Bitchat the setting is not changed: the phone is told that only the owner changes it
             run(5000);
+            fakeSent.clear();
             gal.write(gal.say("!bridge position off"));
             run(600);
             CHECK(bridge->sosPositioned());
+            {
+                bool told = false;
+                for (const auto &line : chat(gal.handle, &bridgeId))
+                    told |= line.find("Only the radio's owner changes this") != std::string::npos;
+                CHECK(told);
+            }
             run(300000);
             gal.write(gal.announce());
             run(600);

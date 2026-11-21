@@ -1,24 +1,24 @@
-# MeshCore + Bitchat v1.18.0-bitchat1.0
+# MeshCore + Bitchat v1.18.0-bitchat1.1
 
 Firmware _companion_ do MeshCore 1.18.0 com uma ponte embutida para o aplicativo Bitchat: celulares
 com o Bitchat conversam com a malha MeshCore, e entre si, pelo LoRa, sem internet.
 
-A `bitchat1.0` reúne tudo o que veio desde a `bitchat0.1` numa versão revisada por inteiro: textos
-de ajuda nas duas línguas, guia reescrito e as correções do primeiro ensaio das conversas
-privadas em aparelho.
+A `bitchat1.1` completa a `bitchat1.0`, que reuniu e revisou tudo desde a `bitchat0.1`, com os
+ajustes do ensaio do túnel. É a primeira publicada como versão normal, e não como pré-lançamento.
 
 ## Estado
 
 - **Ensaiado em aparelho pelo autor:** o texto público entre o Bitchat e o MeshCore (Heltec V3); a
   conversa privada com a ponte (Heltec V3 e T1000-E); o envio de `@contato` a um favorito do rádio;
-  o túnel entre um Heltec V3 e um T1000-E, com os celulares ainda ao alcance um do outro pelo
-  Bluetooth.
-- **Não ensaiado em aparelho:** a correção do túnel desta versão (abaixo), a hora pelos anúncios do
-  LoRa, os pagamentos Cashu e os demais aparelhos da
+  o túnel entre um Heltec V3 e um T1000-E (`bitchat1.0`), com a conversa privada entre os dois
+  celulares funcionando.
+- **Não ensaiado em aparelho:** as mudanças desta versão (abaixo), a resposta de um contato pelo
+  `@contato`, o túnel com repetidores no caminho, a hora pelos anúncios do LoRa, os pagamentos Cashu
+  e os demais aparelhos da
   [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md). Não há
   medições de alcance, consumo ou duração.
 - **Testes no computador:** 1056 verificações do núcleo, 223 da criptografia das conversas privadas
-  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3049 do fluxo
+  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3059 do fluxo
   completo, com celulares e rádio simulados. Compilados no GitHub os 27 aparelhos da versão e o
   WadaMesh.
 
@@ -40,7 +40,22 @@ privadas em aparelho.
 - **Ajuda:** `!ponte ajuda` (ou `!bridge help`) no aplicativo MeshCore; `ajuda` (ou `help`) na
   conversa privada com a ponte. Cada língua tem a ajuda completa.
 
-## Novidades desde a `bitchat0.25`
+## Novidades na `bitchat1.1`
+
+- **Túnel: a conversa abre mais depressa.** O Bitchat do iPhone desiste de abrir uma conversa
+  privada em cerca de 10 segundos, e pelo túnel a abertura vai e volta pelo LoRa. A ponte esperava
+  1,5 segundo entre dois envios e às vezes mandava antes o anúncio do celular; agora os pedaços da
+  abertura saem assim que o rádio fica livre, e o anúncio só vai antes quando a outra ponte pode ter
+  esquecido o celular (depois de 4 minutos).
+- **Contadores do túnel:** o `!ponte` mostra `Tunnel: out N, in M, far phones K` (pedaços enviados,
+  pacotes recebidos e celulares do outro lado).
+- **Configurações pelo Bitchat:** um comando de configuração escrito no `#mesh` (por exemplo
+  `!ponte túnel off`) recebe agora o aviso de que só o dono do rádio muda isso, como já acontecia na
+  conversa privada; antes recebia o estado da ponte.
+- **Publicada como versão normal**, não mais como pré-lançamento.
+- Documentos: guia, roteiro e lista de aparelhos com o resultado do ensaio do túnel.
+
+## O que veio na `bitchat1.0`
 
 - **Túnel ligado de fábrica**, com aviso no guia e na resposta de `!ponte túnel on`. Também em quem
   atualiza e nunca mexeu nessa escolha.

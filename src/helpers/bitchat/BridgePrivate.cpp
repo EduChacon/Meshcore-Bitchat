@@ -344,37 +344,6 @@ void BitchatBridge::privateTransport(PrivateSession &session, const Packet &pack
     noiseWipe(plain, size);
 }
 
-// Commands that change how the radio works.
-static bool ownerCommand(Command command)
-{
-    switch (command) {
-    case Command::Reset:
-    case Command::On:
-    case Command::Off:
-    case Command::Local:
-    case Command::Lora:
-    case Command::LinkOn:
-    case Command::LinkOff:
-    case Command::EconomyOn:
-    case Command::EconomyOff:
-    case Command::PrefixOn:
-    case Command::PrefixOff:
-    case Command::PositionOn:
-    case Command::PositionOff:
-    case Command::SoundOn:
-    case Command::SoundOff:
-    case Command::LightOn:
-    case Command::LightOff:
-    case Command::DmOn:
-    case Command::DmOff:
-    case Command::TunnelOn:
-    case Command::TunnelOff:
-        return true;
-    default:
-        return false;
-    }
-}
-
 void BitchatBridge::privateRequest(PrivateSession &session, const Peer &peer, Bytes text, bool direct, uint32_t now)
 {
     // "@name text": a direct message to a LoRa contact.

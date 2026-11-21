@@ -1110,6 +1110,14 @@ void BitchatBridge::answerAsked(const BridgeRequest &asked, const Peer &peer, bo
         }
         break;
     default:
+        // The radio's settings are its owner's; the private chat answers these before they get here.
+        if (ownerCommand(asked.command)) {
+            size = fitted(snprintf(text, room, "%s",
+                                   portuguese ? "Só o dono do rádio muda isso, no próprio rádio ou no aplicativo MeshCore."
+                                              : "Only the radio's owner changes this, on the radio or in the MeshCore app."),
+                          room);
+            break;
+        }
         answerBitchat();
         return;
     }

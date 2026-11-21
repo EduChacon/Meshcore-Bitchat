@@ -1,13 +1,14 @@
 # Roteiro da ponte Bitchat
 
-Estado em 2026-11-20. Vale para as três frentes: [MeshCore](https://github.com/EduChacon/Meshcore-Bitchat),
+Estado na ponte MeshCore `bitchat1.1`. Vale para as três frentes: [MeshCore](https://github.com/EduChacon/Meshcore-Bitchat),
 [Meshtastic](https://github.com/EduChacon/meshtastic-bitchat) e
 [Saitama](https://github.com/EduChacon/Saitama-mesh---BC-) (T-Deck Plus e Cardputer ADV).
 
 ## Para que serve
 
 Um rádio LoRa em cada casa, ligado e esquecido. Quem está na casa usa só o Bitchat no telefone; o
-rádio leva o texto público do `#mesh` às outras casas pelo LoRa e traz o delas. Quem recebe o rádio
+rádio leva o texto público do `#mesh` às outras casas pelo LoRa e traz o delas, e as conversas
+privadas entre casas passam pelo túnel. Quem recebe o rádio
 de presente não precisa conhecer o MeshCore nem o Meshtastic.
 
 ## Pronto
@@ -34,9 +35,9 @@ de presente não precisa conhecer o MeshCore nem o Meshtastic.
 | Pedido de socorro com posição (`!ponte sos`)                   | sim      | sim         | não                                    |
 | Teste de alcance entre pontes (`!ponte teste`)                 | sim      | sim         | não                                    |
 | Hora pelo GPS, quando nada mais deu a hora                     | sim      | sim         | não                                    |
-| Conversa privada com a ponte (comandos no privado)             | sim      | sim         | não                                    |
-| Mensagem privada do Bitchat a um contato do LoRa, e resposta   | sim      | sim         | não                                    |
-| Conversa privada entre celulares de casas diferentes (túnel)   | sim      | laboratório | não                                    |
+| Conversa privada com a ponte (comandos no privado)             | sim      | sim         | Heltec V3 e T1000-E (MeshCore)         |
+| Mensagem privada do Bitchat a um contato do LoRa, e resposta   | sim      | sim         | envio (MeshCore)                       |
+| Conversa privada entre celulares de casas diferentes (túnel)   | sim      | laboratório | Heltec V3 e T1000-E (MeshCore)         |
 | Hora pelos anúncios do LoRa                                    | sim      | nativo      | não                                    |
 
 Na coluna do Meshtastic, "nativo" quer dizer que todo rádio Meshtastic já repassa mensagens. No
@@ -45,8 +46,8 @@ Saitama (T-Deck Plus e Cardputer ADV), o menu de ajustes tem as linhas **Bitchat
 
 ## Em seguida
 
-1. **Ensaio em aparelho** do que está pronto, a começar pelas conversas privadas (com a ponte, com
-   contatos do LoRa e entre casas), pelo histórico, pela ligação entre casas e pelos
+1. **Ensaio em aparelho** do que ainda não foi: a resposta de um contato do LoRa pelo `@contato`, o
+   túnel com repetidores no caminho, a hora pelo LoRa, o histórico, a ligação com o Meshtastic e os
    [pagamentos Cashu](CASHU.md#roteiro-de-ensaio).
 2. **T-Deck com WadaMesh** (desde a `bitchat0.23`): ensaiar no aparelho, em especial o Bluetooth junto
    com o Wi-Fi; depois, uma página da ponte nos ajustes do WadaMesh.
@@ -74,6 +75,6 @@ cada mensagem custaria de 3 a 5 transmissões, contra 1 do formato atual.
 
 ## O que falta acima de tudo
 
-Ensaio em aparelho. Só duas versões antigas rodaram em rádio, no Heltec V3. Tudo o mais foi
-simulado e compilado. Cada item novo sobre base não ensaiada torna mais difícil achar a causa de
-um defeito.
+Ensaio em aparelho e medições. O texto público, a conversa privada com a ponte e o túnel foram
+ensaiados pelo autor num Heltec V3 e num T1000-E; o resto foi testado no computador e compilado.
+Faltam medições de alcance, consumo e duração.

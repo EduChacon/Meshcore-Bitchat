@@ -83,6 +83,8 @@ struct BridgeRequest {
 };
 constexpr size_t COMMAND_TEXT_LIMIT = 200;
 bool parseBridgeCommand(Bytes text, BridgeRequest &out);
+// Commands that change how the radio works: only its owner, on the radio or in its app, may send them.
+bool ownerCommand(Command command);
 // "!bridge" or "!ponte" in any letter case asks for a self-test; " reset" after
 // it restarts the Bluetooth links.
 Command bridgeCommand(Bytes text);

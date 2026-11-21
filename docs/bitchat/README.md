@@ -4,13 +4,13 @@ Firmware _companion_ do MeshCore com uma ponte embutida para o aplicativo
 [Bitchat](https://github.com/permissionlesstech/bitchat). Um telefone com o Bitchat, perto do
 rádio, conversa com quem está na malha MeshCore, e o contrário, sem internet e sem servidor.
 
-**Estado na versão `bitchat1.0`.** Ensaiado em aparelho pelo autor: o texto público entre o
+**Estado na versão `bitchat1.1`.** Ensaiado em aparelho pelo autor: o texto público entre o
 Bitchat e o MeshCore (Heltec V3); a conversa privada com a ponte (Heltec V3 e T1000-E); o envio de
-`@contato` a um favorito do rádio. O túnel foi ensaiado entre um Heltec V3 e um T1000-E com os
-celulares ainda ao alcance um do outro pelo Bluetooth; a correção que faltava nesse caso entrou na
-`bitchat1.0` e não foi ensaiada. Não há medições de alcance, consumo ou duração. O resto (pagamentos
-Cashu, hora pelo LoRa, guia, histórico, funções da casa) e os demais aparelhos da
-[lista](DEVICES.md) foram testados no computador e compilados, sem ensaio em aparelho.
+`@contato` a um favorito do rádio; e o túnel entre um Heltec V3 e um T1000-E, com a conversa privada
+entre os dois celulares funcionando. Não há medições de alcance, consumo ou duração. O resto
+(resposta pelo `@contato`, túnel com repetidores no caminho, pagamentos Cashu, hora pelo LoRa,
+histórico, funções da casa) e os demais aparelhos da [lista](DEVICES.md) foram testados no
+computador e compilados, sem ensaio em aparelho.
 
 O que está pronto, o que vem em seguida e o que ainda é estudo: [roteiro](ROADMAP.md).
 O ensaio em aparelho: [roteiro de ensaio](TESTING.md).
@@ -275,8 +275,8 @@ No Bitchat, escritos no `#mesh`, valem todos, menos os que mudam a configuraçã
 segundos), o recado, a bateria, os rádios, o socorro e o teste. As respostas vão a todos os
 telefones próximos, uma a cada cinco segundos. Os comandos que mudam a configuração (`on`, `off`,
 `local`, `lora`, `link`, `economy`, `prefix`, `reset`, `som`, `luz`, `privado`, `túnel`) só valem no
-aplicativo MeshCore; no `#mesh` recebem o estado como resposta e, na conversa privada, o aviso de
-que só o dono muda. O guia diz se o texto está indo ao LoRa e se o túnel está ligado.
+aplicativo MeshCore; no Bitchat, no `#mesh` ou na conversa privada, recebem o aviso de que só o dono
+os muda. O guia diz se o texto está indo ao LoRa e se o túnel está ligado.
 
 O `/who` do Bitchat só mostra quem está na malha Bluetooth; quem fala pelo LoRa não aparece ali.
 `!bridge who` cobre essa falta: lista até doze nomes, do mais recente ao mais antigo, e, quando
@@ -474,14 +474,19 @@ exigir outra tentativa: o Bitchat do iPhone desiste da abertura em cerca de 10 s
 
 f) **Como saber se passou pelo túnel:** no Bitchat, a pessoa da outra casa aparece com o símbolo de
 três pontos ligados ("retransmitido por outros"). A anteninha indica que os celulares se alcançam
-direto pelo Bluetooth, e o globo, que o Bitchat usou a internet. No aplicativo MeshCore, o "LoRa
-out" do `!ponte` sobe a cada mensagem que vai pelo túnel. Para ensaiar só o túnel, deixe os celulares
-sem internet e fora do alcance do Bluetooth um do outro.
+direto pelo Bluetooth, e o globo, que o Bitchat usou a internet. Os três pontos também aparecem
+quando a ponte repassa pelo Bluetooth um celular que ela mesma alcança; a prova é o `!ponte`, no
+aplicativo MeshCore: a linha `Tunnel: out N, in M, far phones K` mostra os pedaços enviados pelo
+túnel, os pacotes recebidos dele e os celulares do outro lado que a ponte conhece. Para ensaiar só
+o túnel, deixe os celulares sem internet e fora do alcance do Bluetooth um do outro.
 
-g) **Ensaio em aparelho:** feito entre um Heltec V3 e um T1000-E, mas com os celulares ainda ao
-alcance do Bluetooth, de modo que parte das mensagens passou direto. Nesse caso uma das pontes fica
-de reserva para o texto público, e até a `bitchat0.25` isso também parava o túnel dela; a
-`bitchat1.0` corrige. A correção foi testada no computador, não em aparelho.
+g) **Abrir a conversa leva segundos:** a abertura vai e volta pelo LoRa e precisa caber nos cerca
+de 10 segundos que o Bitchat do iPhone espera. A ponte manda os pedaços da abertura assim que o rádio
+fica livre, sem o intervalo que guarda entre os outros envios. Se não abrir, tente de novo.
+
+h) **Ensaio em aparelho:** entre um Heltec V3 e um T1000-E, a conversa privada entre os dois
+celulares funcionou. Quando duas pontes se ouvem pelo Bluetooth, uma fica de reserva para o texto
+público; até a `bitchat0.25`, isso parava também o túnel dela, e a `bitchat1.0` corrigiu.
 
 ## Histórico para quem chega depois
 
