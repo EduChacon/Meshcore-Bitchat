@@ -437,8 +437,15 @@ TunnelOutcome BitchatBridge::checkPayment(const TunnelHeard &heard, uint64_t &am
         decode(heard.message, message) != Result::Ok || message.type != 2 || message.directed() ||
         message.sender != announced.sender)
         return TunnelOutcome::Invalid;
+    // The payer, unknown here, takes one of the few places for phones known from LoRa: the oldest of those gives
+    // way, never a phone here.
+    const bool known = runtime->peers->find(announced.sender) != nullptr;
+    if (!known && runtime->peers->remoteCount() >= PeerTable::REMOTE_LIMIT)
+        runtime->peers->dropOldestRemote();
     Peer *peer = nullptr;
     Result result = runtime->peers->authenticate(crypto, heard.announce, utc(), now, peer);
+    if (result == Result::Ok && peer && !known)
+        peer->remote = true;
     if (result == Result::Ok && peer && !peer->announcement.gateway)
         result = runtime->peers->authenticate(crypto, heard.message, utc(), now, peer);
     else if (result == Result::Ok)

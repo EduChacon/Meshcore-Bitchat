@@ -41,7 +41,7 @@ static constexpr uint32_t LOCAL_MS = 3UL * 60 * 1000;
 static constexpr uint32_t ANNOUNCE_AGAIN_MS = 4UL * 60 * 1000;
 static constexpr uint32_t REMOTE_DEDUP_MS = 125000;
 // Phones known through the tunnel take at most this many places in the table of phones.
-static constexpr size_t REMOTE_PEERS = 6;
+static constexpr size_t REMOTE_PEERS = PeerTable::REMOTE_LIMIT;
 
 // A remembered announce, a hop older as relayed, queued for the other side.
 bool BitchatBridge::relayedCopy(const Runtime::Announced &kept, std::array<uint8_t, sizeof(Runtime::Announced::frame)> &out)

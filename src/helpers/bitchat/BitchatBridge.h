@@ -370,6 +370,20 @@ class BitchatBridge
     bool peerClockFromRadio = false;
     // The LoRa time came from one radio alone: any phone, or two radios that agree, replace it.
     bool peerClockSingle = false;
+    // The time each Bluetooth link's phone gave lately: one link, one vote, so one device cannot carry the clock
+    // off against the phones next to it.
+    struct PhoneTime {
+        uint16_t link = 0xffff;
+        uint64_t utc = 0;
+        uint32_t at = 0;
+        bool used = false;
+    };
+    std::array<PhoneTime, 4> phoneTimes{};
+    // A standby for another bridge holds only while the text it should carry shows up on LoRa.
+    bool standbyCheck = false;
+    uint8_t standbyBodySize = 0;
+    std::array<uint8_t, 20> standbyBody{};
+    uint32_t standbyCheckAt = 0, conflictRefusedAt = 0;
     // Tunnel parts sent over LoRa and packets from the tunnel given to the phones here (the !bridge report).
     uint32_t tunnelSent = 0, tunnelReceived = 0;
     struct RadioTime {
@@ -575,7 +589,7 @@ class BitchatBridge
     uint64_t utc() const;
     uint64_t trustedUtc() const;
     void watchClock(uint32_t now);
-    void adoptPeerClock(bitchat::Bytes frame, const bitchat::Packet &packet);
+    void adoptPeerClock(bitchat::Bytes frame, const bitchat::Packet &packet, uint16_t source);
     void keepClock(uint32_t now);
     // Private chats (BridgePrivate.cpp): a Noise packet addressed to this bridge.
     void privateFrame(const bitchat::Packet &packet, const bitchat::Peer &peer, uint16_t source, uint32_t now);

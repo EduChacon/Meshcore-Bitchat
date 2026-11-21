@@ -111,8 +111,17 @@ void SerialBLEInterface::onDisconnect(NimBLEServer* server, ble_gap_conn_desc* d
   }
 }
 
+// The companion app pairs with the PIN: such a link is authenticated, not only encrypted. NimBLE also lets a
+// device without a keyboard or screen pair with no PIN ("Just Works"): encrypted, not authenticated. That one
+// must never become the app's link (it would receive the app's data, channel keys among it).
+static bool pinPaired(uint16_t conn) {
+  struct ble_gap_conn_desc desc;
+  return conn != NO_CONN && ble_gap_conn_find(conn, &desc) == 0 && desc.sec_state.encrypted &&
+         desc.sec_state.authenticated;
+}
+
 void SerialBLEInterface::onAuthenticationComplete(ble_gap_conn_desc* desc) {
-  if (desc->sec_state.encrypted) {
+  if (desc->sec_state.encrypted && desc->sec_state.authenticated) {
     BLE_DEBUG_PRINTLN(" - Authentication Success, conn=%d", desc->conn_handle);
     if (!deviceConnected) {
       app_conn = desc->conn_handle;
@@ -129,7 +138,8 @@ void SerialBLEInterface::onAuthenticationComplete(ble_gap_conn_desc* desc) {
 // -------- NimBLECharacteristicCallbacks methods
 
 void SerialBLEInterface::onWrite(NimBLECharacteristic* characteristic, ble_gap_conn_desc* desc) {
-  if (!desc->sec_state.encrypted) return;   // the stack already refuses these; never trust an open link here
+  // the stack already refuses these (the PIN is required to write); never trust another link here
+  if (!desc->sec_state.encrypted || !desc->sec_state.authenticated) return;
 
   // the link that writes is the one the companion app is on
   app_conn = desc->conn_handle;
@@ -241,9 +251,14 @@ void SerialBLEInterface::drainSendQueue() {
     && millis() >= _last_write + BLE_WRITE_MIN_INTERVAL    // space the writes apart
   ) {
     _last_write = millis();
-    // only subscribed links that are encrypted receive this
+    // Only the app's own link, paired with the PIN, receives this: never the Bitchat phones, nor a device that
+    // paired without the PIN (notify() would send it to every subscribed, encrypted link).
     pTxCharacteristic->setValue(send_queue[0].buf, send_queue[0].len);
-    pTxCharacteristic->notify();
+    const uint16_t conn = app_conn;
+    if (pinPaired(conn)) {
+      os_mbuf* om = ble_hs_mbuf_from_flat(send_queue[0].buf, send_queue[0].len);
+      if (om) ble_gattc_notify_custom(conn, pTxCharacteristic->getHandle(), om);
+    }
 
     BLE_DEBUG_PRINTLN("writeBytes: sz=%d, hdr=%d", (uint32_t)send_queue[0].len, (uint32_t) send_queue[0].buf[0]);
 

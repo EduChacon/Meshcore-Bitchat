@@ -634,19 +634,32 @@ bool switchFor(const char *key, uint8_t *&value, uint8_t *&size)
     return false;
 }
 
+// The new copy is written beside the old one and then takes its name, which the file system does at once: a power
+// cut midway leaves the old file, or the new one under its temporary name, never neither (the identity is here).
+void newPath(const char *path, char (&out)[40])
+{
+    snprintf(out, sizeof(out), "%s.new", path);
+}
+
 template <typename Image> bool writeImage(const char *path, Image &image)
 {
     image.check = checksum(image);
-    InternalFS.remove(path);
-    auto file = InternalFS.open(path, Adafruit_LittleFS_Namespace::FILE_O_WRITE);
+    char fresh[40];
+    newPath(path, fresh);
+    InternalFS.remove(fresh); // opened for writing, a file is written at its end
+    auto file = InternalFS.open(fresh, Adafruit_LittleFS_Namespace::FILE_O_WRITE);
     if (!file)
         return false;
     const bool whole = file.write(reinterpret_cast<const uint8_t *>(&image), sizeof(image)) == sizeof(image);
     file.close();
-    return whole;
+    if (!whole) {
+        InternalFS.remove(fresh);
+        return false;
+    }
+    return InternalFS.rename(fresh, path);
 }
 
-template <typename Image> void readImage(const char *path, Image &image, uint32_t magic)
+template <typename Image> bool readOne(const char *path, Image &image, uint32_t magic)
 {
     Image read;
     bool whole = false;
@@ -655,9 +668,20 @@ template <typename Image> void readImage(const char *path, Image &image, uint32_
         whole = file.read(reinterpret_cast<uint8_t *>(&read), sizeof(read)) == int(sizeof(read));
         file.close();
     }
-    // A missing or damaged file starts from the defaults.
-    if (whole && read.magic == magic && read.check == checksum(read))
-        image = read;
+    if (!whole || read.magic != magic || read.check != checksum(read))
+        return false;
+    image = read;
+    return true;
+}
+
+template <typename Image> void readImage(const char *path, Image &image, uint32_t magic)
+{
+    // A missing or damaged file starts from the defaults, unless a whole new copy is waiting under its
+    // temporary name (power cut before it took the name).
+    char fresh[40];
+    newPath(path, fresh);
+    if (!readOne(path, image, magic) && readOne(fresh, image, magic))
+        InternalFS.rename(fresh, path);
 }
 
 bool writeStore()

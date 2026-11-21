@@ -27,6 +27,14 @@
 
 static SerialBLEInterface* instance = nullptr;
 
+// The companion app pairs with the PIN (security level 3). A device with no keyboard or screen may pair without
+// it ("Just Works", level 2): such a link never becomes the app's.
+static bool pinPaired(uint16_t handle) {
+  BLEConnection* conn = Bluefruit.Connection(handle);
+  return conn != nullptr && conn->connected() && conn->secured() && conn->getSecureMode().sm == 1 &&
+         conn->getSecureMode().lv >= 3;
+}
+
 void SerialBLEInterface::onConnect(uint16_t connection_handle) {
   BLE_DEBUG_PRINTLN("SerialBLEInterface: connected handle=0x%04X", connection_handle);
   if (instance) {
@@ -55,6 +63,11 @@ void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason
 void SerialBLEInterface::onSecured(uint16_t connection_handle) {
   BLE_DEBUG_PRINTLN("SerialBLEInterface: onSecured handle=0x%04X", connection_handle);
   if (instance) {
+    if (!pinPaired(connection_handle)) {
+      BLE_DEBUG_PRINTLN("onSecured: paired without the PIN, disconnecting");
+      sd_ble_gap_disconnect(connection_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+      return;
+    }
     // Only the companion app pairs, so the link that becomes secure is the app's.
     if (!instance->_isDeviceConnected) {
       instance->_conn_handle = connection_handle;
@@ -434,7 +447,7 @@ void SerialBLEInterface::onBleUartRX(uint16_t conn_handle) {
   // Only a paired link can write here, and only the companion app writes: the link that does is the app's.
   if (instance->_conn_handle != conn_handle) {
     BLEConnection* writer = Bluefruit.Connection(conn_handle);
-    if (writer != nullptr && writer->connected() && writer->secured()) {
+    if (writer != nullptr && pinPaired(conn_handle)) {
       instance->_conn_handle = conn_handle;
       instance->_isDeviceConnected = true;
       instance->send_queue_len = 0;

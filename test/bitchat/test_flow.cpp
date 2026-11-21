@@ -1544,6 +1544,43 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
         // The standby ends by itself.
         run(91000);
         CHECK(std::string(bridge->status()).rfind("Standby", 0) != 0);
+        // A standby holds while the other bridge carries the text of the phones here: Ana's shows up on LoRa.
+        run(31000);
+        fromOtherBridge(rui.announce({}, 6).bytes());
+        bia.write(other.announce({extra.data(), extra.size()}, 6));
+        run(300);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) == 0);
+        auto radioBefore = mesh.radio.size();
+        ana.write(ana.say("vai pela outra ponte"));
+        run(2000);
+        CHECK(mesh.radio.size() == radioBefore);
+        fromLoRa("Outra: ana: vai pela outra ponte");
+        run(62000);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) == 0);
+        run(30000);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) != 0);
+        // Anyone with the key of a hashtag channel can write the proof. A "bridge" that never carries the text
+        // holds this one back a minute at most: then it takes the text back, and believes no such claim for half
+        // an hour.
+        run(31000);
+        fromOtherBridge(rui.announce({}, 6).bytes());
+        bia.write(other.announce({extra.data(), extra.size()}, 6));
+        run(300);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) == 0);
+        radioBefore = mesh.radio.size();
+        ana.write(ana.say("ninguem leva este"));
+        run(2000);
+        CHECK(mesh.radio.size() == radioBefore);
+        run(60000);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) != 0);
+        ana.write(ana.say("agora vai"));
+        run(3000);
+        CHECK(mesh.radio.size() == radioBefore + 1);
+        bia.write(other.announce({extra.data(), extra.size()}, 6));
+        run(300);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) != 0);
+        fromOtherBridge(rui.announce({}, 6).bytes());
+        run(200);
     }
     // Off again: frames from LoRa are ignored.
     CHECK(fromApp("!bridge tunnel off"));
@@ -3144,6 +3181,86 @@ int main()
         run(400);
         bridge->diagnostics(diag, sizeof(diag));
         CHECK(std::string(diag).find(" phone.") != std::string::npos);
+    }
+
+    // The time the bridge holds, in seconds of the day, as its diagnostics show it.
+    const auto heldSeconds = [] {
+        char diag[200];
+        bridge->diagnostics(diag, sizeof(diag));
+        unsigned h = 0, m = 0, sec = 0;
+        CHECK(sscanf(diag, "UTC %u:%u:%u", &h, &m, &sec) == 3);
+        return long(h * 3600 + m * 60 + sec);
+    };
+    const auto near = [](long a, long b) {
+        const long d = ((a - b) % 86400 + 86400) % 86400;
+        return d <= 5 || d >= 86400 - 5;
+    };
+    // A time from LoRa adverts that radios agree on is replaced by a phone's either way, here hours earlier: anyone
+    // in the mesh can sign adverts with keys of their own, the phone is next to the radio.
+    delete bridge;
+    bridge = new BitchatBridge;
+    bridge->begin(mesh);
+    {
+        const uint8_t one[4] = {6, 1, 8, 0}, two[4] = {3, 3, 9, 8}, three[4] = {8, 8, 7, 4};
+        const uint32_t base = uint32_t(nowUtc() / 1000) + 60 * 86400;
+        bridge->onRadioTime(one, base + 5 * 3600);
+        bridge->onRadioTime(two, base + 5 * 3600 + 2);
+        bridge->onRadioTime(three, base + 5 * 3600 + 4);
+        char diag[200];
+        bridge->diagnostics(diag, sizeof(diag));
+        CHECK(std::string(diag).find(" lora.") != std::string::npos);
+        Phone eva("eva", 23, 23);
+        run(32000);
+        eva.connect();
+        run(100);
+        stamp = uint64_t(base) * 1000;
+        eva.write(eva.announce());
+        run(400);
+        bridge->diagnostics(diag, sizeof(diag));
+        CHECK(std::string(diag).find(" phone.") != std::string::npos);
+        CHECK(near(heldSeconds(), long((stamp / 1000) % 86400)));
+    }
+    // Between phones, one link is one vote: a device on another link that announces a year and three hours
+    // ahead does not carry the time off against the phone next to the radio, whose text still goes. A phone that
+    // changes its own clock is followed (its vote moves, no other holds the time).
+    {
+        Phone eva("eva", 23, 23), mallory("mallory", 24, 24);
+        mallory.connect();
+        run(100);
+        const uint64_t honest = stamp;
+        const long before = heldSeconds();
+        stamp = honest + (365ULL * 86400 + 3 * 3600) * 1000;
+        mallory.write(mallory.announce());
+        run(400);
+        CHECK(near(heldSeconds(), before + 1));
+        stamp = honest + 1000;
+        const auto radioBefore = mesh.radio.size();
+        eva.write(eva.announce());
+        eva.write(eva.say("a hora certa"));
+        run(3000);
+        CHECK(mesh.radio.size() == radioBefore + 1);
+        // Eva sets her clock two hours ahead: the bridge follows her.
+        stamp = honest + 2 * 3600 * 1000ULL + 10000;
+        eva.write(eva.announce());
+        run(400);
+        CHECK(near(heldSeconds(), long((stamp / 1000) % 86400)));
+    }
+    // A phone's ID is the hash of its public noise key, so a device may announce that ID with a signing key of its
+    // own. The real phone, announcing itself again over its own link, takes the place back, and its text goes
+    // (before, the first one kept it and the real phone was refused).
+    {
+        Phone eva("eva", 23, 23), squat("eva", 24, 24);
+        squat.noiseKey = eva.noiseKey;
+        squat.noisePublic = eva.noisePublic;
+        squat.id = eva.id;
+        run(30000);
+        squat.write(squat.announce());
+        run(400);
+        const auto radioBefore = mesh.radio.size();
+        eva.write(eva.announce());
+        eva.write(eva.say("sou eu mesma"));
+        run(3000);
+        CHECK(mesh.radio.size() == radioBefore + 1 && mesh.radio.back().text.find("sou eu mesma") != std::string::npos);
     }
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;

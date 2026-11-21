@@ -74,7 +74,7 @@ bool PeerTable::nicknameShared(const Peer &peer) const
     return false;
 }
 
-Result PeerTable::announce(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer)
+Result PeerTable::announce(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer, bool direct)
 {
     peer = nullptr;
     Packet p;
@@ -96,13 +96,20 @@ Result PeerTable::announce(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_
     if (!std::equal(p.sender.begin(), p.sender.end(), identity.begin()))
         return Result::Unauthenticated;
     Peer *existing = find(p.sender);
-    if (existing && (existing->announcement.signingKey != announcement.signingKey ||
-                     existing->announcement.noiseKey != announcement.noiseKey))
-        return Result::Unauthenticated;
     Frame canonical;
     result = signingBytes(frame, canonical);
     if (result != Result::Ok || !crypto.verify(canonical.bytes(), p.signature, announcement.signingKey.data()))
         return Result::Unauthenticated;
+    // The ID comes from the public noise key, so anyone may announce it with a signing key of their own. A phone
+    // announcing itself over its own link takes the place back, instead of being locked out by whoever came
+    // first; from anywhere else (LoRa, other phones) a phone heard here lately keeps its keys. (Private chats stay
+    // safe either way: they prove the noise key itself.)
+    if (existing && (existing->announcement.signingKey != announcement.signingKey ||
+                     existing->announcement.noiseKey != announcement.noiseKey)) {
+        if (!direct && existing->localAt && now - existing->localAt < DIRECT_MS)
+            return Result::Unauthenticated;
+        *existing = {};
+    }
     if (!existing) {
         for (auto &entry : entries)
             if (!entry.used) {
@@ -118,6 +125,11 @@ Result PeerTable::announce(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_
                 oldest = now - entry.seenAt;
                 existing = &entry;
             }
+        // Else the place of a phone known only from LoRa, the one heard longest ago: a phone here comes first.
+        if (!existing)
+            for (auto &entry : entries)
+                if (entry.used && entry.remote && (!existing || int32_t(entry.seenAt - existing->seenAt) < 0))
+                    existing = &entry;
         if (existing)
             *existing = {};
     }
@@ -131,7 +143,7 @@ Result PeerTable::announce(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_
     return Result::Ok;
 }
 
-Result PeerTable::authenticate(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer)
+Result PeerTable::authenticate(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer, bool direct)
 {
     peer = nullptr;
     Packet p;
@@ -139,7 +151,7 @@ Result PeerTable::authenticate(Crypto &crypto, Bytes frame, uint64_t nowUtc, uin
     if (result != Result::Ok)
         return result;
     if (p.type == 1)
-        return announce(crypto, frame, nowUtc, now, peer);
+        return announce(crypto, frame, nowUtc, now, peer, direct);
     if (nowUtc == 0)
         return Result::NoClock;
     if (!fresh(p.timestamp, nowUtc))
