@@ -1202,8 +1202,11 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
         for (const auto *phone : {&bia, &caio})
             if (phone->id < first->id)
                 first = phone;
-        // Three minutes less a few seconds, the phones announcing every 20 s and Rui every 30 s.
+        // Three minutes less a few seconds, the phones announcing every 20 s and Rui every 30 s: the first phone's
+        // presence never more than 50 s apart (the app forgets it at 60 s).
         mesh.data.clear();
+        size_t seen = 0;
+        int lastSeenAt = 0, widest = 0;
         for (int second = 0; second < 170; second += 10) {
             if (second % 20 == 0)
                 for (const auto *phone : {&ana, &bia, &caio})
@@ -1211,8 +1214,15 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
             if (second % 30 == 0)
                 fromOtherBridge(rui.announce({}, 6).bytes());
             run(10000);
+            const size_t count = presences(*first);
+            if (count > seen) {
+                if (seen)
+                    widest = std::max(widest, second + 10 - lastSeenAt);
+                seen = count;
+                lastSeenAt = second + 10;
+            }
         }
-        CHECK(presences(*first) >= 3);
+        CHECK(presences(*first) >= 3 && widest <= 50);
         // The others go once, three minutes after their first.
         for (const auto *phone : {&ana, &bia, &caio})
             if (phone != first)
@@ -1239,11 +1249,13 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
         run(100000);
         for (const auto *phone : {&ana, &bia, &caio})
             CHECK(presences(*phone) <= 1);
-        // The last phone, whose announce went more than four minutes ago, opens a chat with Rui: its announce goes
-        // first, ahead of the opening, so the other side knows it, and the opening right after.
+        // The last phone, whose announce went more than four minutes ago, announces itself and at once opens a chat
+        // with Rui: its announce goes first, ahead of the opening, so the other side knows it, then the opening; the
+        // routine presence queued a moment before is not sent again.
         {
             uint8_t opening[NOISE_MESSAGE1] = {7};
             mesh.data.clear();
+            last->write(last->announce());
             last->write(directedFrame(*last, rui.id, 0x10, {opening, sizeof(opening)}));
             run(3000);
             const auto sent = tunneled();
@@ -1260,16 +1272,15 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
             run(3000);
             CHECK(tunneled().size() == 1);
         }
-        // A presence waiting for room in the budget (here it never fits: nine seconds a part, with the reserve)
-        // does not hold back the public text.
-        mesh.airtime = 9000;
+        // A presence waiting for room in the budget (here five seconds a part: after a public text, it waits for
+        // its part and the reserve) does not hold back the public text.
+        mesh.airtime = 5000;
         run(120000);
         fromOtherBridge(rui.announce({}, 6).bytes());
-        first->write(first->announce());
-        run(45000);
-        fromOtherBridge(rui.announce({}, 6).bytes());
-        first->write(first->announce());
+        ana.write(ana.say("gasta o tempo de ar"));
         run(2000);
+        first->write(first->announce());
+        run(1600);
         mesh.data.clear();
         const auto before = mesh.radio.size();
         ana.write(ana.say("texto com presença na fila"));
@@ -1287,6 +1298,16 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
         CHECK(fromApp("!ponte t\xc3\xbanel on"));
         run(100);
         CHECK(bridge->tunnel());
+        // At slow settings (seven seconds a part) there is no fast rhythm, but a presence still goes once the budget
+        // is full, though its parts and the reserve are more than the whole budget: the second part 20 s later.
+        mesh.airtime = 7000;
+        run(120000);
+        fromOtherBridge(rui.announce({}, 6).bytes());
+        run(200);
+        mesh.data.clear();
+        next->write(next->announce());
+        run(25000);
+        CHECK(presences(*next) == 1);
         // (Back to one second a part; two minutes give the budget back.)
         mesh.airtime = 1000;
         run(120000);
@@ -1299,6 +1320,21 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
             run(10000);
         }
         CHECK(presences(*first) >= 1);
+        // A phone in a chat over the tunnel goes before the first by ID at the fast rhythm.
+        {
+            uint8_t opening[NOISE_MESSAGE1] = {9};
+            mesh.data.clear();
+            last->write(directedFrame(*last, rui.id, 0x10, {opening, sizeof(opening)}));
+            for (int second = 0; second < 120; second += 10) {
+                if (second % 20 == 0)
+                    for (const auto *phone : {&ana, &bia, &caio})
+                        phone->write(phone->announce());
+                if (second % 30 == 0)
+                    fromOtherBridge(rui.announce({}, 6).bytes());
+                run(10000);
+            }
+            CHECK(presences(*last) >= 3 && presences(*first) == 0);
+        }
         fromOtherBridge(rui.announce({}, 6).bytes());
         run(200);
     }

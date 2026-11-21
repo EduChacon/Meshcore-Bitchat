@@ -130,6 +130,8 @@ struct Peer {
     uint32_t localAt = 0, tunneledAt = 0;
     // Its announce waits to go over LoRa: as a routine presence, or urgently ahead of its private packets.
     bool presenceQueued = false, announceQueued = false;
+    // When its last private packet crossed the tunnel, either way: a phone in a chat goes first at the fast rhythm.
+    uint32_t chattedAt = 0;
     // The Bluetooth link it announced itself on directly: only its own packets from there go over LoRa.
     uint16_t link = 0xffff;
     // Its private packets over LoRa: a burst, then one every two seconds.

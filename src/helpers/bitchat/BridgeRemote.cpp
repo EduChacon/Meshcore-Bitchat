@@ -17,7 +17,8 @@ using namespace bitchat;
 // A phone's presence on the other side. The Bitchat app drops a relayed phone from its list 60 s after its last
 // announce, and sends nothing to a phone it does not list. While phones are near both bridges (the other one sent
 // something in the last 3 minutes), the bridge itself sends the latest announce of its first phones every 40 s,
-// as many as the airtime allows (one at slow settings, two at most). Otherwise each phone's announce goes when it
+// those in a chat first, as many as the airtime allows (one at the Brazilian settings, two at most, none at the
+// slowest). Otherwise each phone's announce goes when it
 // announces itself: every 3 minutes while another tunnel bridge was heard in the last half hour, else every 30
 // minutes, so two bridges find each other without the channel paying for it all day. With no phone near, nothing.
 static constexpr uint32_t FAST_PRESENCE_MS = 40000;
@@ -25,6 +26,10 @@ static constexpr uint32_t ACTIVE_PARTNER_MS = 3UL * 60 * 1000;
 static constexpr size_t FAST_PHONES = 2;
 // A phone that stopped announcing (it announces every 15 to 40 s) gives its fast place to the next one.
 static constexpr uint32_t FAST_LOCAL_MS = 90000;
+// A phone whose private packets crossed in the last minutes goes before the others at the fast rhythm.
+static constexpr uint32_t CHATTING_MS = 5UL * 60 * 1000;
+// A kept announce older than this is not sent: the other bridge refuses one over two minutes old.
+static constexpr uint32_t FRESH_ANNOUNCE_MS = 60000;
 // A routine presence leaves this much of the airtime budget to the chats themselves, their handshakes first.
 static constexpr uint32_t PRESENCE_RESERVE_MS = 4000;
 static constexpr uint32_t PRESENCE_MS = 3UL * 60 * 1000;
@@ -75,7 +80,7 @@ void BitchatBridge::tunnelOut(const Packet &packet, Peer &peer, Bytes relayed, u
         const uint32_t every = fast ? FAST_PRESENCE_MS : partner ? PRESENCE_MS : PRESENCE_ALONE_MS;
         if (peer.tunneledAt && Throttle::isWithinTimespanMsAt(peer.tunneledAt, every, now))
             return;
-        if (queueFrame(relayed, now, false, true))
+        if (queueFrame(relayed, now, false, true, fast))
             peer.presenceQueued = true;
         return;
     }
@@ -98,24 +103,26 @@ void BitchatBridge::tunnelOut(const Packet &packet, Peer &peer, Bytes relayed, u
     // The other side drops what comes from a phone it does not know: the announce goes first, ahead of everything,
     // when none went lately (a presence still waiting in its queue does not count).
     if (!peer.announceQueued && (!peer.tunneledAt || !Throttle::isWithinTimespanMsAt(peer.tunneledAt, ANNOUNCE_AGAIN_MS, now))) {
-        bool queued = false, found = false;
+        // Only a recent one: the other side refuses an announce over two minutes old.
+        bool queued = false, tried = false;
         for (const auto &kept : runtime->announced)
-            if (kept.size && kept.peer == peer.id) {
-                found = true;
+            if (kept.size && kept.peer == peer.id && Throttle::isWithinTimespanMsAt(kept.at, FRESH_ANNOUNCE_MS, now)) {
+                tried = true;
                 std::array<uint8_t, sizeof(kept.frame)> announce;
                 queued = relayedCopy(kept, announce) && queueFrame({announce.data(), kept.size}, now, true);
                 break;
             }
-        if (!found)
+        if (!tried)
             for (const auto &latest : runtime->frames->latest)
-                if (latest.size && latest.peer == peer.id) {
+                if (latest.size && latest.peer == peer.id && Throttle::isWithinTimespanMsAt(latest.at, FRESH_ANNOUNCE_MS, now)) {
                     queued = queueFrame({latest.frame.data(), latest.size}, now, true);
                     break;
                 }
         if (queued)
             peer.announceQueued = true;
     }
-    queueFrame(relayed, now, packet.type == 0x10);
+    if (queueFrame(relayed, now, packet.type == 0x10))
+        peer.chattedAt = now ? now : 1;
 }
 
 // The fast rhythm: the latest announce of the first phones here goes every 40 s while phones are near both bridges,
@@ -132,10 +139,11 @@ void BitchatBridge::tunnelPresence(uint32_t now)
             !fastPresence(*peer, now))
             continue;
         // Ages, not times, so the comparison holds when the clock wraps.
-        if (peer->tunneledAt && (Throttle::isWithinTimespanMsAt(peer->tunneledAt, FAST_PRESENCE_MS, now) ||
-                                 now - latest.at >= now - peer->tunneledAt))
+        if (!Throttle::isWithinTimespanMsAt(latest.at, FRESH_ANNOUNCE_MS, now) ||
+            (peer->tunneledAt && (Throttle::isWithinTimespanMsAt(peer->tunneledAt, FAST_PRESENCE_MS, now) ||
+                                  now - latest.at >= now - peer->tunneledAt)))
             continue;
-        if (queueFrame({latest.frame.data(), latest.size}, now, false, true))
+        if (queueFrame({latest.frame.data(), latest.size}, now, false, true, true))
             peer->presenceQueued = true;
     }
 }
@@ -148,54 +156,63 @@ void BitchatBridge::keepLatest(const Peer &peer, Bytes relayed, uint32_t now)
     if (!allocateBuffer(runtime->frames) || decode(relayed, packet) != Result::Ok || packet.naturalSize > TUNNEL_FRAME)
         return;
     auto &latest = runtime->frames->latest;
-    auto *slot = &latest[0];
+    Runtime::Frames::Latest *own = nullptr, *free = nullptr, *oldest = nullptr;
     for (auto &entry : latest) {
-        if (entry.size && entry.peer == peer.id) {
-            slot = &entry;
-            break;
-        }
+        if (entry.size && entry.peer == peer.id)
+            own = &entry;
         const Peer *other = entry.size ? runtime->peers->find(entry.peer) : nullptr;
-        if (!other || !fastPresence(*other, now)) {
-            slot = &entry;
-            continue;
-        }
-        if (slot->size && now - entry.at > now - slot->at)
-            slot = &entry;
+        if (!other || !fastPresence(*other, now))
+            free = free ? free : &entry;
+        else if (!oldest || now - entry.at > now - oldest->at)
+            oldest = &entry;
     }
+    auto *slot = own ? own : free ? free : oldest;
     slot->peer = peer.id;
     slot->at = now;
     slot->size = uint16_t(packet.naturalSize);
     std::copy_n(relayed.data, packet.naturalSize, slot->frame.begin());
 }
 
-// How many phones the fast rhythm can carry: a presence (two parts at most) every 40 s may take about 70% of the
-// budget the airtime limit gives back in that time; at least one phone, two at most.
+// How many phones the fast rhythm can carry: a presence (two parts) every 40 s may take about 70% of the budget the
+// airtime limit gives back in that time, two phones at most; one when a presence fits in what comes back (the
+// Brazilian settings), and none at slower settings, where it could not keep the rhythm anyway.
 size_t BitchatBridge::fastSlots() const
 {
     const uint32_t presence = 2 * host->airtimeMs(TUNNEL_DATAGRAM);
-    const uint32_t share = FAST_PRESENCE_MS / 10 * 7 / 10;
-    const size_t slots = presence ? share / presence : FAST_PHONES;
-    return std::max<size_t>(1, std::min(slots, FAST_PHONES));
+    const uint32_t refill = FAST_PRESENCE_MS / 10;
+    if (!presence)
+        return FAST_PHONES;
+    const size_t slots = std::min<size_t>(refill * 7 / 10 / presence, FAST_PHONES);
+    return slots ? slots : presence <= refill ? 1 : 0;
 }
 
-// One of the first phones here, by ID, among those connected to this bridge and announcing now: the few whose
-// presence goes at the fast rhythm, so a full house does not take the channel.
+// One of the first phones here among those connected to this bridge and announcing now, those in a chat over the
+// tunnel first, then by ID: the few whose presence goes at the fast rhythm, so a full house does not take the
+// channel.
 bool BitchatBridge::fastPresence(const Peer &peer, uint32_t now) const
 {
     const auto local = [now](const Peer &p) {
         return p.used && !p.remote && !p.announcement.gateway && p.link != NO_LINK && p.localAt &&
                Throttle::isWithinTimespanMsAt(p.localAt, FAST_LOCAL_MS, now);
     };
-    if (!local(peer))
+    const auto chatting = [now](const Peer &p) {
+        return p.chattedAt && Throttle::isWithinTimespanMsAt(p.chattedAt, CHATTING_MS, now);
+    };
+    const size_t slots = fastSlots();
+    if (!slots || !local(peer))
         return false;
+    const bool talks = chatting(peer);
     size_t before = 0;
     for (size_t i = 0; i < PeerTable::CAPACITY; ++i) {
         const Peer &other = runtime->peers->slot(i);
-        if (&other != &peer && local(other) &&
-            std::lexicographical_compare(other.id.begin(), other.id.end(), peer.id.begin(), peer.id.end()))
+        if (&other == &peer || !local(other))
+            continue;
+        const bool otherTalks = chatting(other);
+        if ((otherTalks && !talks) || (otherTalks == talks && std::lexicographical_compare(other.id.begin(), other.id.end(),
+                                                                                           peer.id.begin(), peer.id.end())))
             ++before;
     }
-    return before < fastSlots();
+    return before < slots;
 }
 
 // An announce of this phone went whole over LoRa: nothing of it waits any more. Or one of its parts was dropped:
@@ -225,7 +242,7 @@ void BitchatBridge::clearAnnounceMarks()
     }
 }
 
-bool BitchatBridge::queueFrame(Bytes frame, uint32_t now, bool urgent, bool presence)
+bool BitchatBridge::queueFrame(Bytes frame, uint32_t now, bool urgent, bool presence, bool fast)
 {
     Packet packet;
     if (decode(frame, packet) != Result::Ok)
@@ -240,9 +257,11 @@ bool BitchatBridge::queueFrame(Bytes frame, uint32_t now, bool urgent, bool pres
     if (!allocateBuffer(runtime->frames))
         return false;
     auto &frames = *runtime->frames;
-    auto &queue = urgent ? frames.urgent : presence ? frames.presence : frames.out;
+    auto &queue = urgent ? frames.urgent : !presence ? frames.out : fast ? frames.fast : frames.presence;
     if (queue.size() + count > queue.capacity()) {
-        reject(Result::Full);
+        // A presence finds room on a later announce: no failure counted for it.
+        if (!presence)
+            reject(Result::Full);
         return false;
     }
     uint32_t id = 0;
@@ -271,7 +290,7 @@ bool BitchatBridge::frameReady(uint32_t now)
     if (!runtime || !runtime->frames)
         return false;
     auto &frames = *runtime->frames;
-    for (auto *queue : {&frames.urgent, &frames.out, &frames.presence})
+    for (auto *queue : {&frames.urgent, &frames.out, &frames.fast, &frames.presence})
         while (auto *part = queue->front()) {
             const bool stale = !Throttle::isWithinTimespanMsAt(part->queuedAt, TUNNEL_FRAME_WAIT_MS, now) || !textReady;
             const Peer *peer = part->announce ? runtime->peers->find(part->peer) : nullptr;
@@ -289,13 +308,18 @@ bool BitchatBridge::frameReady(uint32_t now)
             if (gone.announce)
                 announceDone(gone.peer, false, gone.presence, now);
         }
-    auto &queue = frames.urgent.size() ? frames.urgent : frames.out.size() ? frames.out : frames.presence;
+    auto &queue = frames.urgent.size() ? frames.urgent
+                  : frames.out.size()  ? frames.out
+                  : frames.fast.size() ? frames.fast
+                                       : frames.presence;
     const auto *part = queue.front();
     if (!part)
         return false;
     const uint32_t cost = host->airtimeMs(part->datagram.size);
-    // A routine presence starts only with room for all its parts and the reserve; once started, it goes on.
-    return cost <= tokens && !(part->presence && part->index == 0 && cost * part->count + PRESENCE_RESERVE_MS > tokens);
+    // A routine presence starts only with room for all its parts and the reserve (at slow settings, where that is
+    // more than the whole budget, with the budget full); once started, it goes on.
+    const uint32_t start = std::min(cost * part->count + PRESENCE_RESERVE_MS, BRIDGE_BUDGET_MS);
+    return cost <= tokens && !(part->presence && part->index == 0 && start > tokens);
 }
 
 bool BitchatBridge::sendFrame()
@@ -304,7 +328,10 @@ bool BitchatBridge::sendFrame()
     if (!frameReady(now))
         return false;
     auto &frames = *runtime->frames;
-    auto &queue = frames.urgent.size() ? frames.urgent : frames.out.size() ? frames.out : frames.presence;
+    auto &queue = frames.urgent.size() ? frames.urgent
+                  : frames.out.size()  ? frames.out
+                  : frames.fast.size() ? frames.fast
+                                       : frames.presence;
     const auto part = *queue.front();
     if (!host->sendChannelData(settings.channel, TUNNEL_DATA_TYPE, part.datagram.data.data(), part.datagram.size)) {
         reject(Result::Full);
@@ -380,11 +407,13 @@ void BitchatBridge::tunnelIn(Bytes data, uint32_t now)
     } else {
         // Only from a phone known as remote, only for a phone here, and never for this bridge: its own private
         // chat is with phones nearby.
-        const Peer *to = packet.directed() ? runtime->peers->find(packet.recipient) : nullptr;
+        Peer *to = packet.directed() ? runtime->peers->find(packet.recipient) : nullptr;
         if (!peer->remote || !to || to->remote || packet.recipient == ownId)
             return;
+        to->chattedAt = now ? now : 1;
     }
-    // Another tunnel bridge with phones near it is out there (a copy of a phone heard here too does not count).
+    // Another tunnel bridge with phones near it is out there (a copy of a phone heard here too does not count), even
+    // when no phone here is connected right now.
     runtime->frames->heardAt = now ? now : 1;
     ++tunnelReceived;
     if (bleBroadcast(full.bytes()))

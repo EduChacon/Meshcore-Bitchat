@@ -72,6 +72,8 @@ struct Mailbox {
     std::array<Item, 8> items{};
 };
 inline constexpr uint8_t NO_CHANNEL = 255;
+// The bridge's airtime budget: it fills back at a tenth of the time passed (10% of the airtime on average).
+inline constexpr uint32_t BRIDGE_BUDGET_MS = 12000;
 
 // What the bridge needs from the companion firmware. Channel secrets are 32 bytes; a 128-bit key
 // leaves the second half at zero, as the firmware stores it.
@@ -462,9 +464,9 @@ class BitchatBridge
                 bitchat::PeerId peer{};
                 uint8_t index = 0, count = 1;
             };
-            // Handshake parts first: they must cross within seconds. Then announces and messages; the phones'
-            // routine presence last.
-            bitchat::BoundedQueue<Part, 6> urgent, out, presence;
+            // Handshake parts first: they must cross within seconds. Then announces and messages; then the
+            // presence of the phones at the fast rhythm (the app forgets them after 60 s), the slower ones last.
+            bitchat::BoundedQueue<Part, 6> urgent, out, fast, presence;
             // The latest announce of the phones at the fast rhythm, as it goes over LoRa (a hop older), so the
             // bridge sends it on its own clock: kept here, not among the few announces shared with payments.
             struct Latest {
@@ -610,7 +612,7 @@ class BitchatBridge
     void keepLatest(const bitchat::Peer &peer, bitchat::Bytes relayed, uint32_t now);
     void clearAnnounceMarks();
     bool frameReady(uint32_t now);
-    bool queueFrame(bitchat::Bytes frame, uint32_t now, bool urgent = false, bool presence = false);
+    bool queueFrame(bitchat::Bytes frame, uint32_t now, bool urgent = false, bool presence = false, bool fast = false);
     bool sendFrame();
     void expireHandshake(bitchat::PrivateSession &session, uint32_t now);
 };
