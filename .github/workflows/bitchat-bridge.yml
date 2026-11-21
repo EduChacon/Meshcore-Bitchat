@@ -3,8 +3,9 @@ name: Bitchat bridge
 # Tests on every push that touches the bridge. On main, the boards of tools/bitchat/main_targets.txt
 # are built, each also with the Brasil radio; a manual run with scope "all" builds every bridge
 # environment and every country of tools/bitchat/regions.json. The WadaMesh touch firmware for the
-# T-Deck is built with the bridge on every run, with the Brasil radio (integrations/wadamesh). A release
-# is published when the head commit message contains [publish-release] or the manual run asks for it.
+# T-Deck is built with the bridge on every run, with the Brasil radio (integrations/wadamesh). The flasher
+# for Mac and Windows (tools/bitchat/gravador) is built and checked on every run, and goes with each release.
+# A release is published when the head commit message contains [publish-release] or the manual run asks for it.
 
 on:
   workflow_dispatch:
@@ -86,6 +87,7 @@ jobs:
           set -o pipefail
           pio pkg install -e "$REFERENCE_ENV" 2>&1 | tail -5
           python tools/bitchat/run_tests.py --crypto-dir ".pio/libdeps/$REFERENCE_ENV/Crypto" 2>&1 | tee tests.log
+          python tools/bitchat/gravador/test_gravador.py 2>&1 | tee -a tests.log
 
       - name: Build stock companion (bridge flag absent)
         run: |
@@ -231,8 +233,68 @@ jobs:
           name: firmware-wadamesh
           path: firmware/
 
+  # The flasher (tools/bitchat/gravador): one app per system, each started once to check itself. The Intel Mac
+  # build runs under Rosetta on the Apple-chip runner; if it cannot, the release goes without it.
+  gravador:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            file: Gravador-Bitchat-Windows.zip
+          - os: macos-latest
+            file: Gravador-Bitchat-Mac.zip
+          - os: macos-latest
+            file: Gravador-Bitchat-Mac-Intel.zip
+            intel: true
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    continue-on-error: ${{ matrix.intel == true }}
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        if: ${{ !matrix.intel }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Build
+        if: ${{ !matrix.intel }}
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pip install -r tools/bitchat/gravador/requirements.txt
+          python tools/bitchat/gravador/test_gravador.py
+          python tools/bitchat/gravador/build_app.py "out/${{ matrix.file }}" 2>&1 | grep -v -E "^[0-9]+ (INFO|DEBUG):" | tail -40
+
+      # python.org's universal Python, run as Intel under Rosetta, so pip and the app are Intel throughout.
+      - name: Build for Intel Macs
+        if: ${{ matrix.intel }}
+        shell: bash
+        run: |
+          set -o pipefail
+          softwareupdate --install-rosetta --agree-to-license || true
+          curl -sSfLO https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg
+          sudo installer -pkg python-3.12.8-macos11.pkg -target /
+          py=/Library/Frameworks/Python.framework/Versions/3.12/bin/python3
+          arch -x86_64 "$py" -m venv intel
+          arch -x86_64 intel/bin/python -m pip install -r tools/bitchat/gravador/requirements.txt
+          arch -x86_64 intel/bin/python tools/bitchat/gravador/test_gravador.py
+          arch -x86_64 intel/bin/python tools/bitchat/gravador/build_app.py "out/${{ matrix.file }}" --arch x86_64 2>&1 | grep -v -E "^[0-9]+ (INFO|DEBUG):" | tail -40
+
+      - name: Upload flasher
+        uses: actions/upload-artifact@v4
+        with:
+          name: gravador-${{ strategy.job-index }}
+          path: out/
+
   release:
-    needs: [verify, build, wadamesh]
+    needs: [verify, build, wadamesh, gravador]
     # One board that fails to build does not hold back the others; its files are simply absent.
     if: >-
       !cancelled() && needs.verify.result == 'success' &&
@@ -251,6 +313,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: firmware-*
+          path: published
+          merge-multiple: true
+
+      - name: Download flasher
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: gravador-*
           path: published
           merge-multiple: true
 

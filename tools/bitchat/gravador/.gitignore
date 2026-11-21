@@ -1,0 +1,7 @@
+build.json
+build/
+dist/
+*.spec
+gravador-self-test.log
+__pycache__/
+build-app/

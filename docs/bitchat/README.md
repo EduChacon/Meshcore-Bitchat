@@ -154,6 +154,33 @@ arquivo `merged` no endereço `0x0`. Tudo o que havia no rádio é perdido.
 b) **Rádio que já roda o MeshCore _companion_ Bluetooth:** gravar o arquivo sem `merged` no
 endereço `0x10000`. Contatos, canais e identidade do rádio são mantidos.
 
+### Pelo gravador (Mac e Windows)
+
+A partir da `bitchat1.2.1`, a página de cada versão traz um gravador com janela, para não usar o
+navegador nem o terminal: `Gravador-Bitchat-Mac.zip` (Mac com chip Apple, M1 em diante),
+`Gravador-Bitchat-Mac-Intel.zip` (Mac com Intel, quando presente) e `Gravador-Bitchat-Windows.zip`.
+Ele baixa sozinho o arquivo do aparelho escolhido, desta mesma versão, confere a soma de verificação
+e se o arquivo é para o chip conectado, guarda antes, se marcado, uma cópia completa do rádio (em
+`Documentos/Gravador-Bitchat`) e grava. Também aceita um arquivo já baixado.
+
+1. Baixar o arquivo do seu sistema e abrir o `.zip`.
+2. Abrir o gravador. Na primeira vez:
+   - **Mac:** o sistema avisa que o aplicativo é de desenvolvedor não identificado (não há assinatura
+     paga da Apple). Clicar com o botão direito no aplicativo e em **Abrir**; nas versões mais novas do
+     macOS, abrir **Ajustes do Sistema > Privacidade e Segurança** e clicar em **Abrir Mesmo Assim**.
+   - **Windows:** o SmartScreen avisa do mesmo modo: **Mais informações > Executar assim mesmo**.
+3. Conectar o rádio pelo cabo USB, escolher o aparelho, o que fazer (**Atualizar** mantém contatos,
+   canais e identidade; **Instalar do zero** apaga tudo e permite escolher o rádio de fábrica do país)
+   e a porta USB, e clicar em **Gravar**.
+
+Se o rádio não responder, desconectar, segurar o botão `BOOT` (`PRG` no Heltec) e conectar de novo,
+ainda segurando. No Windows, alguns aparelhos com conversor USB (Heltec V3, T-Beam) podem pedir o
+driver do fabricante do conversor (CP210x ou CH340). Para o T1000-E e os demais nRF52, o gravador só
+baixa o arquivo `.uf2` e explica como copiá-lo para o aparelho (ver [T1000-E](T1000E.md)).
+
+O gravador foi testado no computador, com os arquivos reais da `bitchat1.2` e a janela montada; **não
+foi usado com um rádio conectado**, nem num Mac ou Windows pelo autor.
+
 ### Pelo navegador
 
 Este caminho não foi conferido pelo autor; o do terminal, sim. No Chrome ou no Edge, em um computador, abrir <https://espressif.github.io/esptool-js/>, conectar

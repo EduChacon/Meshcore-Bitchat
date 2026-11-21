@@ -1,0 +1,4 @@
+# What the flasher is built with (tools/bitchat/gravador; see .github/workflows/bitchat-bridge.yml).
+esptool==4.8.1
+pyinstaller==6.22.3
+certifi>=2024.2.2

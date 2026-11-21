@@ -1,12 +1,13 @@
-> **MeshCore + ponte Bitchat, versão `bitchat1.2`.** Este repositório é o MeshCore oficial com uma
+> **MeshCore + ponte Bitchat, versão `bitchat1.2.1`.** Este repositório é o MeshCore oficial com uma
 > ponte embutida para o aplicativo Bitchat no firmware _companion_: texto público entre o Bitchat e o
 > MeshCore, conversa privada com a ponte, mensagens a contatos favoritos do rádio e conversa privada
 > entre celulares de casas diferentes pelo LoRa (túnel). Ensaiado pelo autor num Heltec V3 e num
 > T1000-E; os demais aparelhos foram compilados e testados no computador.
 > Guia: [docs/bitchat/README.md](./docs/bitchat/README.md). Arquivos: página de
-> [versões](https://github.com/EduChacon/Meshcore-Bitchat/releases).
+> [versões](https://github.com/EduChacon/Meshcore-Bitchat/releases), com um **gravador para Mac e
+> Windows** ([como usar](./docs/bitchat/README.md#pelo-gravador-mac-e-windows)).
 >
-> **MeshCore + Bitchat bridge, release `bitchat1.2`.** Upstream MeshCore with a Bitchat bridge built
+> **MeshCore + Bitchat bridge, release `bitchat1.2.1`.** Upstream MeshCore with a Bitchat bridge built
 > into the companion firmware: public text between Bitchat and MeshCore, a private chat with the
 > bridge, messages to the radio's favourite contacts, and private chats between phones near
 > different bridges over LoRa (the tunnel, on by default). Tried by the author on a Heltec V3 and a

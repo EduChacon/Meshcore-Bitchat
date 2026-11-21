@@ -1,4 +1,19 @@
-# MeshCore + Bitchat v1.18.0-bitchat1.2
+# MeshCore + Bitchat v1.18.0-bitchat1.2.1
+
+**A `bitchat1.2.1` é a `bitchat1.2` com um gravador para Mac e Windows.** O firmware dos rádios é o
+mesmo (muda só o número da versão); quem já gravou a `bitchat1.2` não precisa gravar de novo.
+
+- **Gravador:** `Gravador-Bitchat-Mac.zip` (Mac com chip Apple), `Gravador-Bitchat-Mac-Intel.zip`
+  (Mac com Intel, quando presente) e `Gravador-Bitchat-Windows.zip`. Abre uma janela: escolher o
+  aparelho, atualizar (mantém contatos, canais e identidade) ou instalar do zero (com o rádio de
+  fábrica do país), a porta USB e **Gravar**. Ele baixa o arquivo desta versão, confere a soma e o
+  chip conectado e guarda antes uma cópia do rádio. Na primeira abertura, o Mac e o Windows avisam
+  que o aplicativo não tem assinatura paga; o
+  [guia](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md#pelo-gravador-mac-e-windows)
+  diz como abrir. Testado no computador com os arquivos reais da `bitchat1.2`; **não foi usado com um
+  rádio conectado.**
+
+O que segue é o que veio na `bitchat1.2`.
 
 Firmware _companion_ do MeshCore 1.18.0 com uma ponte embutida para o aplicativo Bitchat: celulares
 com o Bitchat conversam com a malha MeshCore, e entre si, pelo LoRa, sem internet.
