@@ -1,128 +1,66 @@
-# MeshCore + Bitchat v1.18.0-bitchat0.25
+# MeshCore + Bitchat v1.18.0-bitchat1.0
 
-Firmware _companion_ do MeshCore 1.18.0 com ponte embutida para o aplicativo Bitchat.
-**Versão experimental.**
+Firmware _companion_ do MeshCore 1.18.0 com uma ponte embutida para o aplicativo Bitchat: celulares
+com o Bitchat conversam com a malha MeshCore, e entre si, pelo LoRa, sem internet.
+
+A `bitchat1.0` reúne tudo o que veio desde a `bitchat0.1` numa versão revisada por inteiro: textos
+de ajuda nas duas línguas, guia reescrito e as correções do primeiro ensaio das conversas
+privadas em aparelho.
 
 ## Estado
 
-- **Heltec V3:** o autor instalou a `bitchat0.1`, seguiu o roteiro de primeiro uso e relatou que
-  tudo funcionou; as capturas mostram texto nos dois sentidos entre o aplicativo MeshCore e o
-  Bitchat e os dois autotestes. Não há medições de alcance, consumo ou duração, nem ensaio da
-  travessia pelo LoRa.
-- **O que veio depois da `bitchat0.1` não foi ligado em aparelho:** a página da ponte na tela, a
-  ligação com as pontes Meshtastic, o Cardputer ADV, o T1000-E, o modo econômico, o guia, os
-  pacotes por país, o histórico, a lista de nomes, a rede própria e as funções da casa da
-  `bitchat0.11` e as correções da `bitchat0.12`. Passou nos testes em computador e compila.
-- **Testes em computador desta versão:** 943 verificações do núcleo, 223 da criptografia das
-  conversas privadas (conferida com uma implementação independente do Noise), 8146 dos pagamentos
-  Cashu e 2966 do fluxo completo, com telefones e rádio simulados; compilados no computador o
-  Heltec V3 e o V4, o T1000-E, o RAK4631, o T-Echo, o T114 (com e sem tela), o ThinkNode M1, o Xiao
-  nRF52, o T-Deck (MeshCore, WadaMesh e Saitama) e o Cardputer ADV (MeshCore e Saitama), e no
-  GitHub os 27 aparelhos da versão.
-- **T1000-E:** o autor gravou a `bitchat0.14`. O aplicativo MeshCore conectou, e a ponte ficou
-  pronta para o LoRa, mas o Bitchat não a encontrava; a `bitchat0.17` corrige a causa achada.
-- **Cardputer ADV:** o autor gravou a `bitchat0.13` e a `0.14`. Com a `0.14`, relatou melhora,
-  mas o canal `#bitchat` não apareceu e o celular não conectou, por causas ainda não
-  localizadas; a `bitchat0.15` mostra em **Device Info** o que é preciso para localizá-las.
-- **Demais aparelhos da [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md):**
-  só compilados; nenhum foi ligado.
+- **Ensaiado em aparelho pelo autor:** o texto público entre o Bitchat e o MeshCore (Heltec V3); a
+  conversa privada com a ponte (Heltec V3 e T1000-E); o envio de `@contato` a um favorito do rádio;
+  o túnel entre um Heltec V3 e um T1000-E, com os celulares ainda ao alcance um do outro pelo
+  Bluetooth.
+- **Não ensaiado em aparelho:** a correção do túnel desta versão (abaixo), a hora pelos anúncios do
+  LoRa, os pagamentos Cashu e os demais aparelhos da
+  [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md). Não há
+  medições de alcance, consumo ou duração.
+- **Testes no computador:** 1056 verificações do núcleo, 223 da criptografia das conversas privadas
+  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3049 do fluxo
+  completo, com celulares e rádio simulados. Compilados no GitHub os 27 aparelhos da versão e o
+  WadaMesh.
 
-## O que há de novo na `bitchat0.25`
+## O que a ponte faz
 
-Correções do primeiro ensaio em aparelho das conversas privadas. As duas primeiras valem só para os
-nRF52 (T1000-E, RAK4631, T-Echo, T114, ThinkNode M1 e Xiao nRF52); as duas últimas, para todos.
+- **Texto público:** o `#mesh` do Bitchat vai ao canal `#bitchat` do MeshCore como `apelido: texto`,
+  e o canal chega aos celulares como `[MC nome] texto`. O aplicativo MeshCore e o Bitchat usam o
+  rádio ao mesmo tempo, e a ponte liga sozinha.
+- **Conversa privada com a ponte:** no Bitchat, a ponte aparece como `LoRa bridge` e quatro
+  caracteres; ali basta a palavra (`ajuda`, `bateria`, `quem`, `teste`, `recado`, `sos`, `ponte`).
+- **Mensagem a um contato do rádio:** na conversa com a ponte, `@Fulano texto` vai ao contato pelo
+  LoRa, só se ele for favorito do dono; a resposta volta à conversa. A ponte lê o texto.
+- **Túnel:** celulares perto de pontes diferentes aparecem um para o outro no Bitchat e conversam no
+  privado, cifrado de ponta a ponta. **Vem ligado**; o dono desliga com `!ponte túnel off`. Com ele
+  ligado, o apelido de quem está perto da ponte vai pelo LoRa (ver
+  [privacidade](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/PRIVACY.md)).
+- **Funções da casa:** recado para quem chega, bateria, rádios ao alcance, socorro com posição,
+  teste de alcance, hora pelo GPS e pelos anúncios do LoRa, pagamentos Cashu (experimental).
+- **Ajuda:** `!ponte ajuda` (ou `!bridge help`) no aplicativo MeshCore; `ajuda` (ou `help`) na
+  conversa privada com a ponte. Cada língua tem a ajuda completa.
 
-- **Conversa privada nos nRF52.** No ensaio do autor com a `bitchat0.24`, a conversa privada com o
-  T1000-E não abria (cadeado vermelho no Bitchat), enquanto a de um rádio ESP32 abria e respondia.
-  Causa achada no código do Bitchat para iPhone: ele completa cada pacote privado até 256 bytes e,
-  quando o pacote não cabe num envio, divide-o em pedaços que passam do limite em 1 byte (a conta
-  dele supõe um cabeçalho de 13 bytes; o cabeçalho tem 14). Esses pedaços nunca chegam. Os nRF52
-  aceitavam 244 bytes por envio; agora aceitam 257, e o pacote passa inteiro, como nos ESP32, que
-  aceitam 514.
-- **Túnel e mensagens a contatos nos nRF52.** No ensaio do autor, `!ponte túnel on` no T1000-E
-  respondeu `Não mudou: erro de memória`. Nesses rádios, a ponte grava as escolhas num arquivo com
-  uma lista fixa de nomes, e as duas escolhas novas da `bitchat0.24` (túnel e mensagens a contatos)
-  ficaram fora dela: o túnel não podia ser ligado, e `!ponte privado off` também falhava. Agora
-  ficam num arquivo próprio; os arquivos antigos, com a identidade da ponte e o recado, não mudam.
-- **Resposta abaixo da pergunta.** Na conversa privada, cada resposta da ponte aparecia acima da
-  pergunta: o aplicativo MeshCore acerta o relógio da ponte só até o segundo, e o Bitchat ordena a
-  conversa pelo horário de cada mensagem. A resposta agora sai com horário posterior ao da pergunta.
-- **Configurações só pelo dono.** `túnel on` ou `!ponte túnel on` escritos na conversa privada
-  devolviam o estado da ponte, o que parecia defeito. As configurações do rádio nunca mudam pelo
-  Bitchat; a ponte agora diz isso e indica o aplicativo MeshCore, canal `#bitchat`.
-- **Limite que fica:** uma mensagem privada mandada do celular a um nRF52 com mais de cerca de 150
-  caracteres (menos, com acentos) o Bitchat completa até 512 bytes, e ela continua sem chegar. Nos
-  ESP32 passa. A biblioteca Bluetooth desses rádios não permite envios bem maiores com segurança.
-- Compilado (T1000-E, RAK4631 e Xiao nRF52 no computador, e todos no GitHub) e testado no
-  computador (2999 verificações do fluxo); **não foi ligado em aparelho.**
+## Novidades desde a `bitchat0.25`
 
-## O que há de novo na `bitchat0.24`
-
-Versão grande, pensada para ficar meses sem troca. **Nada do que é novo foi ligado em aparelho.**
-
-- **Conversa privada com a ponte.** No Bitchat, a ponte aparece na lista de pessoas como
-  `LoRa bridge` e quatro caracteres; abre-se com ela uma conversa privada como com qualquer pessoa.
-  Ali basta a palavra (`bateria`, `quem`, `guia`, `teste`, `recado <texto>`, `sos <texto>`, ou
-  `ponte` para o estado), e a resposta sai só nessa conversa. A criptografia é a mesma das conversas
-  entre telefones (Noise), conferida byte a byte com uma implementação independente e com o código
-  do Bitchat para iPhone e Android.
-- **Mensagem a um contato do LoRa.** Na conversa privada com a ponte, `@Fulano texto` vai ao contato
-  Fulano do rádio como mensagem direta do MeshCore, com o apelido de quem escreveu, **só se Fulano
-  for um favorito do dono** (a estrela no aplicativo MeshCore). A resposta dele volta à mesma
-  conversa em até 30 minutos, ou a qualquer hora quando começa com `@apelido`. Se o celular estiver
-  longe, a resposta espera até 24 horas e só sai da caixa quando o celular confirma o recebimento. A
-  ponte lê essas mensagens (não é ponta a ponta). O dono desliga com `!ponte privado off`.
-- **Conversa privada entre celulares de casas diferentes**, de ponta a ponta, pelo LoRa: com
-  `!ponte túnel on` nas pontes das duas casas, cada celular vê no Bitchat quem está perto da outra
-  ponte e conversa com ele no privado. As pontes só carregam os pacotes criptografados. Vem
-  desligado, porque gasta tempo do canal compartilhado.
-- **Hora pelos anúncios do LoRa.** Sem aplicativo, GPS ou telefone por perto, a ponte acerta a hora
-  pelo maior grupo de rádios MeshCore ao alcance que concordam entre si (pelo menos dois). Resolve o
-  `Clock not set` do Heltec V3 ligado sozinho. O relógio do rádio não é alterado, e a hora de um
-  telefone por perto continua valendo mais.
-- **Mais aparelhos em cada versão:** além dos de antes, Heltec V2, Wireless Tracker (V1 e V2),
-  Wireless Paper e T114 (com e sem tela); LilyGo T-Beam, T-Beam S3 Supreme, T3S3, T-LoRa V2.1.6 e
-  T-Echo; RAK4631 e RAK3112; Seeed Xiao S3 WIO e Xiao nRF52; Elecrow ThinkNode M1, M2 e M5; Station G2.
-  Os nRF52 novos (RAK4631, T-Echo, T114, ThinkNode M1, Xiao nRF52) seguem o T1000-E.
-- **WadaMesh e Saitama** recebem tudo isso também.
-- Duas rodadas de revisão independente (conversas privadas, hora pelo LoRa, mensagens a contatos e
-  túnel), com as falhas corrigidas e cobertas por testes.
-
-## O que veio na `bitchat0.23`
-
-- **T-Deck e T-Deck Plus com WadaMesh e a ponte.** O [WadaMesh](https://github.com/ALLFATHER-BV/wadamesh)
-  é um firmware MeshCore com tela de toque (mapa, conversas, contatos e canais). Cada versão passa a
-  trazer também o WadaMesh com a ponte embutida, já com o rádio do Brasil:
-  `LilyGo_TDeck_WadaMesh_bitchat-brasil-merged.bin` e `…-brasil.bin`. No canal `#bitchat` da tela
-  aparecem as mensagens do Bitchat, o que se digita nele chega aos celulares, e os comandos
-  `!ponte` funcionam ali mesmo. A ponte é a mesma das outras versões, num lugar só; o WadaMesh é
-  baixado numa versão fixa e recebe a ponte na compilação. Guia, instalação e licença (GPL-3.0):
-  [WADAMESH.md](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/WADAMESH.md).
-  **Só compilado; não foi ligado em aparelho.**
-- **Bluetooth reiniciado entre duas voltas do programa:** a ponte percebe o servidor novo e recomeça
-  nele, em vez de ficar calada com o estado antigo (o WadaMesh reinicia o Bluetooth numa atualização
-  pelo Wi-Fi que não se conclui). Coberto pelos testes no computador.
-- **Memória:** num aparelho com PSRAM, a ponte pode guardar nela todos os seus buffers
-  (`BRIDGE_ALLOC_CAPS`); o WadaMesh usa isso, e a RAM interna fica para o Bluetooth, o Wi-Fi e a tela.
-- O repositório foi organizado: notas antigas em
-  [HISTORY.md](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/HISTORY.md),
-  índice dos documentos no [guia](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md)
-  e descrição das ferramentas em `tools/bitchat/README.md`.
+- **Túnel ligado de fábrica**, com aviso no guia e na resposta de `!ponte túnel on`. Também em quem
+  atualiza e nunca mexeu nessa escolha.
+- **Túnel com a ponte em reserva.** Quando duas pontes se ouvem pelo Bluetooth, uma fica de reserva
+  para o texto público, para ele não ir duas vezes ao LoRa. Até a `bitchat0.25`, a reserva também
+  parava o túnel dessa ponte, e a conversa entre as casas não abria (visto em aparelho). Agora a
+  reserva vale só para o texto público.
+- **Hora por um rádio só.** Sem nenhuma hora, a ponte adota a do primeiro anúncio do LoRa que ouvir,
+  como hora provisória; dois rádios que concordam, ou um celular, a substituem.
+- **Ajuda e guia revistos:** a ajuda do dono em cinco mensagens, completa em português
+  (`!ponte ajuda`) e em inglês (`!bridge help`); o guia diz se o túnel está ligado e não fala mais
+  que mensagens privadas não atravessam; na conversa privada, a ajuda sai na língua da palavra.
+  Palavras novas em português: `ajuda`, `economia on/off`, `prefixo on/off`. O `!ponte` mostra se o
+  túnel está ligado.
+- **Documentos revistos:** guia com diagramas, privacidade (agora com o túnel), roteiro de ensaio.
 
 ## Versões anteriores
 
-O que mudou da `bitchat0.1` à `bitchat0.22`:
+O que mudou da `bitchat0.1` à `bitchat0.25`:
 [HISTORY.md](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/HISTORY.md).
-
-## O que faz
-
-- Texto público do `#mesh` do Bitchat sai no canal `#bitchat` do MeshCore como `apelido: texto`.
-- Texto do canal `#bitchat` chega aos telefones Bitchat próximos como `[MC nome] texto`.
-- O aplicativo MeshCore e o Bitchat usam o rádio ao mesmo tempo.
-- A ponte liga sozinha e cria o canal na primeira partida.
-- Comandos `!bridge` no aplicativo MeshCore e página **Bitchat bridge** na tela do rádio.
-- Texto que uma ponte Meshtastic–Bitchat traz ao Bitchat (`[MT nome] texto`) também sai no canal
-  do MeshCore, uma vez só, como `MT nome: texto`. Desliga-se com `!bridge link off`.
 
 ## Arquivos
 
@@ -131,8 +69,9 @@ O que mudou da `bitchat0.1` à `bitchat0.22`:
 - ESP32: `<aparelho>_bitchat-merged.bin` (rádio novo ou vindo de outro firmware; apagar a memória e
   gravar no endereço `0x0`) e `<aparelho>_bitchat.bin` (rádio que já roda o MeshCore _companion_
   Bluetooth; gravar no endereço `0x10000`, mantendo os dados).
-- T1000-E: `t1000e_companion_radio_ble_bitchat.uf2`, copiado para a unidade que o aparelho mostra
-  em modo de gravação; o `.zip` é o pacote para a ferramenta de atualização da Nordic.
+- nRF52 (T1000-E, RAK4631, T-Echo, T114, ThinkNode M1, Xiao nRF52): `<aparelho>_bitchat.uf2`,
+  copiado para a unidade que o aparelho mostra em modo de gravação; o `.zip` é o pacote para a
+  ferramenta de atualização da Nordic.
 - `MeshCore-Bitchat-<versão>-<país>.zip`: os mesmos arquivos, para todos os aparelhos, já com o
   rádio do país (`Brasil`, `EUA`, `Europa-e-Reino-Unido`) ou da rede própria em 918 MHz
   (`Rede-propria-918-MHz`).
@@ -151,4 +90,5 @@ Instalação, comandos e limites:
 - A frequência e a predefinição de rádio são ajustadas no aplicativo MeshCore, ou nos ajustes do
   Cardputer ADV, como no original.
 - O canal `#bitchat` é aberto: qualquer pessoa entra nele pelo nome.
-- Os demais nRF52 (RAK4631 etc.) e os ESP32-C6 não têm arquivo nesta versão.
+- Nos nRF52, uma mensagem privada com mais de cerca de 150 caracteres não chega à ponte.
+- Os ESP32-C6 não têm arquivo nesta versão.

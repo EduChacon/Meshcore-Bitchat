@@ -4,17 +4,16 @@ Firmware _companion_ do MeshCore com uma ponte embutida para o aplicativo
 [Bitchat](https://github.com/permissionlesstech/bitchat). Um telefone com o Bitchat, perto do
 rádio, conversa com quem está na malha MeshCore, e o contrário, sem internet e sem servidor.
 
-**Estado em 2026-11-16.** No Heltec V3, com a versão `bitchat0.1`, o autor seguiu o roteiro de
-instalação e de primeiro uso abaixo e relatou que tudo funcionou. O relato não traz medições:
-alcance, consumo, memória livre e duração não foram medidos. Tudo o que veio depois da
-`bitchat0.1` (ligação entre as redes, modo econômico, guia, pacotes por país, histórico, lista de
-nomes e, na `bitchat0.11`, prefixo, recado, rádios, bateria, socorro, teste de alcance e hora pelo
-GPS e, na `bitchat0.20` e na `0.21`, os pagamentos Cashu, a confirmação assinada e as opções de
-som e luz) só foi simulado e compilado. Os demais aparelhos da [lista](DEVICES.md) nunca foram
-ligados. Trate como versão experimental.
+**Estado na versão `bitchat1.0`.** Ensaiado em aparelho pelo autor: o texto público entre o
+Bitchat e o MeshCore (Heltec V3); a conversa privada com a ponte (Heltec V3 e T1000-E); o envio de
+`@contato` a um favorito do rádio. O túnel foi ensaiado entre um Heltec V3 e um T1000-E com os
+celulares ainda ao alcance um do outro pelo Bluetooth; a correção que faltava nesse caso entrou na
+`bitchat1.0` e não foi ensaiada. Não há medições de alcance, consumo ou duração. O resto (pagamentos
+Cashu, hora pelo LoRa, guia, histórico, funções da casa) e os demais aparelhos da
+[lista](DEVICES.md) foram testados no computador e compilados, sem ensaio em aparelho.
 
 O que está pronto, o que vem em seguida e o que ainda é estudo: [roteiro](ROADMAP.md).
-O ensaio em aparelho combinado antes da versão 1.0: [roteiro de ensaio](TESTING.md).
+O ensaio em aparelho: [roteiro de ensaio](TESTING.md).
 
 ## Documentos
 
@@ -29,11 +28,18 @@ O ensaio em aparelho combinado antes da versão 1.0: [roteiro de ensaio](TESTING
 | [T1000-E](T1000E.md)               | O nRF52 experimental, som e luz                          |
 | [Privacidade](PRIVACY.md)          | O que se vê no ar, canais com chave própria              |
 | [Roteiro](ROADMAP.md)              | Pronto, em seguida, fora do alcance                      |
-| [Roteiro de ensaio](TESTING.md)    | O ensaio em aparelho antes da 1.0                        |
+| [Roteiro de ensaio](TESTING.md)    | O ensaio em aparelho                                     |
 | [Versão atual](RELEASE.md)         | O que há de novo; é o texto da página de cada versão     |
 | [Histórico](HISTORY.md)            | Notas das versões anteriores                             |
 
 ## O que faz
+
+```mermaid
+flowchart LR
+    A["Celular com Bitchat"] <-->|Bluetooth| B["Rádio com a ponte"]
+    B <-->|"LoRa, canal #bitchat"| C["Outros rádios MeshCore"]
+    C <-->|LoRa| D["Outras pontes e seus celulares"]
+```
 
 a) **Bitchat → MeshCore.** Texto público do `#mesh` do Bitchat sai no canal `#bitchat` do
 MeshCore como `apelido: texto`, que é o formato nativo das mensagens de canal. Quem usa o
@@ -52,14 +58,22 @@ e) **Sem configuração.** Na primeira partida a ponte liga sozinha e cria o can
 canal é do tipo "hashtag": a chave deriva do nome, de modo que qualquer pessoa entra nele pelo
 aplicativo MeshCore digitando `#bitchat`. **Não é um canal reservado.**
 
-f) **Pagamentos Cashu (experimental, a partir da `bitchat0.20`).** Um token Cashu colado no chat
+f) **Pagamentos Cashu (experimental).** Um token Cashu colado no chat
 público do Bitchat vai, inteiro e assinado por quem paga, até as outras pontes do mesmo canal, que
 o entregam aos celulares perto delas; quem paga recebe a confirmação. Só tokens travados para a
 chave de quem recebe passam pelo canal `#bitchat`. Como usar e os limites: [pagamentos](CASHU.md).
 
-Fora os pagamentos Cashu e, a partir da `bitchat0.24`, as conversas privadas descritas mais abaixo
-(com a ponte, com contatos favoritos do rádio e, com o túnel ligado, entre celulares de casas
-diferentes), só texto público é levado de um lado ao outro. Arquivos e áudio não atravessam a ponte.
+g) **Conversa privada com a ponte.** No Bitchat, a ponte aparece como uma pessoa; na conversa
+privada com ela, basta a palavra (`bateria`, `quem`, `ajuda`...). Detalhes mais abaixo.
+
+h) **Mensagem a um contato do rádio.** Na conversa com a ponte, `@Fulano texto` vai ao contato
+Fulano pelo LoRa, só se ele for favorito do dono do rádio. A ponte lê o texto.
+
+i) **Túnel: conversa privada entre casas.** Quem está perto de outra ponte aparece no Bitchat e
+conversa no privado, de ponta a ponta, pelo LoRa. Vem ligado; o dono desliga.
+
+Só texto atravessa a ponte. Fotos, áudio e arquivos ficam no Bluetooth: no LoRa, uma foto ocuparia o
+canal por minutos.
 
 ## Aparelhos
 
@@ -196,8 +210,8 @@ ou a cópia de segurança no endereço `0x0`.
    MeshCore deste rádio e dos outros da malha que tenham o canal.
 
 Sem o aplicativo MeshCore por perto, a ponte funciona do mesmo modo: ela toma a hora do
-primeiro telefone Bitchat que se apresenta ou, a partir da `bitchat0.24`, de dois rádios MeshCore
-ao alcance que concordem entre si (veja "Hora pelos anúncios do LoRa", abaixo). A frequência do rádio, porém, precisa estar certa:
+primeiro telefone Bitchat que se apresenta ou dos anúncios dos rádios MeshCore ao alcance (veja
+"Hora pelos anúncios do LoRa", abaixo). A frequência do rádio, porém, precisa estar certa:
 ou ajustada antes pelo aplicativo, uma vez, ou vinda de um [arquivo do país](#arquivos-por-país).
 
 ### Várias casas, cada uma com um rádio
@@ -211,8 +225,8 @@ Repetição`) somente em 433,000, 869,495 e 918,000 MHz. O pacote `Rede-propria-
 assim, sem o aplicativo: todos os rádios gravados com ele formam uma malha à parte, fora da rede
 dos repetidores. Não foi ensaiado.
 
-c) Só o texto público do `#mesh` atravessa o LoRa. As mensagens privadas do Bitchat ficam no
-Bluetooth. Para que quem está fora do grupo não leia o LoRa, use um canal com chave própria; ver o
+c) O texto público do `#mesh` e os anúncios do túnel vão ao LoRa num canal que qualquer pessoa pode
+ler. Para que quem está fora do grupo não leia, use um canal com chave própria; ver o
 [estudo de privacidade](PRIVACY.md).
 
 ## Comandos
@@ -229,14 +243,14 @@ nesse aplicativo e **não são transmitidos**.
 | `!bridge lora`          | Passa a usar o canal em que o comando foi digitado (o canal `Public` não vale)       |
 | `!bridge link on`       | Liga a passagem de texto vindo de pontes Meshtastic (padrão)                         |
 | `!bridge link off`      | Desliga essa passagem; o texto delas fica só no Bitchat                              |
-| `!bridge economy on`    | Liga o modo econômico (ver abaixo)                                                   |
+| `!bridge economy on`    | Liga o modo econômico (ver abaixo); em português, `!ponte economia on`               |
 | `!bridge economy off`   | Desliga o modo econômico (padrão)                                                    |
 | `!bridge reset`         | Derruba as conexões Bluetooth para os telefones lerem os serviços de novo            |
 | `!bridge who`           | Lista os nomes ouvidos no canal LoRa nas últimas seis horas, em inglês               |
 | `!ponte quem`           | A mesma lista, em português                                                          |
 | `!bridge guide`         | Explica a ponte em quatro mensagens curtas, em inglês                                |
 | `!ponte guia`           | O mesmo guia, em português                                                           |
-| `!bridge prefix on`     | Só o texto do `#mesh` iniciado por `!lora` vai ao LoRa (ver abaixo)                  |
+| `!bridge prefix on`     | Só o texto do `#mesh` iniciado por `!lora` vai ao LoRa; `!ponte prefixo on`          |
 | `!bridge prefix off`    | Todo o texto público do `#mesh` vai ao LoRa (padrão)                                 |
 | `!ponte recado <texto>` | Deixa o recado da casa (ver abaixo); sem texto, mostra o recado atual                |
 | `!ponte recado apagar`  | Apaga o recado (`!bridge note off` em inglês)                                        |
@@ -245,31 +259,33 @@ nesse aplicativo e **não são transmitidos**.
 | `!ponte sos <texto>`    | Pedido de socorro ao LoRa, com a posição do rádio, se ele a tiver                    |
 | `!ponte teste`          | Teste de alcance com as outras pontes (ver abaixo)                                   |
 | `!bridge position on`   | Socorro pedido pelo Bitchat leva a posição do rádio (trilha); `off` desliga (padrão) |
-| `!ponte som off`        | O rádio para de apitar (`on` volta); guardado no rádio (a partir da `bitchat0.20`)   |
+| `!ponte som off`        | O rádio para de apitar (`on` volta); guardado no rádio                               |
 | `!ponte luz off`        | A luz de aviso fica apagada (`on` volta); guardado no rádio                          |
 | `!ponte privado off`    | Desliga as mensagens privadas do Bitchat aos contatos do LoRa (`on` volta; padrão)   |
-| `!ponte túnel on`       | Liga as conversas privadas entre celulares de casas diferentes (`off`; padrão)       |
-| `!bridge help`          | Lista os comandos                                                                    |
+| `!ponte túnel off`      | Desliga as conversas privadas entre casas diferentes (`on` volta; vem ligado)        |
+| `!ponte ajuda`          | Lista os comandos em cinco mensagens (`!bridge help` em inglês)                      |
 
 `!ponte` vale no lugar de `!bridge`, e a resposta sai em português quando se usa `!ponte` ou a
-palavra em português (`recado`, `bateria`, `socorro`, `teste`). Em inglês: `note`, `battery`,
-`radios`, `sos`, `test`.
+palavra em português (`ajuda`, `recado`, `bateria`, `socorro`, `teste`, `economia`, `prefixo`,
+`privado`, `túnel`). Em inglês: `help`, `note`, `battery`, `radios`, `sos`, `test`, `economy`,
+`prefix`, `dm`, `tunnel`.
 
 No Bitchat, escritos no `#mesh`, valem todos, menos os que mudam a configuração: o estado
 (`!bridge`), os nomes (`!ponte quem`), o guia (`!ponte guia`, no máximo uma vez a cada 30
 segundos), o recado, a bateria, os rádios, o socorro e o teste. As respostas vão a todos os
 telefones próximos, uma a cada cinco segundos. Os comandos que mudam a configuração (`on`, `off`,
-`local`, `lora`, `link`, `economy`, `prefix`, `reset`, `som`, `luz`, `privado`, `túnel`) só valem no aplicativo MeshCore; no Bitchat,
-recebem o estado como resposta. O guia diz se o texto está indo ao LoRa ou não.
+`local`, `lora`, `link`, `economy`, `prefix`, `reset`, `som`, `luz`, `privado`, `túnel`) só valem no
+aplicativo MeshCore; no `#mesh` recebem o estado como resposta e, na conversa privada, o aviso de
+que só o dono muda. O guia diz se o texto está indo ao LoRa e se o túnel está ligado.
 
 O `/who` do Bitchat só mostra quem está na malha Bluetooth; quem fala pelo LoRa não aparece ali.
 `!bridge who` cobre essa falta: lista até doze nomes, do mais recente ao mais antigo, e, quando
 nem todos cabem em uma mensagem, informa quantos ficaram de fora (`+3`). A lista fica na memória
 do rádio e some ao desligar.
 
-## Funções da casa (a partir da `bitchat0.11`)
+## Funções da casa
 
-Todas foram simuladas e compiladas; nenhuma foi ensaiada em aparelho.
+Todas foram testadas no computador e compiladas; nenhuma foi ensaiada em aparelho.
 
 a) **Só com `!lora`.** Com `!bridge prefix on`, o texto do `#mesh` só vai ao LoRa quando começa por
 `!lora ` (a marca é retirada antes do envio). O resto fica entre os telefones da casa. O texto que
@@ -326,29 +342,29 @@ configurado para incluir a posição nos anúncios, para que a posição do GPS 
 operador escolheu divulgar. Ao desligar o GPS, a ponte devolve ao rádio a posição que ele tinha
 antes: a posição do GPS não fica guardada.
 
-h) **Hora pelos anúncios do LoRa** (a partir da `bitchat0.24`). Cada rádio MeshCore manda
-anúncios ("adverts") assinados com a hora do próprio relógio. Sem outra fonte de hora (aplicativo,
-GPS ou telefone), a ponte adota a hora quando **dois rádios diferentes** concordam com diferença de
-até um minuto, e fica com a mais cedo das duas, para não se adiantar. Um rádio sozinho, ou rádios
-que discordam, não bastam. A hora assim obtida só avança, nunca volta para antes da última hora
-confiável guardada, e o relógio do rádio não é alterado. Quando um telefone com Bitchat se apresenta
-perto, a hora dele substitui a do LoRa. No diagnóstico do `!bridge` aparece como `lora`. Resolve o
-caso do Heltec V3 ligado sozinho, sem aplicativo e sem GPS, num lugar com outros rádios ao alcance.
+h) **Hora pelos anúncios do LoRa.** Cada rádio MeshCore manda anúncios ("adverts") assinados com a
+hora do próprio relógio. Sem outra fonte de hora (aplicativo, GPS ou telefone), a ponte adota a
+hora do primeiro anúncio que ouvir, como hora provisória. Outro rádio sozinho, discordando, não a
+muda; **dois rádios** que concordam com diferença de até um minuto a substituem (a mais cedo das
+duas), e um telefone com Bitchat a substitui sempre. A hora nunca fica antes da data em que o
+firmware foi compilado nem da última hora confiável guardada, e o relógio do rádio não é alterado.
+No diagnóstico do `!bridge` aparece como `lora`. Com o aplicativo MeshCore conectado, a hora dele vale
+mais, e a do LoRa não é usada.
 
-## Conversa privada com a ponte (a partir da `bitchat0.24`)
+## Conversa privada com a ponte
 
 No Bitchat, a ponte aparece na lista de pessoas como `LoRa bridge` seguido de quatro caracteres.
 Tocando nela, abre-se uma conversa privada, como com qualquer pessoa, e os pedidos feitos ali têm
 resposta só ali, sem aparecer no chat público.
 
-a) **Basta a palavra:** `bateria`, `quem`, `guia`, `teste`, `recado <texto>`, `sos <texto>`, ou
-`ponte` para o estado (em inglês, `battery`, `who`, `guide`, `test`, `note`, `sos`, `bridge`).
-Os comandos completos (`!ponte bateria`) também valem. Qualquer outra coisa recebe a lista de
-palavras.
+a) **Basta a palavra:** `ajuda`, `bateria`, `quem`, `guia`, `teste`, `recado <texto>`,
+`sos <texto>`, ou `ponte` para o estado (em inglês, `help`, `battery`, `who`, `guide`, `test`,
+`note`, `sos`, `bridge`). A resposta sai na língua da palavra. Os comandos completos
+(`!ponte bateria`) também valem. Qualquer outra coisa recebe a ajuda em português.
 
 b) **As regras são as do chat público:** a lista de rádios continua só no aplicativo do próprio
 rádio, o recado só muda por quem está ligado diretamente ao rádio, e os ajustes (ligar, desligar,
-som, luz) continuam só pelo aplicativo MeshCore. O que um pedido manda ao LoRa (um socorro, um
+som, luz, túnel) continuam só com o dono, e a ponte avisa isso. O que um pedido manda ao LoRa (um socorro, um
 teste de alcance) vai ao LoRa como no chat público; o resultado do teste de alcance sai no chat
 público, como antes.
 
@@ -360,14 +376,27 @@ sozinha.
 
 d) **Mensagens a contatos do LoRa e conversas entre casas:** veja as duas seções seguintes.
 
-e) **Não foi ligado em aparelho.** O protocolo foi conferido byte a byte com uma implementação
-independente do Noise e com o código do Bitchat para iPhone e Android, mas a conversa com o
-aplicativo de verdade ainda não foi ensaiada.
+e) **Ensaiada em aparelho** pelo autor, com o Bitchat para iPhone, num Heltec V3 e num T1000-E.
+O protocolo foi também conferido byte a byte com uma implementação independente do Noise.
 
-## Mensagem privada a um contato do LoRa (a partir da `bitchat0.24`)
+f) **Limite nos rádios nRF52** (T1000-E, RAK4631 e outros): uma mensagem privada com mais de cerca
+de 150 caracteres (menos, com acentos) não chega a eles; nos ESP32 chega.
+
+## Mensagem privada a um contato do LoRa
 
 Na conversa privada com a ponte, `@Nome texto` manda o texto ao contato `Nome` do rádio, como
 mensagem direta do MeshCore. Exemplo: `@Fulano chego às 18h`.
+
+```mermaid
+sequenceDiagram
+    participant C as Celular (Bitchat)
+    participant P as Ponte
+    participant F as Rádio do Fulano (favorito)
+    C->>P: @Fulano chego às 18h (conversa privada)
+    P->>F: [Bitchat ana] chego às 18h (mensagem direta do MeshCore)
+    F->>P: ok, te espero
+    P->>C: [MC Fulano] ok, te espero (em até 30 min)
+```
 
 a) **Só aos favoritos do dono.** Valem apenas os contatos que o dono marcou como favoritos no
 aplicativo MeshCore (a estrela). Assim, quem passa perto da casa com o Bitchat não escreve a
@@ -402,11 +431,24 @@ criptografia de ponta a ponta entre o celular e o contato.
 h) **O dono do rádio desliga** com `!ponte privado off` no aplicativo MeshCore (`on` religa); ao
 desligar, o que estava guardado é apagado. Vem ligado.
 
-## Conversa privada entre celulares de casas diferentes (a partir da `bitchat0.24`)
+## Conversa privada entre celulares de casas diferentes (túnel)
 
-Com o túnel ligado nas pontes das duas casas (`!ponte túnel on`, no aplicativo MeshCore de cada
-uma), quem está perto de uma ponte vê no Bitchat quem está perto da outra, e os dois conversam no
-privado como se estivessem lado a lado.
+Quem está perto de uma ponte vê no Bitchat quem está perto de outra, e os dois conversam no privado
+como se estivessem lado a lado. O túnel vem ligado; o dono desliga com `!ponte túnel off`, no
+aplicativo MeshCore. As duas pontes precisam estar com ele ligado e se alcançar pelo LoRa, direto ou
+por repetidores.
+
+```mermaid
+flowchart LR
+    subgraph casa1["Casa 1"]
+        A["Celular A (Bitchat)"] <-->|Bluetooth| P1["Ponte 1"]
+    end
+    subgraph casa2["Casa 2"]
+        P2["Ponte 2"] <-->|Bluetooth| B["Celular B (Bitchat)"]
+    end
+    P1 <-->|"LoRa: direto ou por repetidores"| P2
+    A -.-|"conversa cifrada de ponta a ponta: as pontes não leem"| B
+```
 
 a) **Criptografia de ponta a ponta:** as pontes só carregam os pacotes do Bitchat, que já vêm
 criptografados pelos celulares. Nenhuma ponte lê a conversa.
@@ -417,20 +459,29 @@ túnel tiver sido ouvida na última meia hora, ou a cada 30 minutos quando nenhu
 pacotes privados entre um celular daqui e um de lá, só do próprio celular, pelo enlace Bluetooth em
 que ele se apresentou. O texto público continua como antes.
 
-c) **Custa tempo de rádio no canal**, que é compartilhado. Por isso vem desligado, e cada dono
-decide. A ponte reveza os pacotes do túnel com o texto público, para um não segurar o outro. Pontes
-mais antigas que a `bitchat0.24` ignoram esses pacotes.
+c) **Custa tempo de rádio no canal**, que é compartilhado, mas só quando há celular por perto: sem
+celular, o túnel não transmite nada. A ponte reveza os pacotes do túnel com o texto público, para um
+não segurar o outro. Pontes anteriores à `bitchat0.24` ignoram esses pacotes. Só texto: fotos e áudio
+não passam.
 
 d) **Proteções:** no máximo seis celulares de fora ocupam lugar na lista da ponte, sem nunca tirar o
 lugar dos celulares da casa; um pacote que chega pelo LoRa em nome de um celular da casa é
 descartado.
 
 e) **Sem garantia de entrega:** o próprio Bitchat confirma as mensagens e reenvia o que não foi
-confirmado. Com o LoRa congestionado, abrir a conversa pode exigir uma segunda tentativa: o Bitchat
-do iPhone desiste de um aperto de mão em 10 segundos.
+confirmado. Com o LoRa congestionado, ou com vários repetidores no caminho, abrir a conversa pode
+exigir outra tentativa: o Bitchat do iPhone desiste da abertura em cerca de 10 segundos.
 
-f) **Não foi ligado em aparelho.** O caminho foi testado no computador com dois celulares simulados,
-do aperto de mão à confirmação de entrega.
+f) **Como saber se passou pelo túnel:** no Bitchat, a pessoa da outra casa aparece com o símbolo de
+três pontos ligados ("retransmitido por outros"). A anteninha indica que os celulares se alcançam
+direto pelo Bluetooth, e o globo, que o Bitchat usou a internet. No aplicativo MeshCore, o "LoRa
+out" do `!ponte` sobe a cada mensagem que vai pelo túnel. Para ensaiar só o túnel, deixe os celulares
+sem internet e fora do alcance do Bluetooth um do outro.
+
+g) **Ensaio em aparelho:** feito entre um Heltec V3 e um T1000-E, mas com os celulares ainda ao
+alcance do Bluetooth, de modo que parte das mensagens passou direto. Nesse caso uma das pontes fica
+de reserva para o texto público, e até a `bitchat0.25` isso também parava o túnel dela; a
+`bitchat1.0` corrige. A correção foi testada no computador, não em aparelho.
 
 ## Histórico para quem chega depois
 
@@ -607,8 +658,8 @@ O núcleo veio da ponte para Meshtastic do mesmo autor
 
 ### O que falta
 
-a) Ensaio em aparelho de todos os modelos além do Heltec V3, e medições no próprio Heltec V3; ensaio
-em aparelho das conversas privadas, do túnel e da hora pelo LoRa.
+a) Ensaio em aparelho dos demais modelos e medições (alcance, consumo, duração); ensaio do túnel com
+os celulares fora do alcance um do outro e da hora pelo LoRa.
 
 b) Os nRF52 da `bitchat0.24` (RAK4631, T-Echo, T114, ThinkNode M1, Xiao nRF52) só foram
 compilados; o Bluetooth deles é o mesmo do T1000-E.

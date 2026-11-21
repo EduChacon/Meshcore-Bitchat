@@ -1,14 +1,20 @@
-> **MeshCore + ponte Bitchat (experimental).** Este repositório é o MeshCore oficial com uma ponte
-> embutida para o aplicativo Bitchat no firmware _companion_. Funcionou no ensaio do autor com um
-> Heltec V3; os demais aparelhos só foram compilados.
-> Instruções e limites: [docs/bitchat/README.md](./docs/bitchat/README.md). Inclui pagamentos Cashu
-> pelo LoRa ([guia](./docs/bitchat/CASHU.md)) e o T-Deck com o firmware de tela de toque WadaMesh
-> ([guia](./docs/bitchat/WADAMESH.md)).
+> **MeshCore + ponte Bitchat, versão `bitchat1.0`.** Este repositório é o MeshCore oficial com uma
+> ponte embutida para o aplicativo Bitchat no firmware _companion_: texto público entre o Bitchat e o
+> MeshCore, conversa privada com a ponte, mensagens a contatos favoritos do rádio e conversa privada
+> entre celulares de casas diferentes pelo LoRa (túnel). Ensaiado pelo autor num Heltec V3 e num
+> T1000-E; os demais aparelhos foram compilados e testados no computador.
+> Guia: [docs/bitchat/README.md](./docs/bitchat/README.md). Arquivos: página de
+> [versões](https://github.com/EduChacon/Meshcore-Bitchat/releases).
 >
-> **MeshCore + Bitchat bridge (experimental).** This is upstream MeshCore with a Bitchat bridge built
-> into the companion firmware. It worked in the author's trial on a Heltec V3; other boards are
-> build-only. The guide is in Portuguese:
-> [docs/bitchat/README.md](./docs/bitchat/README.md). Upstream: [meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore).
+> **MeshCore + Bitchat bridge, release `bitchat1.0`.** Upstream MeshCore with a Bitchat bridge built
+> into the companion firmware: public text between Bitchat and MeshCore, a private chat with the
+> bridge, messages to the radio's favourite contacts, and private chats between phones near
+> different bridges over LoRa (the tunnel, on by default). Tried by the author on a Heltec V3 and a
+> T1000-E; other boards are build- and host-tested only. In the MeshCore app, send `!bridge help`
+> in the `#bitchat` channel; in Bitchat, open a private chat with `LoRa bridge xxxx` and write
+> `help`. Every answer comes in the language of the word used. The full guide is in Portuguese:
+> [docs/bitchat/README.md](./docs/bitchat/README.md). Upstream:
+> [meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore).
 
 ## About MeshCore
 

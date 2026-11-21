@@ -1,7 +1,8 @@
 # Roteiro de ensaio em aparelho
 
-Estado em 2026-11-16. É o ensaio mínimo combinado antes de chamar a ponte de versão 1.0. Vale
-para o MeshCore e, com os nomes de comando iguais, para o Saitama (T-Deck Plus e Cardputer ADV).
+O ensaio mínimo em aparelho. A `bitchat1.0` saiu antes de ele ser cumprido por inteiro, por decisão
+do autor; o que já foi ensaiado está no início do [guia](README.md). Vale para o MeshCore e, com os
+nomes de comando iguais, para o Saitama (T-Deck Plus e Cardputer ADV).
 O roteiro do Meshtastic está no
 [repositório dele](https://github.com/EduChacon/meshtastic-bitchat/blob/main/docs/bridge/TESTING.md).
 
@@ -50,7 +51,14 @@ está entre parênteses.
    pareamento.) Se chegar alguma notificação, parar e relatar: é falha de segurança.
 10. **T1000-E.** Trocar o PIN padrão nos ajustes do aplicativo e conferir que o novo é pedido.
 
-## Critério para a 1.0
+11. **Conversa privada e túnel.** No Bitchat do telefone 1, abrir a conversa com `LoRa bridge` e
+    mandar `bateria` (resposta só ali). Levar o rádio B e o telefone 2 para longe, fora do alcance
+    do Bluetooth do telefone 1 (o telefone 2 não pode aparecer com a anteninha), com os dois
+    telefones sem internet. Esperar o telefone 2 aparecer no telefone 1 com o símbolo de três
+    pontos e trocar mensagens privadas. (Chegam nos dois sentidos; o "LoRa out" do `!ponte` sobe
+    nas duas pontes.)
+
+## Critério de aprovação
 
 Todos os passos com o resultado esperado em pelo menos um ESP32 (Heltec V3) e no T1000-E ou no
 T-Deck Plus, sem reinício espontâneo durante o passo 8. Falha em qualquer passo: corrigir e
