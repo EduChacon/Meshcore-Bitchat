@@ -22,7 +22,7 @@ projeto (abaixo).
   [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md). Não há
   medições de alcance, consumo ou duração.
 - **Testes no computador:** 1056 verificações do núcleo, 223 da criptografia das conversas privadas
-  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3697 do fluxo
+  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3720 do fluxo
   completo, com celulares e rádio simulados. Compilados no GitHub os 27 aparelhos da versão e o
   WadaMesh.
 

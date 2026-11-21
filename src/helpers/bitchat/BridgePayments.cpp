@@ -445,7 +445,7 @@ TunnelOutcome BitchatBridge::checkPayment(const TunnelHeard &heard, uint64_t &am
         !(peer->localAt && Throttle::isWithinTimespanMsAt(peer->localAt, PeerTable::DIRECT_MS, now)) && !peer->remote) {
         peer->remote = true;
         if (runtime->peers->remoteCount() > PeerTable::REMOTE_LIMIT)
-            runtime->peers->dropOldestRemote();
+            runtime->peers->dropOldestRemote(peer);
     }
     if (result == Result::Ok && peer && !peer->announcement.gateway)
         result = runtime->peers->authenticate(crypto, heard.message, utc(), now, peer);

@@ -347,11 +347,11 @@ bool BitchatBridge::sendFrame()
     }
     tokens -= host->airtimeMs(part.datagram.size);
     queue.pop();
-    // The next part of the same frame waits from now: at slow settings it needs the budget to fill again, and the
-    // other bridge keeps the first part 30 s.
+    // The later parts of the same frame wait from the moment its first part went, as the other bridge, which keeps
+    // the first part 30 s: at slow settings they need the budget to fill again.
     if (auto *next = queue.front())
         if (next->index == part.index + 1 && next->count == part.count && next->peer == part.peer)
-            next->queuedAt = now;
+            next->queuedAt = part.index == 0 ? now : part.queuedAt;
     ++submittedRadio;
     ++tunnelSent;
     if (part.announce && part.index + 1 == part.count)
@@ -391,11 +391,7 @@ void BitchatBridge::tunnelIn(Bytes data, uint32_t now)
     Result result = packetDigest(crypto, full.bytes(), id);
     if (result == Result::Ok && runtime->dedup->contains(id, now, REMOTE_DEDUP_MS))
         result = Result::Duplicate;
-    // A phone not known here takes one of the few places for remote phones: the oldest of those gives way, never a
-    // phone here.
-    if (result == Result::Ok && packet.type == 1 && !runtime->peers->find(packet.sender) &&
-        runtime->peers->remoteCount() >= REMOTE_PEERS)
-        runtime->peers->dropOldestRemote();
+    const bool known = runtime->peers->find(packet.sender) != nullptr;
     Peer *peer = nullptr;
     if (result == Result::Ok)
         result = runtime->peers->authenticate(crypto, full.bytes(), utc(), now, peer);
@@ -417,6 +413,10 @@ void BitchatBridge::tunnelIn(Bytes data, uint32_t now)
             peer->remote = true;
         if (!peer->remote)
             return;
+        // A phone not known here, once its announce is verified, takes one of the few places for remote phones:
+        // the oldest of those gives way, never a phone here.
+        if (!known && runtime->peers->remoteCount() > REMOTE_PEERS)
+            runtime->peers->dropOldestRemote(peer);
     } else {
         // Only from a phone known as remote, only for a phone here, and never for this bridge: its own private
         // chat is with phones nearby.

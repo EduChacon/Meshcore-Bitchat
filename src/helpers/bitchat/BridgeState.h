@@ -160,7 +160,8 @@ class PeerTable
     Peer &slot(size_t index) { return entries[index]; }
     // Phones known only through another bridge's tunnel: few, so they never crowd out the phones here.
     size_t remoteCount() const;
-    void dropOldestRemote();
+    // The place of the phone known from LoRa heard longest ago, never `keep`'s.
+    void dropOldestRemote(const Peer *keep = nullptr);
     size_t size() const;
     bool nicknameShared(const Peer &peer) const;
 

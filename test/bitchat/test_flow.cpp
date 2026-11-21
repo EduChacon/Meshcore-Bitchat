@@ -1323,6 +1323,18 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
                 parts += d.size() >= 3 && (d[2] & 0x0f) == 3;
             CHECK(parts == 0);
         }
+        // At seven seconds a part, a presence that waited for the budget to fill sends its second part 20 s after
+        // the first: the wait counts from the first part, as at the other bridge, so the presence arrives whole.
+        mesh.airtime = 2500;
+        run(120000);
+        fromOtherBridge(rui.announce({}, 6).bytes());
+        ana.write(ana.say("gasta dois segundos e meio"));
+        run(1600);
+        mesh.airtime = 7000;
+        mesh.data.clear();
+        next->write(next->announce());
+        run(50000);
+        CHECK(presences(*next) == 1);
         // (Back to one second a part; two minutes give the budget back.)
         mesh.airtime = 1000;
         run(120000);
@@ -3331,6 +3343,19 @@ int main()
         gil.write(gil.say("agora sim"));
         run(13000); // (the airtime budget is low after the texts above)
         CHECK(mesh.radio.size() == radioBefore + 1 && mesh.radio.back().text.find("agora sim") != std::string::npos);
+        // Gil leaves, and another device connects on the link number he had (numbers are reused): it does not
+        // take his place either.
+        bleDisconnect(25);
+        Phone thief("gil", 28, 25);
+        thief.noiseKey = gil.noiseKey;
+        thief.noisePublic = gil.noisePublic;
+        thief.id = gil.id;
+        thief.connect();
+        run(200);
+        thief.write(thief.announce());
+        thief.write(thief.say("sou o gil de mentira"));
+        run(13000);
+        CHECK(mesh.radio.size() == radioBefore + 1);
     }
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;
