@@ -1273,6 +1273,10 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
         mesh.data.clear();
         const auto before = mesh.radio.size();
         ana.write(ana.say("texto com presença na fila"));
+        // It goes at once, as with nothing waiting: the presence takes neither the turn nor the spacing.
+        for (int i = 0; i < 25 && mesh.radio.size() == before; ++i)
+            run(20);
+        CHECK(mesh.radio.size() == before + 1);
         run(3000);
         CHECK(mesh.radio.size() == before + 1 && presences(*first) == 0);
         // The owner turns the tunnel off and on again with the presence still waiting: nothing stays marked as on
