@@ -150,9 +150,9 @@ class PeerTable
     static constexpr size_t REMOTE_LIMIT = 6;
     // A phone heard directly in this time keeps its keys against an announce that does not come over its link.
     static constexpr uint32_t DIRECT_MS = 180000;
-    // `direct`: announced to this radio by the phone itself, over its own Bluetooth link.
-    Result announce(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer, bool direct = false);
-    Result authenticate(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer, bool direct = false);
+    // `link`: the Bluetooth link a phone announced itself on directly, else NO_LINK (LoRa, relayed by phones).
+    Result announce(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer, uint16_t link = 0xffff);
+    Result authenticate(Crypto &crypto, Bytes frame, uint64_t nowUtc, uint32_t now, Peer *&peer, uint16_t link = 0xffff);
     Peer *find(const PeerId &id);
     // The phone whose nickname `text` starts with (any letter case, then a space or ':'); none when two share it.
     Peer *named(Bytes text, size_t &consumed);

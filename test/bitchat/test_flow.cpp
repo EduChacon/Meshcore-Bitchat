@@ -1308,6 +1308,21 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
         next->write(next->announce());
         run(25000);
         CHECK(presences(*next) == 1);
+        // Slower still (eight seconds a part), the second part could not reach the other bridge within the 30 s
+        // it keeps the first: no part goes at all, instead of a first part that is of no use.
+        mesh.airtime = 8000;
+        run(180000); // (three minutes after its last presence, and a full budget)
+        fromOtherBridge(rui.announce({}, 6).bytes());
+        run(200);
+        mesh.data.clear();
+        next->write(next->announce());
+        run(40000);
+        {
+            size_t parts = 0;
+            for (const auto &d : mesh.data)
+                parts += d.size() >= 3 && (d[2] & 0x0f) == 3;
+            CHECK(parts == 0);
+        }
         // (Back to one second a part; two minutes give the budget back.)
         mesh.airtime = 1000;
         run(120000);
@@ -1557,6 +1572,21 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
         fromLoRa("Outra: ana: vai pela outra ponte");
         run(62000);
         CHECK(std::string(bridge->status()).rfind("Standby", 0) == 0);
+        run(30000);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) != 0);
+        // With the prefix on, an unmarked text goes to LoRa from neither bridge: it does not test the standby.
+        run(31000);
+        mesh.app.clear();
+        CHECK(fromApp("!bridge prefix on"));
+        run(100);
+        fromOtherBridge(rui.announce({}, 6).bytes());
+        bia.write(other.announce({extra.data(), extra.size()}, 6));
+        run(300);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) == 0);
+        ana.write(ana.say("sem marca"));
+        run(62000);
+        CHECK(std::string(bridge->status()).rfind("Standby", 0) == 0);
+        CHECK(fromApp("!bridge prefix off"));
         run(30000);
         CHECK(std::string(bridge->status()).rfind("Standby", 0) != 0);
         // Anyone with the key of a hashtag channel can write the proof. A "bridge" that never carries the text
@@ -3246,28 +3276,34 @@ int main()
         CHECK(near(heldSeconds(), long((stamp / 1000) % 86400)));
     }
     // A phone's ID is the hash of its public noise key, so a device may announce that ID with a signing key of its
-    // own. The real phone, announcing itself again over its own link, takes the place back, and its text goes
-    // (before, the first one kept it and the real phone was refused).
+    // own. It never takes the place, nor the name, of a phone that is here: the real one keeps it, and the other
+    // device's text does not go. A device that took an ID first holds it only while it stays: once it has been
+    // silent for three minutes, the real phone takes its place back (before, never).
     {
-        Phone fia("fia", 25, 25), squat("fia", 24, 24);
-        squat.noiseKey = fia.noiseKey;
-        squat.noisePublic = fia.noisePublic;
-        squat.id = fia.id;
+        Phone fia("fia", 25, 25), squat("fia", 24, 24), gil("gil", 26, 25), squatGil("gil", 27, 24);
+        for (auto *copy : {&squat, &squatGil}) {
+            const Phone &real = copy == &squat ? fia : gil;
+            copy->noiseKey = real.noiseKey;
+            copy->noisePublic = real.noisePublic;
+            copy->id = real.id;
+        }
         // (Places for Bluetooth links are few: Dora and Eva leave.)
         bleDisconnect(19);
         bleDisconnect(23);
         fia.connect();
         run(30000);
-        // The other device announces Fia's ID first, over its own link.
-        squat.write(squat.announce());
-        run(400);
-        const auto radioBefore = mesh.radio.size();
         fia.write(fia.announce());
+        run(400);
+        auto radioBefore = mesh.radio.size();
+        squat.write(squat.announce());
+        squat.write(squat.say("sou a fia de mentira"));
+        run(3000);
+        CHECK(mesh.radio.size() == radioBefore);
         fia.write(fia.say("sou eu mesma"));
         run(3000);
         CHECK(mesh.radio.size() == radioBefore + 1 && mesh.radio.back().text.find("sou eu mesma") != std::string::npos);
-        // From LoRa, a phone heard here lately keeps its keys: a tunneled announce of Fia's ID is refused, and her
-        // next text goes without announcing again.
+        // From LoRa too, a phone heard here lately keeps its keys: a tunneled announce of Fia's ID is refused, and
+        // her next text goes without announcing again.
         if (!bridge->tunnel()) {
             CHECK(fromApp("!bridge tunnel on"));
             run(100);
@@ -3278,6 +3314,23 @@ int main()
         fia.write(fia.say("ainda sou eu"));
         run(3000);
         CHECK(mesh.radio.size() == radioBefore + 2 && mesh.radio.back().text.find("ainda sou eu") != std::string::npos);
+        // Another device announces Gil's ID before Gil arrives (on the link Fia leaves): Gil is refused while it
+        // stays, and takes his place three minutes after it goes silent.
+        bleDisconnect(25);
+        gil.connect();
+        squatGil.write(squatGil.announce());
+        run(400);
+        radioBefore = mesh.radio.size();
+        gil.write(gil.announce());
+        gil.write(gil.say("sou o gil"));
+        run(3000);
+        CHECK(mesh.radio.size() == radioBefore);
+        run(181000);
+        stamp += 185000; // (the phones' clocks went on too)
+        gil.write(gil.announce());
+        gil.write(gil.say("agora sim"));
+        run(13000); // (the airtime budget is low after the texts above)
+        CHECK(mesh.radio.size() == radioBefore + 1 && mesh.radio.back().text.find("agora sim") != std::string::npos);
     }
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;

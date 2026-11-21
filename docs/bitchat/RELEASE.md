@@ -22,7 +22,7 @@ projeto (abaixo).
   [lista](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/DEVICES.md). Não há
   medições de alcance, consumo ou duração.
 - **Testes no computador:** 1056 verificações do núcleo, 223 da criptografia das conversas privadas
-  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3648 do fluxo
+  (conferida com uma implementação independente do Noise), 8146 dos pagamentos Cashu e 3697 do fluxo
   completo, com celulares e rádio simulados. Compilados no GitHub os 27 aparelhos da versão e o
   WadaMesh.
 
@@ -69,11 +69,16 @@ projeto (abaixo).
     vão à conexão pareada com o PIN, e um aparelho pareado sem ele é desconectado (ESP32 e nRF52).
   - **Hora:** um anúncio com data adiantada, vindo de um aparelho só, travava a ponte até reiniciar;
     e anúncios falsos do LoRa impediam o celular de corrigir a hora. Agora vale um voto por conexão
-    Bluetooth, e o celular corrige a hora do LoRa nos dois sentidos.
+    Bluetooth, e o celular corrige a hora do LoRa nos dois sentidos. Quem abrir mais conexões que os
+    celulares presentes ainda consegue mudar a hora enquanto estiver por perto.
   - **Espera falsa:** no `#bitchat`, qualquer um podia pôr a ponte em espera e calá-la; agora a
-    espera só se mantém se o texto aparecer no LoRa em até um minuto.
-  - **Lista de celulares:** pagamentos vindos do LoRa não a enchem mais, e um celular retoma o
-    próprio lugar quando outro aparelho anuncia a identidade dele.
+    espera só se mantém se o texto de um celular daqui aparecer no LoRa em até um minuto (quem
+    estiver no Bluetooth e no LoRa ao mesmo tempo ainda pode sustentá-la).
+  - **Configurações lentas:** uma presença que não chegaria inteira à outra ponte não ocupa mais o
+    rádio com um pedaço inútil.
+  - **Lista de celulares:** pagamentos vindos do LoRa não a enchem mais; outro aparelho não toma a
+    identidade de um celular presente, e um aparelho que a tomou antes de o celular chegar a perde 3
+    minutos depois de parar de se anunciar (antes, ficava com ela para sempre).
   - **nRF52 (T1000-E, RAK):** a gravação dos ajustes e da identidade da ponte passou a ser atômica;
     uma queda de energia no meio não apaga mais a identidade.
 - **Revisões independentes** do código antes da publicação; os problemas apontados foram corrigidos

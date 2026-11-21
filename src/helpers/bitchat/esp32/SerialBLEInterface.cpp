@@ -94,7 +94,8 @@ bool SerialBLEInterface::onConfirmPIN(uint32_t pin) {
 
 void SerialBLEInterface::onConnect(NimBLEServer* server, ble_gap_conn_desc* desc) {
   BLE_DEBUG_PRINTLN("onConnect(), conn=%d", desc->conn_handle);
-  // A phone that only runs Bitchat never pairs, so a link counts for the companion app once it is encrypted.
+  // A phone that only runs Bitchat never pairs, so a link counts for the companion app once it is paired with
+  // the PIN (see onAuthenticationComplete).
   bitchat::bleConnect(desc->conn_handle);
 }
 
@@ -131,6 +132,8 @@ void SerialBLEInterface::onAuthenticationComplete(ble_gap_conn_desc* desc) {
     }
   } else {
     BLE_DEBUG_PRINTLN(" - Authentication Failure*");
+    // A bond made without the PIN is not kept: the store holds few, and would push out the app's.
+    if (desc->sec_state.encrypted) NimBLEDevice::deleteBond(NimBLEAddress(desc->peer_id_addr));
     pServer->disconnect(desc->conn_handle);
   }
 }

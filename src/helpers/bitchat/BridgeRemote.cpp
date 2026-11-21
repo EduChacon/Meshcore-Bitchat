@@ -317,7 +317,15 @@ bool BitchatBridge::frameReady(uint32_t now)
         return false;
     const uint32_t cost = host->airtimeMs(part->datagram.size);
     // A routine presence starts only with room for all its parts and the reserve (at slow settings, where that is
-    // more than the whole budget, with the budget full); once started, it goes on.
+    // more than the whole budget, with the budget full); once started, it goes on. One whose parts could not all
+    // cross within the 30 s the other bridge keeps the first, even from a full budget, never starts.
+    if (part->presence && part->index == 0 && cost * part->count > BRIDGE_BUDGET_MS + TUNNEL_FRAME_WAIT_MS / 12) {
+        const auto gone = *part;
+        for (uint8_t i = 0; i < gone.count && queue.front(); ++i)
+            queue.pop();
+        announceDone(gone.peer, false, true, now);
+        return false;
+    }
     const uint32_t start = std::min(cost * part->count + PRESENCE_RESERVE_MS, BRIDGE_BUDGET_MS);
     return cost <= tokens && !(part->presence && part->index == 0 && start > tokens);
 }
@@ -339,6 +347,11 @@ bool BitchatBridge::sendFrame()
     }
     tokens -= host->airtimeMs(part.datagram.size);
     queue.pop();
+    // The next part of the same frame waits from now: at slow settings it needs the budget to fill again, and the
+    // other bridge keeps the first part 30 s.
+    if (auto *next = queue.front())
+        if (next->index == part.index + 1 && next->count == part.count && next->peer == part.peer)
+            next->queuedAt = now;
     ++submittedRadio;
     ++tunnelSent;
     if (part.announce && part.index + 1 == part.count)

@@ -483,8 +483,8 @@ não passam.
 
 d) **Proteções:** no máximo seis celulares de fora (do túnel ou de pagamentos) ocupam lugar na lista
 da ponte, sem nunca tirar o lugar dos celulares da casa; um pacote que chega pelo LoRa em nome de um
-celular da casa é descartado; um celular que se anuncia pela própria conexão retoma o lugar que outro
-aparelho tomou com a identidade dele.
+celular da casa é descartado; outro aparelho não toma a identidade (e o nome) de um celular presente, e
+se a tomou antes de ele chegar, perde-a 3 minutos depois de parar de se anunciar.
 
 e) **Sem garantia de entrega:** o próprio Bitchat confirma as mensagens e reenvia o que não foi
 confirmado. Com o LoRa congestionado, ou com vários repetidores no caminho, abrir a conversa pode
