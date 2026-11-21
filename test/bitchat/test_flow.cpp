@@ -1122,7 +1122,7 @@ static std::vector<std::vector<uint8_t>> tunneled()
     return out;
 }
 
-static void tunnelChat(const Phone &ana, const Phone &bia, const PeerId &bridgeId)
+static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, const PeerId &bridgeId)
 {
     Phone rui("rui", 44);
     const auto radioBefore = mesh.radio.size();
@@ -1175,6 +1175,39 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const PeerId &bridgeI
         listed |= p.type == 1 && p.sender == rui.id;
     }
     CHECK(listed);
+
+    // With someone near the other bridge, presence goes every 50 s (the app forgets a relayed phone 60 s after its
+    // last announce), for the first two phones here by ID; the third keeps three minutes.
+    {
+        const auto presences = [&]() {
+            size_t count = 0;
+            for (const auto &frame : tunneled()) {
+                Packet p;
+                CHECK(decode({frame.data(), frame.size()}, p) == Result::Ok);
+                count += p.type == 1;
+            }
+            return count;
+        };
+        // Bia and Caio, here too, are announced once.
+        mesh.data.clear();
+        bia.write(bia.announce());
+        caio.write(caio.announce());
+        run(6000);
+        CHECK(presences() == 2);
+        run(30000);
+        mesh.data.clear();
+        ana.write(ana.announce());
+        run(1000);
+        CHECK(presences() == 0);
+        run(20000);
+        fromOtherBridge(rui.announce({}, 6).bytes());
+        run(200);
+        mesh.data.clear();
+        for (const auto *phone : {&ana, &bia, &caio})
+            phone->write(phone->announce());
+        run(6000);
+        CHECK(presences() == 2);
+    }
 
     // Ana opens a private chat with Rui: the handshake crosses both ways, and so do the messages; the bridges only
     // carry them.
@@ -1354,6 +1387,8 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const PeerId &bridgeI
         std::vector<uint8_t> extra{GATEWAY_TLV, uint8_t(GATEWAY_PROOF)};
         extra.insert(extra.end(), proof, proof + GATEWAY_PROOF);
         bia.write(other.announce({extra.data(), extra.size()}, 6));
+        // (Rui shows again: the crowd above took the places of the oldest phones from afar.)
+        fromOtherBridge(rui.announce({}, 6).bytes());
         run(300);
         CHECK(std::string(bridge->status()).rfind("Standby", 0) == 0);
         const std::string again = "\x01\x00\x04M-02\x01\x03Oi?";
@@ -1362,7 +1397,14 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const PeerId &bridgeI
         mesh.data.clear();
         ana.write(directedFrame(ana, rui.id, 0x11, {second.data(), second.size()}));
         run(3000);
-        CHECK(tunneled().size() == 1);
+        // Ana's private packet goes (after her announce, when that is due).
+        size_t privatePackets = 0;
+        for (const auto &frame : tunneled()) {
+            Packet p;
+            CHECK(decode({frame.data(), frame.size()}, p) == Result::Ok);
+            privatePackets += p.type == 0x11 && p.sender == ana.id && p.recipient == rui.id;
+        }
+        CHECK(privatePackets == 1);
         // The standby ends by itself.
         run(91000);
         CHECK(std::string(bridge->status()).rfind("Standby", 0) != 0);
@@ -2056,7 +2098,7 @@ int main()
         const auto battery = mesh.battery;
         privateChat(ana, bia, caio, bridgeId);
         directChat(ana, bia, bridgeId);
-        tunnelChat(ana, bia, bridgeId);
+        tunnelChat(ana, bia, caio, bridgeId);
         mesh.radio = before;
         mesh.battery = battery;
     }

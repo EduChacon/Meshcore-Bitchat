@@ -22,6 +22,7 @@ using namespace bitchat;
 static constexpr uint32_t FAST_PRESENCE_MS = 50000;
 static constexpr uint32_t ACTIVE_PARTNER_MS = 3UL * 60 * 1000;
 static constexpr size_t FAST_PHONES = 2;
+static constexpr uint32_t PRESENCE_RESERVE_MS = 4000;
 static constexpr uint32_t PRESENCE_MS = 3UL * 60 * 1000;
 static constexpr uint32_t PRESENCE_ALONE_MS = 30UL * 60 * 1000;
 static constexpr uint32_t PARTNER_MS = 30UL * 60 * 1000;
@@ -50,7 +51,7 @@ void BitchatBridge::tunnelOut(const Packet &packet, Peer &peer, Bytes relayed, u
             every = FAST_PRESENCE_MS;
         if (peer.tunneledAt && Throttle::isWithinTimespanMsAt(peer.tunneledAt, every, now))
             return;
-        if (queueFrame(relayed, now))
+        if (queueFrame(relayed, now, false, true))
             peer.tunneledAt = now ? now : 1;
         return;
     }
@@ -104,7 +105,7 @@ bool BitchatBridge::fastPresence(const Peer &peer, uint32_t now) const
     return before < FAST_PHONES;
 }
 
-bool BitchatBridge::queueFrame(Bytes frame, uint32_t now, bool urgent)
+bool BitchatBridge::queueFrame(Bytes frame, uint32_t now, bool urgent, bool presence)
 {
     Packet packet;
     if (decode(frame, packet) != Result::Ok)
@@ -119,7 +120,7 @@ bool BitchatBridge::queueFrame(Bytes frame, uint32_t now, bool urgent)
     if (!allocateBuffer(runtime->frames))
         return false;
     auto &frames = *runtime->frames;
-    auto &queue = urgent ? frames.urgent : frames.out;
+    auto &queue = urgent ? frames.urgent : presence ? frames.presence : frames.out;
     if (queue.size() + count > queue.capacity()) {
         reject(Result::Full);
         return false;
@@ -132,6 +133,7 @@ bool BitchatBridge::queueFrame(Bytes frame, uint32_t now, bool urgent)
         if (!makeTunnelFrame(id, natural, uint8_t(i), part.datagram))
             return false;
         part.queuedAt = now;
+        part.presence = presence;
         queue.push(part);
     }
     interval = 0;
@@ -143,7 +145,7 @@ bool BitchatBridge::sendFrame()
     auto &frames = *runtime->frames;
     const uint32_t now = millis();
     // Stale parts are of no use: the apps gave up the handshake or sent again. All of them go at once.
-    for (auto *queue : {&frames.urgent, &frames.out})
+    for (auto *queue : {&frames.urgent, &frames.out, &frames.presence})
         while (auto *part = queue->front()) {
             if (Throttle::isWithinTimespanMsAt(part->queuedAt, TUNNEL_FRAME_WAIT_MS, now) && textReady)
                 break;
@@ -151,12 +153,14 @@ bool BitchatBridge::sendFrame()
             reject(Result::Expired);
             ++lost;
         }
-    auto &queue = frames.urgent.size() ? frames.urgent : frames.out;
+    auto &queue = frames.urgent.size() ? frames.urgent : frames.out.size() ? frames.out : frames.presence;
     auto *part = queue.front();
     if (!part)
         return false;
     const uint32_t cost = host->airtimeMs(part->datagram.size);
-    if (cost > tokens)
+    // A routine presence keeps a reserve of the budget for the private chats, the handshake's three parts first;
+    // without room it waits, and is dropped after thirty seconds like any stale part.
+    if (cost > tokens || (part->presence && cost + PRESENCE_RESERVE_MS > tokens))
         return false;
     if (!host->sendChannelData(settings.channel, TUNNEL_DATA_TYPE, part->datagram.data.data(), part->datagram.size)) {
         reject(Result::Full);

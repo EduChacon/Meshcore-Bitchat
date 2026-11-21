@@ -4,7 +4,7 @@ Firmware _companion_ do MeshCore com uma ponte embutida para o aplicativo
 [Bitchat](https://github.com/permissionlesstech/bitchat). Um telefone com o Bitchat, perto do
 rádio, conversa com quem está na malha MeshCore, e o contrário, sem internet e sem servidor.
 
-**Estado na versão `bitchat1.1`.** Ensaiado em aparelho pelo autor: o texto público entre o
+**Estado na versão `bitchat1.2`.** Ensaiado em aparelho pelo autor: o texto público entre o
 Bitchat e o MeshCore (Heltec V3); a conversa privada com a ponte (Heltec V3 e T1000-E); o envio de
 `@contato` a um favorito do rádio; e o túnel entre um Heltec V3 e um T1000-E, com a conversa privada
 entre os dois celulares funcionando. Não há medições de alcance, consumo ou duração. O resto
@@ -454,13 +454,21 @@ a) **Criptografia de ponta a ponta:** as pontes só carregam os pacotes do Bitch
 criptografados pelos celulares. Nenhuma ponte lê a conversa.
 
 b) **O que vai pelo LoRa:** o anúncio de cada celular ligado diretamente à ponte (apelido e chaves
-públicas, legíveis por quem tem a chave do canal), a cada três minutos enquanto outra ponte com
-túnel tiver sido ouvida na última meia hora, ou a cada 30 minutos quando nenhuma foi ouvida; e os
-pacotes privados entre um celular daqui e um de lá, só do próprio celular, pelo enlace Bluetooth em
-que ele se apresentou. O texto público continua como antes.
+públicas, legíveis por quem tem a chave do canal) e os pacotes privados entre um celular daqui e um
+de lá, só do próprio celular, pelo enlace Bluetooth em que ele se apresentou. O texto público
+continua como antes. O anúncio, que mantém a pessoa na lista do Bitchat do outro lado, vai:
+
+- **a cada 50 segundos** enquanto houver celular perto das duas pontes (a outra mandou algo nos
+  últimos 3 minutos), para os dois primeiros celulares de cada ponte: o Bitchat tira da lista, 60
+  segundos depois, quem chega retransmitido, e não manda nada a quem não está na lista;
+- a cada 3 minutos para os demais celulares, ou quando a outra ponte foi ouvida na última meia hora;
+- a cada 30 minutos quando nenhuma outra ponte com túnel foi ouvida;
+- nunca, se não houver celular perto da ponte.
 
 c) **Custa tempo de rádio no canal**, que é compartilhado, mas só quando há celular por perto: sem
-celular, o túnel não transmite nada. A ponte reveza os pacotes do túnel com o texto público, para um
+celular, o túnel não transmite nada. No ritmo de 50 segundos, cada celular ocupa cerca de 5% do tempo
+do canal (estimativa, não medição), repetido por cada repetidor que encaminha. A ponte nunca passa
+de 10% do tempo de rádio, e o anúncio só sai quando sobra folga para as conversas. A ponte reveza os pacotes do túnel com o texto público, para um
 não segurar o outro. Pontes anteriores à `bitchat0.24` ignoram esses pacotes. Só texto: fotos e áudio
 não passam.
 

@@ -454,9 +454,12 @@ class BitchatBridge
             struct Part {
                 bitchat::TunnelDatagram datagram;
                 uint32_t queuedAt = 0;
+                // A phone's routine presence: it leaves room in the airtime budget for the chats themselves.
+                bool presence = false;
             };
-            // Handshake parts first: they must cross within seconds. Then announces and messages.
-            bitchat::BoundedQueue<Part, 6> urgent, out;
+            // Handshake parts first: they must cross within seconds. Then announces and messages; the phones'
+            // routine presence last.
+            bitchat::BoundedQueue<Part, 6> urgent, out, presence;
             bitchat::FrameReceiver in;
             uint32_t nextId = 0, heardAt = 0;
             // All the phones' private packets together.
@@ -585,7 +588,7 @@ class BitchatBridge
     void tunnelOut(const bitchat::Packet &packet, bitchat::Peer &peer, bitchat::Bytes relayed, uint16_t source, uint32_t now);
     void tunnelIn(bitchat::Bytes data, uint32_t now);
     bool fastPresence(const bitchat::Peer &peer, uint32_t now) const;
-    bool queueFrame(bitchat::Bytes frame, uint32_t now, bool urgent = false);
+    bool queueFrame(bitchat::Bytes frame, uint32_t now, bool urgent = false, bool presence = false);
     bool sendFrame();
     void expireHandshake(bitchat::PrivateSession &session, uint32_t now);
 };
