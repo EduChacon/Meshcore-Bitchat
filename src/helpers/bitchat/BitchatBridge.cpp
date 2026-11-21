@@ -508,8 +508,11 @@ bool BitchatBridge::setTunnel(bool value)
     if (!storageReady || storage.putBytes("tunnel", &stored, 1) != 1)
         return false;
     tunnelOn = value;
-    if (!value && runtime)
+    if (!value && runtime) {
         runtime->frames.reset();
+        // Nothing waits any more: no phone may stay marked as having an announce on its way.
+        clearAnnounceMarks();
+    }
     return true;
 }
 

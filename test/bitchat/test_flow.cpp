@@ -1127,7 +1127,7 @@ static void tunnelChat(const Phone &ana, const Phone &bia, const Phone &caio, co
 {
     Phone rui("rui", 44);
     const auto radioBefore = mesh.radio.size();
-    // Off by default: nothing goes, nothing comes.
+    // Turned off (it comes on by default): nothing goes, nothing comes.
     CHECK(!bridge->tunnel());
     mesh.data.clear();
     fakeSent.clear();

@@ -54,10 +54,10 @@ Bitchat enquanto as duas casas estão com ele aberto, e a conversa privada abre 
   nada vai.
 - **Custo:** cerca de 5% do tempo do canal por celular no ritmo rápido (estimativa), repetido por
   cada repetidor que encaminha. A presença tem a menor prioridade, só começa com folga para todos os
-  seus pedaços no limite de 10% de rádio da ponte, guardando reserva para as conversas e para a
+  seus pedaços no limite de rádio da ponte (10% em média), guardando reserva para as conversas e para a
   abertura delas, e não segura o texto público enquanto espera.
-- **Revisão independente** do código novo antes da publicação, com o que achou corrigido e coberto
-  por testes.
+- **Revisões independentes** do código novo antes da publicação; os problemas apontados foram
+  corrigidos e os principais ganharam testes.
 
 ## O que veio na `bitchat1.1`
 

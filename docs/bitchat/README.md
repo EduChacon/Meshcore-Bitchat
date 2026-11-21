@@ -7,7 +7,8 @@ rádio, conversa com quem está na malha MeshCore, e o contrário, sem internet 
 **Estado na versão `bitchat1.2`.** Ensaiado em aparelho pelo autor: o texto público entre o
 Bitchat e o MeshCore (Heltec V3); a conversa privada com a ponte (Heltec V3 e T1000-E); o envio de
 `@contato` a um favorito do rádio; e o túnel entre um Heltec V3 e um T1000-E, com a conversa privada
-entre os dois celulares funcionando. Não há medições de alcance, consumo ou duração. O resto
+entre os dois celulares funcionando (`bitchat1.0`). As mudanças do túnel na `bitchat1.2` (presença a
+cada 40 segundos) foram testadas só no computador. Não há medições de alcance, consumo ou duração. O resto
 (resposta pelo `@contato`, túnel com repetidores no caminho, pagamentos Cashu, hora pelo LoRa,
 histórico, funções da casa) e os demais aparelhos da [lista](DEVICES.md) foram testados no
 computador e compilados, sem ensaio em aparelho.
@@ -468,8 +469,8 @@ continua como antes. O anúncio, que mantém a pessoa na lista do Bitchat do out
 
 c) **Custa tempo de rádio no canal**, que é compartilhado, mas só quando há celular por perto: sem
 celular, o túnel não transmite nada. No ritmo de 40 segundos, cada celular ocupa cerca de 5% do tempo
-do canal (estimativa, não medição), repetido por cada repetidor que encaminha. A ponte nunca passa
-de 10% do tempo de rádio, e o anúncio só sai quando sobra folga para as conversas e para a abertura
+do canal (estimativa, não medição), repetido por cada repetidor que encaminha. Em média, a ponte não
+passa de 10% do tempo de rádio (pode usar mais por alguns segundos, quando estava parada), e o anúncio só sai quando sobra folga para as conversas e para a abertura
 delas. A ponte reveza os pacotes do túnel com o texto público, para um
 não segurar o outro. Pontes anteriores à `bitchat0.24` ignoram esses pacotes. Só texto: fotos e áudio
 não passam.
@@ -582,7 +583,7 @@ até cinco partes.
 c) Até três conexões Bluetooth ao mesmo tempo, somando o aplicativo MeshCore e os telefones
 Bitchat.
 
-d) A ponte se limita a 10% do tempo de transmissão, além dos limites do próprio MeshCore. Com o
+d) A ponte se limita, em média, a 10% do tempo de transmissão, além dos limites do próprio MeshCore. Com o
 rádio ocupado, o texto espera até dois minutos e depois é descartado e contado em `lost`.
 
 e) Duas pontes que se ouvem por Bluetooth e usam o mesmo canal: a de número maior fica em espera,

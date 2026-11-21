@@ -465,6 +465,15 @@ class BitchatBridge
             // Handshake parts first: they must cross within seconds. Then announces and messages; the phones'
             // routine presence last.
             bitchat::BoundedQueue<Part, 6> urgent, out, presence;
+            // The latest announce of the phones at the fast rhythm, as it goes over LoRa (a hop older), so the
+            // bridge sends it on its own clock: kept here, not among the few announces shared with payments.
+            struct Latest {
+                bitchat::PeerId peer{};
+                uint32_t at = 0;
+                uint16_t size = 0;
+                std::array<uint8_t, bitchat::TUNNEL_FRAME> frame{};
+            };
+            std::array<Latest, 2> latest{};
             bitchat::FrameReceiver in;
             uint32_t nextId = 0, heardAt = 0;
             // All the phones' private packets together.
@@ -597,7 +606,9 @@ class BitchatBridge
     bool partnerActive(uint32_t now) const;
     void tunnelPresence(uint32_t now);
     size_t fastSlots() const;
-    void announceDone(const bitchat::PeerId &id, bool sent, uint32_t now);
+    void announceDone(const bitchat::PeerId &id, bool sent, bool presence, uint32_t now);
+    void keepLatest(const bitchat::Peer &peer, bitchat::Bytes relayed, uint32_t now);
+    void clearAnnounceMarks();
     bool frameReady(uint32_t now);
     bool queueFrame(bitchat::Bytes frame, uint32_t now, bool urgent = false, bool presence = false);
     bool sendFrame();
