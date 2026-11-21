@@ -3249,18 +3249,35 @@ int main()
     // own. The real phone, announcing itself again over its own link, takes the place back, and its text goes
     // (before, the first one kept it and the real phone was refused).
     {
-        Phone eva("eva", 23, 23), squat("eva", 24, 24);
-        squat.noiseKey = eva.noiseKey;
-        squat.noisePublic = eva.noisePublic;
-        squat.id = eva.id;
+        Phone fia("fia", 25, 25), squat("fia", 24, 24);
+        squat.noiseKey = fia.noiseKey;
+        squat.noisePublic = fia.noisePublic;
+        squat.id = fia.id;
+        // (Places for Bluetooth links are few: Dora and Eva leave.)
+        bleDisconnect(19);
+        bleDisconnect(23);
+        fia.connect();
         run(30000);
+        // The other device announces Fia's ID first, over its own link.
         squat.write(squat.announce());
         run(400);
         const auto radioBefore = mesh.radio.size();
-        eva.write(eva.announce());
-        eva.write(eva.say("sou eu mesma"));
+        fia.write(fia.announce());
+        fia.write(fia.say("sou eu mesma"));
         run(3000);
         CHECK(mesh.radio.size() == radioBefore + 1 && mesh.radio.back().text.find("sou eu mesma") != std::string::npos);
+        // From LoRa, a phone heard here lately keeps its keys: a tunneled announce of Fia's ID is refused, and her
+        // next text goes without announcing again.
+        if (!bridge->tunnel()) {
+            CHECK(fromApp("!bridge tunnel on"));
+            run(100);
+        }
+        CHECK(bridge->tunnel());
+        fromOtherBridge(squat.announce({}, 6).bytes());
+        run(400);
+        fia.write(fia.say("ainda sou eu"));
+        run(3000);
+        CHECK(mesh.radio.size() == radioBefore + 2 && mesh.radio.back().text.find("ainda sou eu") != std::string::npos);
     }
     std::cout << "PASS: " << checks << " flow checks (host fakes, no hardware)\n";
     return 0;
