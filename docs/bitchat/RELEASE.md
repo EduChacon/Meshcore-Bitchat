@@ -10,7 +10,9 @@ mesmo (muda só o número da versão); quem já gravou a `bitchat1.2` não preci
   chip conectado e guarda antes uma cópia do rádio. Na primeira abertura, o Mac e o Windows avisam
   que o aplicativo não tem assinatura paga; o
   [guia](https://github.com/EduChacon/Meshcore-Bitchat/blob/main/docs/bitchat/README.md#pelo-gravador-mac-e-windows)
-  diz como abrir. Testado no computador com os arquivos reais da `bitchat1.2`; **não foi usado com um
+  diz como abrir. Testado no computador com os arquivos reais da `bitchat1.2` (12 verificações: nomes,
+  somas, chip de cada arquivo, pacote do país, passos do esptool), e cada aplicativo se conferiu ao ser
+  gerado no Windows e no Mac (janela montada, esptool e lista de aparelhos); **não foi usado com um
   rádio conectado.**
 
 O que segue é o que veio na `bitchat1.2`.
