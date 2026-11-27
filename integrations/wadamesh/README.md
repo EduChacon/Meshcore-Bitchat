@@ -30,6 +30,12 @@ para o Bitchat), no editor de conversa e no envio do terminal, do controle pela 
 e) `src/helpers/esp32/MultiTransportCompanionInterface.cpp`: a ponte solta o servidor Bluetooth antes
 de o WadaMesh desligar a pilha, e o MTU de 517 da ponte é mantido.
 
+e1) `src/helpers/esp32/MultiTransportCompanionInterface.h`: com a ponte, inclui `"SerialBLEInterface.h"`, o
+vizinho, que é o da ponte. Com `<helpers/esp32/SerialBLEInterface.h>`, o compilador acha antes o cabeçalho
+da biblioteca do núcleo, de outra classe: compila e liga sem aviso, mas `_ble` fica com o tamanho e os
+campos da classe do núcleo, e a primeira partida do Bluetooth trava o aparelho (bitchat1.2.1, T-Deck Plus).
+O `build_wadamesh.py` também põe um `#error` no cabeçalho do núcleo, para que isso não volte em silêncio.
+
 f) `src/main.cpp` também: 16 KB de pilha no ciclo principal com a ponte (o `SET_LOOP_TASK_STACK_SIZE`
 do WadaMesh decide a pilha; `ARDUINO_LOOP_STACK_SIZE` não teria efeito).
 

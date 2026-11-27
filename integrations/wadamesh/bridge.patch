@@ -202,6 +202,29 @@ index 0e9f030..3b07deb 100644
  #endif
      NimBLEDevice::deinit(true);
      _ble_begun = false;
+diff --git a/src/helpers/esp32/MultiTransportCompanionInterface.h b/src/helpers/esp32/MultiTransportCompanionInterface.h
+index fd39351..9f1c231 100644
+--- a/src/helpers/esp32/MultiTransportCompanionInterface.h
++++ b/src/helpers/esp32/MultiTransportCompanionInterface.h
+@@ -5,8 +5,18 @@
+ #include "TCPCompanionServer.h"
+ #include "WebSocketCompanionServer.h"
+ #ifdef BLE_PIN_CODE
++#ifdef WITH_BITCHAT_BRIDGE
++// MeshCore-Bitchat: the bridge's interface, in the header beside this one. The <...> form finds the core
++// library's header first, whose class has another layout: _ble was built 4308 bytes long while the bridge's
++// code took it as its own 1604-byte class, and the first Bluetooth start reset a queue that was never made.
++#include "SerialBLEInterface.h"
++#ifndef BITCHAT_SERIAL_BLE_INTERFACE
++#error "MultiTransportCompanionInterface needs the bridge's SerialBLEInterface in bridge builds"
++#endif
++#else
+ #include <helpers/esp32/SerialBLEInterface.h>
+ #endif
++#endif
+ 
+ #ifndef TCP_COMPANION_DEFAULT_PORT
+ #define TCP_COMPANION_DEFAULT_PORT  5000
 diff --git a/src/main.cpp b/src/main.cpp
 index f3d91ce..d647d85 100644
 --- a/src/main.cpp

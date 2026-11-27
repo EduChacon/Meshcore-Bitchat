@@ -1,6 +1,10 @@
 #pragma once
 #ifdef WITH_BITCHAT_BRIDGE
 
+// Firmware that has a SerialBLEInterface header of its own (WadaMesh's core library) checks for this: a file
+// compiled with that other class, whose layout differs, would build and link and then corrupt memory.
+#define BITCHAT_SERIAL_BLE_INTERFACE 1
+
 // Companion Bluetooth interface on the NimBLE stack. It replaces helpers/esp32/SerialBLEInterface in
 // bridge builds: the same Nordic UART service and PIN pairing for the MeshCore app, plus the open
 // Bitchat service on the same links.

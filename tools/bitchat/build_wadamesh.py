@@ -23,6 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 INTEGRATION = ROOT / "integrations/wadamesh"
 LIB_MARK = "# MeshCore-Bitchat: bridge builds bring their own companion Bluetooth"
+HEADER_MARK = "MeshCore-Bitchat: bridge builds use the bridge's SerialBLEInterface"
 
 
 def run(command, cwd, env=None):
@@ -75,6 +76,20 @@ if "WITH_BITCHAT_BRIDGE" in [d if isinstance(d, str) else d[0] for d in menv.get
 """
         script.write_text(text + addition)
         print("WadaMesh core: SerialBLEInterface.cpp left to the bridge")
+    # The core's header stays on the include path, ahead of WadaMesh's src/ for <...> includes. A file that
+    # reached it would build a SerialBLEInterface of another layout than the bridge's, which links without
+    # complaint and corrupts memory at the first Bluetooth start (the T-Deck boot loop of bitchat1.2.1).
+    header = core / "src/helpers/esp32/SerialBLEInterface.h"
+    text = header.read_text(encoding="utf-8")
+    if HEADER_MARK not in text:
+        guard = (
+            f"// {HEADER_MARK}\n"
+            "#ifdef WITH_BITCHAT_BRIDGE\n"
+            '#error "the core\'s SerialBLEInterface.h in a bridge build: include WadaMesh\'s, which is the bridge\'s"\n'
+            "#endif\n"
+        )
+        header.write_text(guard + text, encoding="utf-8")
+        print("WadaMesh core: its SerialBLEInterface.h refused in bridge builds")
     nimble = libdeps / "NimBLE-Arduino"
     runpy.run_path(str(ROOT / "tools/bitchat/patch_nimble.py"))["apply"](nimble)
     print("NimBLE 1.4.3: startup guard applied")
