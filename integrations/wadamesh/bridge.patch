@@ -1,5 +1,5 @@
 diff --git a/platformio.ini b/platformio.ini
-index 75e3d7e..cb064ad 100644
+index 8bc2b85..b462f5b 100644
 --- a/platformio.ini
 +++ b/platformio.ini
 @@ -711,6 +711,31 @@ lib_deps =
@@ -35,10 +35,10 @@ index 75e3d7e..cb064ad 100644
  ; LilyGo T-Deck Pro shared configuration. V1.0 and V1.1 have incompatible
  ; touch-reset/e-paper/frontlight wiring, so only the explicit revision envs
 diff --git a/src/MyMesh.cpp b/src/MyMesh.cpp
-index 7951872..cf0e165 100644
+index a983f0a..c520389 100644
 --- a/src/MyMesh.cpp
 +++ b/src/MyMesh.cpp
-@@ -3413,6 +3413,11 @@ void MyMesh::onMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t
+@@ -3472,6 +3472,11 @@ void MyMesh::onMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t
  #if defined(ESP32) && defined(MULTI_TRANSPORT_COMPANION)
    mqtt_bridge.publishDM(from.name, from.id.pub_key, pkt->getSNR(), pkt->path_len, sender_timestamp, text);
  #endif
@@ -50,7 +50,7 @@ index 7951872..cf0e165 100644
  }
  
  void MyMesh::onCommandDataRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
-@@ -3470,6 +3475,18 @@ int MyMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel dest[],
+@@ -3529,6 +3534,18 @@ int MyMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel dest[],
  
  void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                                    const char *text) {
@@ -66,10 +66,10 @@ index 7951872..cf0e165 100644
 +    bitchat_bridge.onChannelText(findChannelIdx(channel), pkt_hash, text, snr_tenths);
 +  }
 +#endif
-   // Clock bootstrap from a channel peer's send-time (same sane-window + unset-only guard
-   // as queueMessage above) so a Wi-Fi/GPS-off node can still get time off public channels.
-   if (timestamp > 1700000000UL && timestamp < 2000000000UL &&
-@@ -3556,6 +3573,10 @@ void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *
+   // No clock bootstrap from channel posts on ESP32 (#835): the sender is only a name in the
+   // text, so one node could pose as the two peers the quorum needs.
+ #if !defined(ESP32)
+@@ -3617,6 +3634,10 @@ void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *
                         (uint32_t)data_len, (uint32_t)MAX_CHANNEL_DATA_LENGTH);
      return;
    }
@@ -80,7 +80,7 @@ index 7951872..cf0e165 100644
  
    int i = 0;
    out_frame[i++] = RESP_CODE_CHANNEL_DATA_RECV;
-@@ -4587,6 +4608,10 @@ void MyMesh::handleCmdFrame(size_t len) {
+@@ -4695,6 +4716,10 @@ void MyMesh::handleCmdFrame(size_t len) {
  
      if (txt_type != TXT_TYPE_PLAIN) {
        writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
@@ -92,10 +92,10 @@ index 7951872..cf0e165 100644
        ChannelDetails channel;
        // getChannel() succeeds for ANY in-range index, including a slot that was
 diff --git a/src/MyMesh.h b/src/MyMesh.h
-index eaa9077..8b3e431 100644
+index f0c25e0..d04d937 100644
 --- a/src/MyMesh.h
 +++ b/src/MyMesh.h
-@@ -116,6 +116,9 @@
+@@ -117,6 +117,9 @@
  #include <helpers/BaseChatMesh.h>
  #include <helpers/TransportKeyStore.h>
  #include "RegionRegistry.h"
@@ -105,7 +105,7 @@ index eaa9077..8b3e431 100644
  
  /* -------------------------------------------------------------------------------------- */
  
-@@ -141,8 +144,41 @@ struct RecentlyHeardName {
+@@ -142,8 +145,41 @@ struct RecentlyHeardName {
    uint8_t type;
  };
  
@@ -149,7 +149,7 @@ index eaa9077..8b3e431 100644
  
    void begin(bool has_display);
 diff --git a/src/helpers/esp32/MultiTransportCompanionInterface.cpp b/src/helpers/esp32/MultiTransportCompanionInterface.cpp
-index 0e9f030..3b07deb 100644
+index def9e3e..e97f2b9 100644
 --- a/src/helpers/esp32/MultiTransportCompanionInterface.cpp
 +++ b/src/helpers/esp32/MultiTransportCompanionInterface.cpp
 @@ -9,6 +9,9 @@
@@ -226,10 +226,10 @@ index fd39351..9f1c231 100644
  #ifndef TCP_COMPANION_DEFAULT_PORT
  #define TCP_COMPANION_DEFAULT_PORT  5000
 diff --git a/src/main.cpp b/src/main.cpp
-index f3d91ce..d647d85 100644
+index 67f0771..0a1628b 100644
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -29,7 +29,11 @@ static SntpClockPush s_sntp_push;
+@@ -27,7 +27,11 @@ static SntpClockPush s_sntp_push;
  #include "ui-touch/device_caps.h"            // CAP_BLE_KEYBOARD: keyboard mode keeps the phone link paused from boot
  #endif
  
@@ -242,7 +242,7 @@ index f3d91ce..d647d85 100644
  // ThinkNode M9: nested LVGL + shared-SPI SD/FATFS + Lua frames exceed the 8 KB default.
  SET_LOOP_TASK_STACK_SIZE(12 * 1024);
  #elif defined(WADA_LVGL_O2)
-@@ -1790,6 +1794,9 @@ void setup() {
+@@ -1796,6 +1800,9 @@ void setup() {
    serial_interface.begin(Serial);
  #endif
    the_mesh.startInterface(serial_interface);
@@ -252,7 +252,7 @@ index f3d91ce..d647d85 100644
  #else
    #error "need to define filesystem"
  #endif
-@@ -2271,6 +2278,9 @@ void loop() {
+@@ -2327,6 +2334,9 @@ void loop() {
  #else
    the_mesh.loop();
  #endif
@@ -263,10 +263,10 @@ index f3d91ce..d647d85 100644
  #ifdef DISPLAY_CLASS
    STALL_SCOPE("mqtt", mqtt_bridge.loop());
 diff --git a/src/ui-touch/UITask.cpp b/src/ui-touch/UITask.cpp
-index 44cc3fc..48c64a1 100644
+index 8e05096..f9b1fb4 100644
 --- a/src/ui-touch/UITask.cpp
 +++ b/src/ui-touch/UITask.cpp
-@@ -27888,6 +27888,10 @@ static lv_obj_t* openFullscreenView(const char* title) {
+@@ -29216,6 +29216,10 @@ static lv_obj_t* openFullscreenView(const char* title) {
  // used to skip the scope, so a scoped channel went out on the default one (#614).
  static bool sendGroupMessageScoped(int slot, ChannelDetails& cd, uint32_t ts, const char* sender,
                                     const char* text) {
@@ -277,7 +277,7 @@ index 44cc3fc..48c64a1 100644
    char chan_rgn[TOUCH_REGION_SCOPE_MAXLEN] = {0};
    if (slot >= 0) touchPrefsGetChannelScope(slot, chan_rgn, sizeof(chan_rgn));
    const bool pushed = the_mesh.pushChannelScope(chan_rgn);
-@@ -80072,6 +80076,16 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
+@@ -83643,6 +83647,16 @@ bool UITask::sendComposerToActiveThread(const char* override_text) {
      }
      // Per-channel region-scope override: if this channel has one set, tag the
      // flood with it instead of the default scope (popped right after the send).

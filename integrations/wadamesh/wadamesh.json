@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/ALLFATHER-BV/wadamesh.git",
-  "commit": "3411a8fb3bad000f42ebf0e91f89c158875f57bd",
+  "commit": "90dc85966f146aa2fa8d2ca7f9ff02a3405aa6e8",
   "core": "https://github.com/ALLFATHER-BV/meshcomod.git#core-v1.18.0",
   "base_environment": "LilyGo_TDeck_companion_radio_touch",
   "environment": "LilyGo_TDeck_companion_radio_touch_bitchat",
