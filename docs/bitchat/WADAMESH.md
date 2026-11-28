@@ -5,8 +5,10 @@ T-Deck e o T-Deck Plus: mapa, conversas, contatos e canais na tela, com teclado 
 aplicativo MeshCore pelo Bluetooth. A partir da `bitchat0.23`, cada versão da ponte traz também o
 WadaMesh com a ponte Bitchat embutida.
 
-**Nada disso foi ligado em aparelho.** O arquivo compila, e a ponte é a mesma, já testada no
-computador, das outras versões; o encaixe no WadaMesh é novo.
+**Ainda não funcionou em aparelho.** Até a `bitchat1.2.1`, o arquivo reiniciava em ciclo no T-Deck
+Plus, na primeira partida do Bluetooth: uma parte do WadaMesh era montada com a peça de Bluetooth do
+núcleo, e não com a da ponte. A `bitchat1.2.2` corrige isso e passa ao WadaMesh `beta_109`; ela
+compila, mas não foi ligada em aparelho.
 
 ## O que funciona como nas outras pontes
 
@@ -33,8 +35,8 @@ c) **Bluetooth e Wi-Fi.** O WadaMesh desliga o Bluetooth em alguns momentos por 
 exemplo, ao reconectar o Wi-Fi ou ao atualizar pelo Wi-Fi). Enquanto o Bluetooth estiver
 desligado, a ponte fica parada e volta sozinha depois.
 
-d) **Espaço.** O firmware ocupa 95% do espaço reservado a ele, cerca de 76 KB a mais que o WadaMesh
-original.
+d) **Espaço.** O firmware ocupa 98,7% do espaço reservado a ele (WadaMesh `beta_109` com a ponte):
+sobram cerca de 53 KB.
 
 e) **Versão fixa do WadaMesh.** Cada versão da ponte usa um WadaMesh específico, anotado em
 `integrations/wadamesh/wadamesh.json`. Novidades do WadaMesh só chegam quando essa versão é

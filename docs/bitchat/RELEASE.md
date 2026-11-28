@@ -1,6 +1,22 @@
-# MeshCore + Bitchat v1.18.0-bitchat1.2.1
+# MeshCore + Bitchat v1.18.0-bitchat1.2.2
 
-**A `bitchat1.2.1` é a `bitchat1.2` com um gravador para Mac e Windows.** O firmware dos rádios é o
+**A `bitchat1.2.2` muda só o T-Deck com WadaMesh.** O firmware dos demais rádios é o mesmo da
+`bitchat1.2` (muda só o número da versão).
+
+- **T-Deck com WadaMesh e a ponte: corrige a partida em ciclo.** O
+  `LilyGo_TDeck_WadaMesh_bitchat-brasil` da `bitchat1.2.1` reiniciava sem parar num T-Deck Plus, na
+  primeira partida do Bluetooth. O erro foi encontrado pelo registro do travamento: uma parte do
+  WadaMesh era montada com a peça de Bluetooth do núcleo, e não com a da ponte, e a ponte usava uma
+  fila que nunca tinha sido criada. Agora as duas partes usam a da ponte, e a compilação para se isso
+  voltar a acontecer.
+- **WadaMesh `beta_109`,** a mais recente (de `beta_106`).
+- **Atualizar sem perder dados:** gravar só o `LilyGo_TDeck_WadaMesh_bitchat-brasil.bin` em `0x10000`
+  mantém identidade, contatos, canais e ajustes. O `-merged.bin` em `0x0` apaga tudo.
+- **Não foi ligado em aparelho.** Compila (98,7% do espaço do programa).
+
+## O que veio na `bitchat1.2.1`
+
+A `bitchat1.2.1` é a `bitchat1.2` com um gravador para Mac e Windows. O firmware dos rádios é o
 mesmo (muda só o número da versão); quem já gravou a `bitchat1.2` não precisa gravar de novo.
 
 - **Gravador:** `Gravador-Bitchat-Mac.zip` (Mac com chip Apple), `Gravador-Bitchat-Mac-Intel.zip`
